@@ -138,10 +138,10 @@ useEffect(() => {
       apiModule.setApiBaseUrl(lojaData.url);
       
       
-      console.log(
-        `API URL definida para a loja '${lojaSelecionada}':`,
-        lojaData.url
-      );
+      //console.log(
+        //`API URL definida para a loja '${lojaSelecionada}':`,
+        //lojaData.url
+      //);
     } else {
       console.warn(`URL da loja '${lojaSelecionada}' não encontrada.`);
     }
@@ -162,18 +162,18 @@ useEffect(() => {
         );
 
         const data = await res.json();
-        console.log("Resposta JSONBin:", data);
+        //console.log("Resposta JSONBin:", data);
 
         if (data.record && data.record.ngrok) {
           const url = data.record.ngrok;
           setApiUrl(url);
           setApiBaseUrl(url); // aplica no módulo api
-          console.log("✅ API Base URL definida:", url);
+          //console.log("✅ API Base URL definida:", url);
         } else {
-          console.warn("⚠️ O campo 'ngrok' não existe em data.record", data.record);
+          //console.warn("⚠️ O campo 'ngrok' não existe em data.record", data.record);
         }
       } catch (err) {
-        console.error("Erro a buscar API URL:", err);
+        //console.error("Erro a buscar API URL:", err);
       }
     }
 
@@ -191,17 +191,17 @@ useEffect(() => {
   try {
     const fornecedoresData = await apiModule.fetchFornecedores();
     setFornecedores(fornecedoresData);
-    console.log("Fornecedores:", fornecedoresData);
+    //console.log("Fornecedores:", fornecedoresData);
 
     const familiasData = await apiModule.fetchFamilias();
     setFamilias(familiasData);
-    console.log("Familias:", familiasData);
+    //console.log("Familias:", familiasData);
 
     const subfamiliasData = await apiModule.fetchSubfamilias();
     setSubfamilias(subfamiliasData);
-    console.log("Subfamilias:", subfamiliasData);
+    //console.log("Subfamilias:", subfamiliasData);
   } catch (err) {
-    console.error("Erro ao carregar dados da API:", err);
+    //.error("Erro ao carregar dados da API:", err);
   }
 };
 

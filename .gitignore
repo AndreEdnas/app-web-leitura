@@ -25,3 +25,6 @@ fetchNgrokUrl.js
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+/Credenciais-apagar_dps
+/bats

@@ -4,7 +4,6 @@ import Select from 'react-select';
 import { getApiBaseUrl } from "../services/api";
 
 const apiUrl = getApiBaseUrl();
-console.log("API Base URL:", apiUrl);
 
 
 export default function NovoProdutoModal({ onFechar, onConfirmar, fornecedores, familias, subfamilias }) {

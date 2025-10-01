@@ -51,7 +51,7 @@ Busco-os com dedicação,
 Para a app ganhar direção. */
 export async function fetchFornecedores() {
   const url = `${API_BASE}/fornecedores`;
-  console.log('Fetching:', url);
+  //console.log('Fetching:', url);
   const resObj = await logResponse(await fetch(url, {
     headers: NGROK_HEADERS
   }));
@@ -64,7 +64,7 @@ Busco-as com paciência,
 Pra dar ao código presença. */
 export async function fetchFamilias() {
   const url = `${API_BASE}/familias`;
-  console.log('Fetching:', url);
+  //console.log('Fetching:', url);
   const resObj = await logResponse(await fetch(url, {
     headers: NGROK_HEADERS
   }));
@@ -77,7 +77,7 @@ Busco dados para mostrar,
 E o sistema aprimorar. */
 export async function fetchSubfamilias() {
   const url = `${API_BASE}/subfamilias`;
-  console.log('Fetching:', url);
+  //console.log('Fetching:', url);
   const resObj = await logResponse(await fetch(url, {
     headers: NGROK_HEADERS
   }));
@@ -109,7 +109,7 @@ PATCH no coração,
 Pra manter a informação. */
 export async function atualizarStock(codbarras, quantidadeAdd) {
   const url = `${API_BASE}/produto/${codbarras}/stock`;
-  console.log('PATCH:', url, 'Body:', { quantidade: Number(quantidadeAdd) });
+  //console.log('PATCH:', url, 'Body:', { quantidade: Number(quantidadeAdd) });
   const resObj = await logResponse(await fetch(url, {
     method: 'PATCH',
     headers: {
@@ -127,7 +127,7 @@ PATCH para transmitir,
 Dados que vão fluir. */
 export async function atualizarPreco(codbarras, novoPreco) {
   const url = `${API_BASE}/produto/${codbarras}/preco`;
-  console.log('PATCH:', url, 'Body:', { preco: parseFloat(novoPreco) });
+  //console.log('PATCH:', url, 'Body:', { preco: parseFloat(novoPreco) });
   const resObj = await logResponse(await fetch(url, {
     method: 'PATCH',
     headers: {
@@ -145,7 +145,7 @@ PATCH para enviar,
 O sistema vai ajustar. */
 export async function atualizarPrecoCompra(codbarras, novoPrecoCompra) {
   const url = `${API_BASE}/produto/${codbarras}/precocompra`;
-  console.log('PATCH:', url, 'Body:', { preco: parseFloat(novoPrecoCompra) });
+  //console.log('PATCH:', url, 'Body:', { preco: parseFloat(novoPrecoCompra) });
   const resObj = await logResponse(await fetch(url, {
     method: 'PATCH',
     headers: {
@@ -163,7 +163,7 @@ PATCH para enviar,
 Dados para atualizar. */
 export async function atualizarMargemBruta(codbarras, novaMargem) {
   const url = `${API_BASE}/produto/${codbarras}/margembruta`;
-  console.log('PATCH:', url, 'Body:', { margembruta: parseFloat(novaMargem) });
+  //console.log('PATCH:', url, 'Body:', { margembruta: parseFloat(novaMargem) });
   const resObj = await logResponse(await fetch(url, {
     method: 'PATCH',
     headers: {
@@ -181,7 +181,7 @@ POST para gravar,
 Novo item a brilhar. */
 export async function criarProduto(produto) {
   const url = `${API_BASE}/produto`;
-  console.log('POST:', url, 'Body:', produto);
+  //console.log('POST:', url, 'Body:', produto);
   const resObj = await logResponse(await fetch(url, {
     method: 'POST',
     headers: {
