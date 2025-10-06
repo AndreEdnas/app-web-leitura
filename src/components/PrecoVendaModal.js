@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 export default function PrecoVendaModal({ produto, onFechar, onConfirmar }) {
   const [precoVenda, setPrecoVenda] = useState(produto.precovenda ?? 0);
 
-  // 🔁 Atualiza o valor sempre que o produto mudar
+  // 🔁 sempre que o produto mudar, atualiza o valor mostrado
   useEffect(() => {
     setPrecoVenda(produto.precovenda ?? 0);
   }, [produto]);
