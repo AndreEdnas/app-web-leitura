@@ -12,7 +12,7 @@ export default function FornecedorSelect({ fornecedores, fornecedorSelecionado, 
       >
         <option value="">-- Escolhe um fornecedor --</option>
         {fornecedores.map(f => (
-          <option key={f.id} value={f.id}>{f.nome}</option>
+          <option key={f.codigo} value={f.codigo}>{f.nome}</option>
         ))}
       </select>
     </div>
