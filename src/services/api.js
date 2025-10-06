@@ -90,20 +90,18 @@ Se não existir, erro com vigor,
 Se JSON chegar, é puro amor. */
 
 
-export async function fetchProdutoPorCodigo(codigo, fornecedorCodigo) {
+export async function fetchProdutoPorCodigo(codigo) {
   const baseUrl = getApiBaseUrl();
   if (!baseUrl) throw new Error("API_BASE ainda não foi definido!");
 
-  // envia fornecedor como query param
-  const url = `${baseUrl}/produto/${codigo}?fornecedor=${fornecedorCodigo}`;
-
-  const res = await fetch(url, {
+  const res = await fetch(`${baseUrl}/produto/${codigo}`, {
     headers: { "ngrok-skip-browser-warning": "true" },
   });
 
   if (!res.ok) throw new Error("Erro ao buscar produto");
   return res.json();
 }
+
 
 
 

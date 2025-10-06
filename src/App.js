@@ -245,10 +245,11 @@ useEffect(() => {
 
 async function onDetected(code) {
   setAlerta(null);
-  if (!fornecedorSelecionado) {
-    setAlerta({ tipo: 'erro', mensagem: 'Seleciona um fornecedor antes de ler produto.' });
-    return;
-  }
+  // if (!fornecedorSelecionado) {
+//   setAlerta({ tipo: 'erro', mensagem: 'Seleciona um fornecedor antes de ler produto.' });
+//   return;
+// }
+
   try {
     const dataProduto = await fetchProdutoPorCodigo(code, fornecedorSelecionado);
     if (produtos.find(p => p.codbarras === dataProduto.codbarras)) {
