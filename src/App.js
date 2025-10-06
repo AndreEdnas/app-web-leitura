@@ -548,16 +548,20 @@ export default function App() {
       {produtos.length > 0 ? (
         <>
           <ProdutoTable
-            produtos={produtos}
-            alteracoesPendentesStock={alteracoesPendentes.stock}
-            onAbrirStock={setProdutoParaStock}
-            onAbrirPrecoCompra={setProdutoParaPrecoCompra}
-            onAbrirMargem={setProdutoParaMargem}
-            onAbrirPrecoVenda={setProdutoParaPrecoVenda}
-            onPedirConfirmacaoApagar={pedirConfirmacaoApagar}
-            disabled={enviando}
-            setAlerta={setAlerta}
-          />
+  produtos={produtos}
+  alteracoesPendentesStock={alteracoesPendentes.stock}
+  onAbrirStock={setProdutoParaStock}
+  onAbrirPrecoCompra={setProdutoParaPrecoCompra}
+  onAbrirMargem={setProdutoParaMargem}
+  onAbrirPrecoVenda={(produto) => {
+    const produtoAtual = produtos.find(p => p.codbarras === produto.codbarras);
+    setProdutoParaPrecoVenda(produtoAtual || produto);
+  }}
+  onPedirConfirmacaoApagar={pedirConfirmacaoApagar}
+  disabled={enviando}
+  setAlerta={setAlerta}
+/>
+
 
 
           {(Object.keys(alteracoesPendentes.stock).length > 0 ||
