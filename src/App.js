@@ -539,8 +539,6 @@ export default function App() {
               Parar Scanner
             </button>
           )}
-
-         
         </>
       )}
 

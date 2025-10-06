@@ -1,8 +1,13 @@
 // src/components/PrecoVendaModal.js
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 export default function PrecoVendaModal({ produto, onFechar, onConfirmar }) {
   const [precoVenda, setPrecoVenda] = useState(produto.precovenda ?? 0);
+
+  // 🔄 Atualiza o preço se o produto mudar (por ex. margem/preço compra alterado)
+  useEffect(() => {
+    setPrecoVenda(produto.precovenda ?? 0);
+  }, [produto]);
 
   function handleSubmit(e) {
     e.preventDefault();
