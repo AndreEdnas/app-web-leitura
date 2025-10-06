@@ -4,9 +4,9 @@ import React, { useState, useEffect } from 'react';
 export default function PrecoVendaModal({ produto, onFechar, onConfirmar }) {
   const [precoVenda, setPrecoVenda] = useState(produto.precovenda ?? 0);
 
-  // 🔁 Mantém sincronizado sempre que o produto muda
+  // 🔁 Atualiza o valor sempre que o produto mudar
   useEffect(() => {
-    if (produto) setPrecoVenda(produto.precovenda ?? 0);
+    setPrecoVenda(produto.precovenda ?? 0);
   }, [produto]);
 
   function handleSubmit(e) {
@@ -19,8 +19,6 @@ export default function PrecoVendaModal({ produto, onFechar, onConfirmar }) {
     onConfirmar(produto.codbarras, novoPreco);
     onFechar();
   }
-
-  if (!produto) return null; // segurança extra
 
   return (
     <div
@@ -51,12 +49,8 @@ export default function PrecoVendaModal({ produto, onFechar, onConfirmar }) {
               />
             </div>
             <div className="modal-footer">
-              <button type="button" className="btn btn-secondary" onClick={onFechar}>
-                Cancelar
-              </button>
-              <button type="submit" className="btn btn-success">
-                Atualizar
-              </button>
+              <button type="button" className="btn btn-secondary" onClick={onFechar}>Cancelar</button>
+              <button type="submit" className="btn btn-success">Atualizar</button>
             </div>
           </form>
         </div>
