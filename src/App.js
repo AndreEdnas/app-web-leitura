@@ -316,10 +316,17 @@ export default function App() {
 
   function handleAtualizarPrecoCompraLocal(codbarras, novoPrecoCompra) {
     setProdutos(prev =>
-      prev.map(p =>
-        p.codbarras === codbarras ? { ...p, precocompra: novoPrecoCompra } : p
-      )
+      prev.map(p => {
+        if (p.codbarras === codbarras) {
+          const novoPrecoVenda = p.margembruta
+            ? (novoPrecoCompra * (1 + p.margembruta / 100)).toFixed(2)
+            : p.precovenda;
+          return { ...p, precocompra: novoPrecoCompra, precovenda: Number(novoPrecoVenda) };
+        }
+        return p;
+      })
     );
+
     setAlteracoesPendentes(prev => ({
       ...prev,
       precoCompra: {
@@ -331,12 +338,20 @@ export default function App() {
     setAlerta({ tipo: 'info', mensagem: 'Alteração de preço de compra guardada localmente' });
   }
 
+
   function handleAtualizarMargemLocal(codbarras, novaMargem) {
     setProdutos(prev =>
-      prev.map(p =>
-        p.codbarras === codbarras ? { ...p, margembruta: novaMargem } : p
-      )
+      prev.map(p => {
+        if (p.codbarras === codbarras) {
+          const novoPrecoVenda = p.precocompra
+            ? (p.precocompra * (1 + novaMargem / 100)).toFixed(2)
+            : p.precovenda;
+          return { ...p, margembruta: novaMargem, precovenda: Number(novoPrecoVenda) };
+        }
+        return p;
+      })
     );
+
     setAlteracoesPendentes(prev => ({
       ...prev,
       margem: {
@@ -347,6 +362,7 @@ export default function App() {
     setProdutoParaMargem(null);
     setAlerta({ tipo: 'info', mensagem: 'Alteração de margem bruta guardada localmente' });
   }
+
 
 
   function handleAtualizarPrecoVendaLocal(codbarras, novoPrecoVenda) {
@@ -547,20 +563,20 @@ export default function App() {
 
       {produtos.length > 0 ? (
         <>
-      <ProdutoTable
-  produtos={produtos}
-  alteracoesPendentesStock={alteracoesPendentes.stock}
-  onAbrirStock={setProdutoParaStock}
-  onAbrirPrecoCompra={setProdutoParaPrecoCompra}
-  onAbrirMargem={setProdutoParaMargem}
-  onAbrirPrecoVenda={(produto) => {
-    const produtoAtualizado = produtos.find(p => p.codbarras === produto.codbarras);
-    setProdutoParaPrecoVenda(produtoAtualizado || produto);
-  }}
-  onPedirConfirmacaoApagar={pedirConfirmacaoApagar}
-  disabled={enviando}
-  setAlerta={setAlerta}
-/>
+          <ProdutoTable
+            produtos={produtos}
+            alteracoesPendentesStock={alteracoesPendentes.stock}
+            onAbrirStock={setProdutoParaStock}
+            onAbrirPrecoCompra={setProdutoParaPrecoCompra}
+            onAbrirMargem={setProdutoParaMargem}
+            onAbrirPrecoVenda={(produto) => {
+              const produtoAtualizado = produtos.find(p => p.codbarras === produto.codbarras);
+              setProdutoParaPrecoVenda(produtoAtualizado || produto);
+            }}
+            onPedirConfirmacaoApagar={pedirConfirmacaoApagar}
+            disabled={enviando}
+            setAlerta={setAlerta}
+          />
 
 
 
