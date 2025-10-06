@@ -540,20 +540,11 @@ export default function App() {
             </button>
           )}
 
-          {!fornecedorSelecionado && (
-            <p className="text-muted fst-italic">
-              * Nenhum fornecedor selecionado — podes picar produtos à vontade, o fornecedor será escolhido no envio final.
-            </p>
-          )}
+         
         </>
       )}
 
 
-      {!fornecedorSelecionado && (
-        <p className="text-muted fst-italic">
-          * Nenhum fornecedor selecionado — podes picar produtos à vontade, o fornecedor será escolhido no envio final.
-        </p>
-      )}
 
 
       {produtos.length > 0 ? (
