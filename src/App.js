@@ -517,9 +517,9 @@ export default function App() {
       />
 
 
-      {fornecedorSelecionado && (
+      {/* Scanner visível sempre, mas apenas depois de escolher a loja */}
+      {apiUrl && (
         <>
-          {/* Scanner sempre visível, independentemente do fornecedor */}
           <Scanner scanning={scanning} setScanning={setScanning} onDetected={onDetected} />
 
           {!scanning ? (
@@ -547,6 +547,14 @@ export default function App() {
           )}
         </>
       )}
+
+
+      {!fornecedorSelecionado && (
+        <p className="text-muted fst-italic">
+          * Nenhum fornecedor selecionado — podes picar produtos à vontade, o fornecedor será escolhido no envio final.
+        </p>
+      )}
+
 
       {produtos.length > 0 ? (
         <>
