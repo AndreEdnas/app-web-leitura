@@ -1,10 +1,9 @@
-// src/components/PrecoVendaModal.js
 import React, { useState, useEffect } from 'react';
 
 export default function PrecoVendaModal({ produto, onFechar, onConfirmar }) {
   const [precoVenda, setPrecoVenda] = useState(produto.precovenda ?? 0);
 
-  // 🔁 sempre que o produto mudar, atualiza o valor mostrado
+  // 🔁 Atualiza o valor sempre que o produto mudar
   useEffect(() => {
     setPrecoVenda(produto.precovenda ?? 0);
   }, [produto]);
