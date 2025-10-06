@@ -4,10 +4,10 @@ import React, { useState, useEffect } from 'react';
 export default function PrecoVendaModal({ produto, onFechar, onConfirmar }) {
   const [precoVenda, setPrecoVenda] = useState(produto.precovenda ?? 0);
 
-  // 🔁 Mantém o preço sincronizado com o produto atual
+  // 🔁 Mantém sincronizado sempre que o produto muda
   useEffect(() => {
-    setPrecoVenda(produto.precovenda ?? 0);
-  }, [produto.precovenda, produto.codbarras]);
+    if (produto) setPrecoVenda(produto.precovenda ?? 0);
+  }, [produto]);
 
   function handleSubmit(e) {
     e.preventDefault();
@@ -19,6 +19,8 @@ export default function PrecoVendaModal({ produto, onFechar, onConfirmar }) {
     onConfirmar(produto.codbarras, novoPreco);
     onFechar();
   }
+
+  if (!produto) return null; // segurança extra
 
   return (
     <div
