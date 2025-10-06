@@ -547,15 +547,15 @@ export default function App() {
 
       {produtos.length > 0 ? (
         <>
-          <ProdutoTable
+      <ProdutoTable
   produtos={produtos}
   alteracoesPendentesStock={alteracoesPendentes.stock}
   onAbrirStock={setProdutoParaStock}
   onAbrirPrecoCompra={setProdutoParaPrecoCompra}
   onAbrirMargem={setProdutoParaMargem}
   onAbrirPrecoVenda={(produto) => {
-    const produtoAtual = produtos.find(p => p.codbarras === produto.codbarras);
-    setProdutoParaPrecoVenda(produtoAtual || produto);
+    const produtoAtualizado = produtos.find(p => p.codbarras === produto.codbarras);
+    setProdutoParaPrecoVenda(produtoAtualizado || produto);
   }}
   onPedirConfirmacaoApagar={pedirConfirmacaoApagar}
   disabled={enviando}
