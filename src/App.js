@@ -433,51 +433,37 @@ export default function App() {
   }
 
   async function enviarTodasAlteracoes() {
-  setEnviando(true);
-  setMostrarModalConfirmarEnvio(false);
+    setEnviando(true);
+    setMostrarModalConfirmarEnvio(false);
+    try {
+      for (const novoProd of alteracoesPendentes.criarProdutos) {
+        await criarProduto(novoProd);
+      }
 
-  try {
-    // 1️⃣ Escolher fornecedor e tipo de documento
-    const fornecedorId = fornecedorSelecionado || prompt("Insere o ID do fornecedor:");
-    const tipoDoc = prompt("Insere o tipo de documento (ex: DC, COMP, etc):");
+      for (const [codbarras, qtd] of Object.entries(alteracoesPendentes.stock)) {
+        await atualizarStock(codbarras, qtd);
+      }
 
-    if (!fornecedorId || !tipoDoc) {
-      throw new Error("Fornecedor ou tipo de documento não especificado");
+      for (const [codbarras, preco] of Object.entries(alteracoesPendentes.precoCompra)) {
+        await atualizarPrecoCompra(codbarras, preco);
+      }
+
+      for (const [codbarras, margem] of Object.entries(alteracoesPendentes.margem)) {
+        await atualizarMargemBruta(codbarras, margem);
+      }
+
+      setAlteracoesPendentes({ stock: {}, precoCompra: {}, margem: {}, criarProdutos: [] });
+      setProdutos([]);
+      window.localStorage.removeItem('produtos');
+      window.localStorage.removeItem('alteracoesPendentes');
+
+      setAlerta({ tipo: 'sucesso', mensagem: 'Todas as alterações foram enviadas com sucesso!' });
+    } catch (err) {
+      setAlerta({ tipo: 'erro', mensagem: 'Erro ao enviar alterações: ' + err.message });
+    } finally {
+      setEnviando(false);
     }
-
-    // 2️⃣ Preparar produtos com alterações de stock
-    const produtosCompra = produtos
-      .filter(p => alteracoesPendentes.stock[p.codbarras])
-      .map(p => ({
-        codigo: p.codigo,
-        descricao: p.descricao,
-        quantidade: alteracoesPendentes.stock[p.codbarras],
-        precoCompra: p.precocompra,
-        iva: p.iva || 23,
-      }));
-
-    if (produtosCompra.length === 0) {
-      throw new Error("Nenhum produto com stock para criar documento.");
-    }
-
-    // 3️⃣ Enviar para o backend
-    const resposta = await fetch(`${apiUrl}/criarDocumentoCompra`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fornecedorId, tipoDoc, produtos: produtosCompra }),
-    });
-
-    const data = await resposta.json();
-    if (!resposta.ok) throw new Error(data.error || "Erro ao criar documento de compra.");
-
-    setAlerta({ tipo: "sucesso", mensagem: data.mensagem });
-  } catch (err) {
-    setAlerta({ tipo: "erro", mensagem: err.message });
-  } finally {
-    setEnviando(false);
   }
-}
-
 
 
 
