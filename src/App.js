@@ -88,6 +88,8 @@ export default function App() {
   const [tokenLoja, setTokenLoja] = useState("");
   const [lojasJson, setLojasJson] = useState(null);
   const [lojaSelecionada, setLojaSelecionada] = useState(null);
+  // Tipo de documento selecionado (CFA ou CFS)
+  const [tipoDocSelecionado, setTipoDocSelecionado] = useState("CFA");
 
 
   useEffect(() => {
@@ -432,6 +434,58 @@ export default function App() {
     setMostrarModalConfirmarEnvio(false);
   }
 
+
+  async function handleCriarDocumentoCompra() {
+    try {
+      if (!fornecedorSelecionado) {
+        alert("Seleciona um fornecedor antes de criar o documento de compra.");
+        return;
+      }
+
+      if (!produtos.length) {
+        alert("Não há produtos para incluir no documento.");
+        return;
+      }
+
+      const produtosFormatados = produtos.map(p => ({
+        codigo: p.codigo,
+        descricao: p.descricao,
+        qtd: p.qtd || 1,
+        precoCompra: p.precocompra || 0,
+        iva: p.iva || 0
+      }));
+
+      const fornecedorNome =
+        fornecedores.find(f => f.codigo === fornecedorSelecionado)?.nome || "Fornecedor";
+
+      const body = {
+        fornecedorId: fornecedorSelecionado,
+        fornecedorNome,
+        tipoDoc: tipoDocSelecionado, // ✅ usa o tipo selecionado
+        produtos: produtosFormatados
+      };
+
+      const resp = await fetch(`${apiUrl}/criarDocumentoCompra`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
+
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || "Erro ao criar documento de compra.");
+
+      console.log("✅ Documento de compra criado:", data);
+      setAlerta({
+        tipo: "sucesso",
+        mensagem: `Documento ${tipoDocSelecionado} criado (${data.serie}/${data.numero})`
+      });
+    } catch (err) {
+      console.error("Erro ao criar documento:", err);
+      setAlerta({ tipo: "erro", mensagem: err.message });
+    }
+  }
+
+
   async function enviarTodasAlteracoes() {
     setEnviando(true);
     setMostrarModalConfirmarEnvio(false);
@@ -452,18 +506,23 @@ export default function App() {
         await atualizarMargemBruta(codbarras, margem);
       }
 
+      // 🧾 Criar automaticamente documento de compra
+      await handleCriarDocumentoCompra();
+
+      // ✅ Limpar dados locais
       setAlteracoesPendentes({ stock: {}, precoCompra: {}, margem: {}, criarProdutos: [] });
       setProdutos([]);
       window.localStorage.removeItem('produtos');
       window.localStorage.removeItem('alteracoesPendentes');
 
-      setAlerta({ tipo: 'sucesso', mensagem: 'Todas as alterações foram enviadas com sucesso!' });
+      setAlerta({ tipo: 'sucesso', mensagem: 'Alterações enviadas e documento criado com sucesso!' });
     } catch (err) {
       setAlerta({ tipo: 'erro', mensagem: 'Erro ao enviar alterações: ' + err.message });
     } finally {
       setEnviando(false);
     }
   }
+
 
 
 
@@ -531,6 +590,21 @@ export default function App() {
         }}
         disabled={enviando}
       />
+
+
+      <div className="mb-3">
+        <label className="form-label fw-bold me-2">Tipo de Documento:</label>
+        <select
+          className="form-select d-inline-block w-auto"
+          value={tipoDocSelecionado}
+          onChange={(e) => setTipoDocSelecionado(e.target.value)}
+          disabled={enviando}
+        >
+          <option value="CFA">CFA - Compra a Fornecedor</option>
+          <option value="CFS">CFS - Compra Fornecedor Serviços</option>
+        </select>
+      </div>
+
 
 
       {/* Scanner visível sempre, mas apenas depois de escolher a loja */}
