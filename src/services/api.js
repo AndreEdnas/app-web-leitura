@@ -194,16 +194,3 @@ export async function criarProduto(produto) {
   }));
   return checkJsonResponse(resObj);
 }
-
-
-async function carregarTiposDocumento() {
-  try {
-    const res = await fetch(`${apiUrl}/tiposdocumento`);
-    if (!res.ok) throw new Error(`Erro HTTP ${res.status}`);
-    const data = await res.json();
-    console.log("📄 Tipos de documento recebidos:", data);
-    setTiposDocumento(data);
-  } catch (err) {
-    console.error("Erro ao carregar tipos de documento:", err);
-  }
-}
