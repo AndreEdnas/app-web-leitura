@@ -101,7 +101,10 @@ export default function App() {
         });
 
         const data = await res.json();
-        setTiposDoc(data);
+        if (data.length > 0) {
+          setTiposDoc(data);
+          setTipoDocSelecionado(data[0]); // ← guarda o objeto inteiro, não só o doc
+        }
         if (data.length > 0) setTipoDocSelecionado(data[0].doc);
       } catch (err) {
         console.error("Erro ao buscar tipos de documento:", err);
@@ -507,9 +510,11 @@ export default function App() {
       const body = {
         fornecedorId: fornecedorSelecionado,
         fornecedorNome,
-        tipoDoc: tipoDocSelecionado, // ✅ usa o tipo selecionado
+        tipoDoc: tipoDocSelecionado.doc,   // ex: "CX"
+        serie: tipoDocSelecionado.serie,   // ex: "DIA"
         produtos: produtosFormatados
       };
+
 
       // 🧩 ADICIONA ESTE LOG AQUI:
       console.log("📦 ENVIANDO DOCUMENTO PARA O BACKEND:", body);
@@ -646,21 +651,19 @@ export default function App() {
       <div className="mb-3">
         <label className="form-label fw-bold me-2">Tipo de Documento:</label>
         <select
-          className="form-select d-inline-block w-auto"
-          value={tipoDocSelecionado}
-          onChange={(e) => setTipoDocSelecionado(e.target.value)}
-          disabled={enviando || tiposDoc.length === 0}
+          value={tipoDocSelecionado.doc}
+          onChange={(e) => {
+            const tipo = tiposDoc.find(t => t.doc === e.target.value);
+            setTipoDocSelecionado(tipo);
+          }}
         >
-          {tiposDoc.length === 0 ? (
-            <option value="">A carregar...</option>
-          ) : (
-            tiposDoc.map((t) => (
-              <option key={t.doc} value={t.doc}>
-                {t.doc} - Série {t.serie}
-              </option>
-            ))
-          )}
+          {tiposDoc.map(t => (
+            <option key={t.doc} value={t.doc}>
+              {t.doc} - Série {t.serie}
+            </option>
+          ))}
         </select>
+
       </div>
 
 
