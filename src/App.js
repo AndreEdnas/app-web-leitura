@@ -88,22 +88,24 @@ export default function App() {
   const [tokenLoja, setTokenLoja] = useState("");
   const [lojasJson, setLojasJson] = useState(null);
   const [lojaSelecionada, setLojaSelecionada] = useState(null);
+  // Tipo de documento selecionado (CFA ou CFS)
+  const [tipoDocSelecionado, setTipoDocSelecionado] = useState("CFA");
   const [tiposDoc, setTiposDoc] = useState([]);
 
   useEffect(() => {
     async function fetchTipos() {
+      if (!apiUrl) return;
       try {
         const res = await fetch(`${apiUrl}/tiposdocumento`);
         const data = await res.json();
         setTiposDoc(data);
+        if (data.length > 0) setTipoDocSelecionado(data[0].doc);
       } catch (err) {
         console.error("Erro ao buscar tipos de documento:", err);
       }
     }
-
-    if (apiUrl) fetchTipos();
+    fetchTipos();
   }, [apiUrl]);
-
 
 
   useEffect(() => {
@@ -644,16 +646,21 @@ export default function App() {
           className="form-select d-inline-block w-auto"
           value={tipoDocSelecionado}
           onChange={(e) => setTipoDocSelecionado(e.target.value)}
-          disabled={enviando}
+          disabled={enviando || tiposDoc.length === 0}
         >
-          {tiposDoc.map((t) => (
-            <option key={t.doc} value={t.doc}>
-              {t.doc} - Série {t.serie}
-            </option>
-          ))}
+          {tiposDoc.length === 0 ? (
+            <option value="">A carregar...</option>
+          ) : (
+            tiposDoc.map((t) => (
+              <option key={t.doc} value={t.doc}>
+                {t.doc} - Série {t.serie}
+              </option>
+            ))
+          )}
         </select>
-
       </div>
+
+
 
 
 
