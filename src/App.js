@@ -393,25 +393,39 @@ export default function App() {
 
 
  function handleCriarProdutoLocal(produto) {
+  // Fornecedor selecionado no topo da página
+  const fornecedorAtual = fornecedorSelecionado || "100";
+
+  // Preenche campos obrigatórios + assegura fornecedor atual
   const produtoComCampos = {
-    codigo: produto.codigo || Date.now(), // usa temporário se não tiver
-    descricao: produto.descricao || "Produto sem descrição",
-    precocompra: produto.precocompra || 0,
-    iva: produto.iva || 0,
-    qtd: 1,
-    ...produto
+    codigo: produto.codigo || Date.now(), // id temporário local
+    descricao: produto.descricao?.trim() || "Sem descrição",
+    codbarras: produto.codbarras?.trim() || String(Date.now()),
+    fornecedor: fornecedorAtual, // 🔹 sempre o fornecedor selecionado
+    familia: produto.familia || null,
+    subfam: produto.subfamilia?.value || produto.subfam || null,
+    precocompra: Number(produto.precocompra) || 0,
+    margembruta: Number(produto.margembruta) || 0,
+    iva: Number(produto.iva) || 0,
+    plu: produto.plu || null,
+    qtdstock: Number(produto.qtdstock) || 1,
   };
 
-  console.log("🆕 Produto criado localmente:", produtoComCampos);
+  console.log("🆕 Produto criado localmente (com fornecedor ativo):", produtoComCampos);
 
+  // Adiciona o produto à lista principal
   setProdutos(prev => [...prev, produtoComCampos]);
+
+  // Regista-o também em "criarProdutos" pendentes
   setAlteracoesPendentes(prev => ({
     ...prev,
     criarProdutos: [...prev.criarProdutos, produtoComCampos],
   }));
+
   setMostrarModalNovoProduto(false);
   setAlerta({ tipo: 'info', mensagem: 'Produto novo guardado localmente' });
 }
+
 
 
 
