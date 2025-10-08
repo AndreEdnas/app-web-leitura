@@ -88,8 +88,22 @@ export default function App() {
   const [tokenLoja, setTokenLoja] = useState("");
   const [lojasJson, setLojasJson] = useState(null);
   const [lojaSelecionada, setLojaSelecionada] = useState(null);
-  // Tipo de documento selecionado (CFA ou CFS)
-  const [tipoDocSelecionado, setTipoDocSelecionado] = useState("CFA");
+  const [tiposDoc, setTiposDoc] = useState([]);
+
+  useEffect(() => {
+    async function fetchTipos() {
+      try {
+        const res = await fetch(`${apiUrl}/tiposdocumento`);
+        const data = await res.json();
+        setTiposDoc(data);
+      } catch (err) {
+        console.error("Erro ao buscar tipos de documento:", err);
+      }
+    }
+
+    if (apiUrl) fetchTipos();
+  }, [apiUrl]);
+
 
 
   useEffect(() => {
@@ -392,39 +406,39 @@ export default function App() {
   }
 
 
- function handleCriarProdutoLocal(produto) {
-  // Fornecedor selecionado no topo da página
-  const fornecedorAtual = fornecedorSelecionado || "100";
+  function handleCriarProdutoLocal(produto) {
+    // Fornecedor selecionado no topo da página
+    const fornecedorAtual = fornecedorSelecionado || "100";
 
-  // Preenche campos obrigatórios + assegura fornecedor atual
-  const produtoComCampos = {
-    codigo: produto.codigo || Date.now(), // id temporário local
-    descricao: produto.descricao?.trim() || "Sem descrição",
-    codbarras: produto.codbarras?.trim() || String(Date.now()),
-    fornecedor: fornecedorAtual, // 🔹 sempre o fornecedor selecionado
-    familia: produto.familia || null,
-    subfam: produto.subfamilia?.value || produto.subfam || null,
-    precocompra: Number(produto.precocompra) || 0,
-    margembruta: Number(produto.margembruta) || 0,
-    iva: Number(produto.iva) || 0,
-    plu: produto.plu || null,
-    qtdstock: Number(produto.qtdstock) || 1,
-  };
+    // Preenche campos obrigatórios + assegura fornecedor atual
+    const produtoComCampos = {
+      codigo: produto.codigo || Date.now(), // id temporário local
+      descricao: produto.descricao?.trim() || "Sem descrição",
+      codbarras: produto.codbarras?.trim() || String(Date.now()),
+      fornecedor: fornecedorAtual, // 🔹 sempre o fornecedor selecionado
+      familia: produto.familia || null,
+      subfam: produto.subfamilia?.value || produto.subfam || null,
+      precocompra: Number(produto.precocompra) || 0,
+      margembruta: Number(produto.margembruta) || 0,
+      iva: Number(produto.iva) || 0,
+      plu: produto.plu || null,
+      qtdstock: Number(produto.qtdstock) || 1,
+    };
 
-  console.log("🆕 Produto criado localmente (com fornecedor ativo):", produtoComCampos);
+    console.log("🆕 Produto criado localmente (com fornecedor ativo):", produtoComCampos);
 
-  // Adiciona o produto à lista principal
-  setProdutos(prev => [...prev, produtoComCampos]);
+    // Adiciona o produto à lista principal
+    setProdutos(prev => [...prev, produtoComCampos]);
 
-  // Regista-o também em "criarProdutos" pendentes
-  setAlteracoesPendentes(prev => ({
-    ...prev,
-    criarProdutos: [...prev.criarProdutos, produtoComCampos],
-  }));
+    // Regista-o também em "criarProdutos" pendentes
+    setAlteracoesPendentes(prev => ({
+      ...prev,
+      criarProdutos: [...prev.criarProdutos, produtoComCampos],
+    }));
 
-  setMostrarModalNovoProduto(false);
-  setAlerta({ tipo: 'info', mensagem: 'Produto novo guardado localmente' });
-}
+    setMostrarModalNovoProduto(false);
+    setAlerta({ tipo: 'info', mensagem: 'Produto novo guardado localmente' });
+  }
 
 
 
@@ -463,57 +477,57 @@ export default function App() {
 
 
   async function handleCriarDocumentoCompra() {
-  try {
-    if (!fornecedorSelecionado) {
-      alert("Seleciona um fornecedor antes de criar o documento de compra.");
-      return;
+    try {
+      if (!fornecedorSelecionado) {
+        alert("Seleciona um fornecedor antes de criar o documento de compra.");
+        return;
+      }
+
+      if (!produtos.length) {
+        alert("Não há produtos para incluir no documento.");
+        return;
+      }
+
+      const produtosFormatados = produtos.map(p => ({
+        codigo: p.codigo,
+        descricao: p.descricao,
+        qtd: p.qtd || 1,
+        precoCompra: p.precocompra || 0,
+        iva: p.iva || 0
+      }));
+
+      const fornecedorNome =
+        fornecedores.find(f => f.codigo === fornecedorSelecionado)?.nome || "Fornecedor";
+
+      const body = {
+        fornecedorId: fornecedorSelecionado,
+        fornecedorNome,
+        tipoDoc: tipoDocSelecionado, // ✅ usa o tipo selecionado
+        produtos: produtosFormatados
+      };
+
+      // 🧩 ADICIONA ESTE LOG AQUI:
+      console.log("📦 ENVIANDO DOCUMENTO PARA O BACKEND:", body);
+
+      const resp = await fetch(`${apiUrl}/criarDocumentoCompra`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
+
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || "Erro ao criar documento de compra.");
+
+      console.log("✅ Documento de compra criado:", data);
+      setAlerta({
+        tipo: "sucesso",
+        mensagem: `Documento ${tipoDocSelecionado} criado (${data.serie}/${data.numero})`
+      });
+    } catch (err) {
+      console.error("Erro ao criar documento:", err);
+      setAlerta({ tipo: "erro", mensagem: err.message });
     }
-
-    if (!produtos.length) {
-      alert("Não há produtos para incluir no documento.");
-      return;
-    }
-
-    const produtosFormatados = produtos.map(p => ({
-      codigo: p.codigo,
-      descricao: p.descricao,
-      qtd: p.qtd || 1,
-      precoCompra: p.precocompra || 0,
-      iva: p.iva || 0
-    }));
-
-    const fornecedorNome =
-      fornecedores.find(f => f.codigo === fornecedorSelecionado)?.nome || "Fornecedor";
-
-    const body = {
-      fornecedorId: fornecedorSelecionado,
-      fornecedorNome,
-      tipoDoc: tipoDocSelecionado, // ✅ usa o tipo selecionado
-      produtos: produtosFormatados
-    };
-
-    // 🧩 ADICIONA ESTE LOG AQUI:
-    console.log("📦 ENVIANDO DOCUMENTO PARA O BACKEND:", body);
-
-    const resp = await fetch(`${apiUrl}/criarDocumentoCompra`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body)
-    });
-
-    const data = await resp.json();
-    if (!resp.ok) throw new Error(data.error || "Erro ao criar documento de compra.");
-
-    console.log("✅ Documento de compra criado:", data);
-    setAlerta({
-      tipo: "sucesso",
-      mensagem: `Documento ${tipoDocSelecionado} criado (${data.serie}/${data.numero})`
-    });
-  } catch (err) {
-    console.error("Erro ao criar documento:", err);
-    setAlerta({ tipo: "erro", mensagem: err.message });
   }
-}
 
 
   async function enviarTodasAlteracoes() {
@@ -632,9 +646,13 @@ export default function App() {
           onChange={(e) => setTipoDocSelecionado(e.target.value)}
           disabled={enviando}
         >
-          <option value="CFA">CFA - Compra a Fornecedor</option>
-          <option value="CFS">CFS - Compra Fornecedor Serviços</option>
+          {tiposDoc.map((t) => (
+            <option key={t.doc} value={t.doc}>
+              {t.doc} - Série {t.serie}
+            </option>
+          ))}
         </select>
+
       </div>
 
 
