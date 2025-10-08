@@ -392,15 +392,28 @@ export default function App() {
   }
 
 
-  function handleCriarProdutoLocal(produto) {
-    setProdutos(prev => [...prev, produto]);
-    setAlteracoesPendentes(prev => ({
-      ...prev,
-      criarProdutos: [...prev.criarProdutos, produto],
-    }));
-    setMostrarModalNovoProduto(false);
-    setAlerta({ tipo: 'info', mensagem: 'Produto novo guardado localmente' });
-  }
+ function handleCriarProdutoLocal(produto) {
+  const produtoComCampos = {
+    codigo: produto.codigo || Date.now(), // usa temporário se não tiver
+    descricao: produto.descricao || "Produto sem descrição",
+    precocompra: produto.precocompra || 0,
+    iva: produto.iva || 0,
+    qtd: 1,
+    ...produto
+  };
+
+  console.log("🆕 Produto criado localmente:", produtoComCampos);
+
+  setProdutos(prev => [...prev, produtoComCampos]);
+  setAlteracoesPendentes(prev => ({
+    ...prev,
+    criarProdutos: [...prev.criarProdutos, produtoComCampos],
+  }));
+  setMostrarModalNovoProduto(false);
+  setAlerta({ tipo: 'info', mensagem: 'Produto novo guardado localmente' });
+}
+
+
 
   function handleApagarProduto(codbarras) {
     setProdutos(prev => prev.filter(p => p.codbarras !== codbarras));
@@ -436,60 +449,65 @@ export default function App() {
 
 
   async function handleCriarDocumentoCompra() {
-    try {
-      if (!fornecedorSelecionado) {
-        alert("Seleciona um fornecedor antes de criar o documento de compra.");
-        return;
-      }
-
-      if (!produtos.length) {
-        alert("Não há produtos para incluir no documento.");
-        return;
-      }
-
-      const produtosFormatados = produtos.map(p => ({
-        codigo: p.codigo,
-        descricao: p.descricao,
-        qtd: p.qtd || 1,
-        precoCompra: p.precocompra || 0,
-        iva: p.iva || 0
-      }));
-
-      const fornecedorNome =
-        fornecedores.find(f => f.codigo === fornecedorSelecionado)?.nome || "Fornecedor";
-
-      const body = {
-        fornecedorId: fornecedorSelecionado,
-        fornecedorNome,
-        tipoDoc: tipoDocSelecionado, // ✅ usa o tipo selecionado
-        produtos: produtosFormatados
-      };
-
-      const resp = await fetch(`${apiUrl}/criarDocumentoCompra`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body)
-      });
-
-      const data = await resp.json();
-      if (!resp.ok) throw new Error(data.error || "Erro ao criar documento de compra.");
-
-      console.log("✅ Documento de compra criado:", data);
-      setAlerta({
-        tipo: "sucesso",
-        mensagem: `Documento ${tipoDocSelecionado} criado (${data.serie}/${data.numero})`
-      });
-    } catch (err) {
-      console.error("Erro ao criar documento:", err);
-      setAlerta({ tipo: "erro", mensagem: err.message });
+  try {
+    if (!fornecedorSelecionado) {
+      alert("Seleciona um fornecedor antes de criar o documento de compra.");
+      return;
     }
+
+    if (!produtos.length) {
+      alert("Não há produtos para incluir no documento.");
+      return;
+    }
+
+    const produtosFormatados = produtos.map(p => ({
+      codigo: p.codigo,
+      descricao: p.descricao,
+      qtd: p.qtd || 1,
+      precoCompra: p.precocompra || 0,
+      iva: p.iva || 0
+    }));
+
+    const fornecedorNome =
+      fornecedores.find(f => f.codigo === fornecedorSelecionado)?.nome || "Fornecedor";
+
+    const body = {
+      fornecedorId: fornecedorSelecionado,
+      fornecedorNome,
+      tipoDoc: tipoDocSelecionado, // ✅ usa o tipo selecionado
+      produtos: produtosFormatados
+    };
+
+    // 🧩 ADICIONA ESTE LOG AQUI:
+    console.log("📦 ENVIANDO DOCUMENTO PARA O BACKEND:", body);
+
+    const resp = await fetch(`${apiUrl}/criarDocumentoCompra`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || "Erro ao criar documento de compra.");
+
+    console.log("✅ Documento de compra criado:", data);
+    setAlerta({
+      tipo: "sucesso",
+      mensagem: `Documento ${tipoDocSelecionado} criado (${data.serie}/${data.numero})`
+    });
+  } catch (err) {
+    console.error("Erro ao criar documento:", err);
+    setAlerta({ tipo: "erro", mensagem: err.message });
   }
+}
 
 
   async function enviarTodasAlteracoes() {
     setEnviando(true);
     setMostrarModalConfirmarEnvio(false);
     try {
+
+      console.log("📤 ENVIANDO TODAS AS ALTERAÇÕES:", alteracoesPendentes);
       for (const novoProd of alteracoesPendentes.criarProdutos) {
         await criarProduto(novoProd);
       }
