@@ -89,7 +89,8 @@ export default function App() {
   const [lojasJson, setLojasJson] = useState(null);
   const [lojaSelecionada, setLojaSelecionada] = useState(null);
   // Tipo de documento selecionado (CFA ou CFS)
-  const [tipoDocSelecionado, setTipoDocSelecionado] = useState("CFA");
+  const [tipoDocSelecionado, setTipoDocSelecionado] = useState(null);
+
   const [tiposDoc, setTiposDoc] = useState([]);
 
   useEffect(() => {
@@ -103,15 +104,15 @@ export default function App() {
         const data = await res.json();
         if (data.length > 0) {
           setTiposDoc(data);
-          setTipoDocSelecionado(data[0]); // ← guarda o objeto inteiro, não só o doc
+          // não define automaticamente o tipo selecionado
         }
-        if (data.length > 0) setTipoDocSelecionado(data[0].doc);
       } catch (err) {
         console.error("Erro ao buscar tipos de documento:", err);
       }
     }
     fetchTipos();
   }, [apiUrl]);
+
 
 
   useEffect(() => {
@@ -485,6 +486,11 @@ export default function App() {
 
 
   async function handleCriarDocumentoCompra() {
+
+    if (!tipoDocSelecionado) {
+      alert("Escolhe um tipo de documento antes de criar o documento de compra.");
+      return;
+    }
     try {
       if (!fornecedorSelecionado) {
         alert("Seleciona um fornecedor antes de criar o documento de compra.");
@@ -653,23 +659,27 @@ export default function App() {
       />
 
 
+
+
       <div className="mb-3">
         <label className="form-label fw-bold me-2">Tipo de Documento:</label>
         <select
-          value={tipoDocSelecionado.doc}
+          className="form-select w-auto d-inline-block"
+          value={tipoDocSelecionado?.doc || ""}
           onChange={(e) => {
             const tipo = tiposDoc.find(t => t.doc === e.target.value);
-            setTipoDocSelecionado(tipo);
+            setTipoDocSelecionado(tipo || null);
           }}
         >
+          <option value="">-- Escolher tipo de documento --</option>
           {tiposDoc.map(t => (
             <option key={t.doc} value={t.doc}>
               {t.doc} - Série {t.serie}
             </option>
           ))}
         </select>
-
       </div>
+
 
 
 
