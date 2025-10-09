@@ -496,13 +496,18 @@ export default function App() {
         return;
       }
 
-      const produtosFormatados = produtos.map(p => ({
-        codigo: p.codigo,
-        descricao: p.descricao,
-        qtd: p.qtd || 1,
-        precoCompra: p.precocompra || 0,
-        iva: p.iva || 0
-      }));
+     const produtosFormatados = produtos.map(p => ({
+  codigo: p.codigo,
+  codbarras: p.codbarras,   // 🔹 adiciona isto
+  descricao: p.descricao,
+  qtd: p.qtd || 1,
+  precoCompra: p.precocompra || 0,
+  iva: p.iva || 0,
+  margembruta: p.margembruta || 0,
+  familia: p.familia,
+  subfam: p.subfam
+}));
+
 
       const fornecedorNome =
         fornecedores.find(f => f.codigo === fornecedorSelecionado)?.nome || "Fornecedor";
