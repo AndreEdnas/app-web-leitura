@@ -504,15 +504,16 @@ export default function App() {
 
       const produtosFormatados = produtos.map(p => ({
         codigo: p.codigo,
-        codbarras: p.codbarras,   // 🔹 adiciona isto
+        codbarras: p.codbarras,
         descricao: p.descricao,
-        qtd: p.qtd || 1,
+        qtd: alteracoesPendentes.stock[p.codbarras] || p.qtd || 1,
         precoCompra: p.precocompra || 0,
         iva: p.iva || 0,
         margembruta: p.margembruta || 0,
         familia: p.familia,
         subfam: p.subfam
       }));
+
 
 
       const fornecedorNome =
