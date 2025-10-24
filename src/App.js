@@ -552,43 +552,130 @@ export default function App() {
   }
 
 
-  async function enviarTodasAlteracoes() {
+  async function enviarTodasAlteracoes(criarDocumento = false) {
     setEnviando(true);
     setMostrarModalConfirmarEnvio(false);
-    try {
 
+    try {
       console.log("📤 ENVIANDO TODAS AS ALTERAÇÕES:", alteracoesPendentes);
+
+      // Criar produtos novos
       for (const novoProd of alteracoesPendentes.criarProdutos) {
         await criarProduto(novoProd);
       }
 
+      // Atualizar stock
       for (const [codbarras, qtd] of Object.entries(alteracoesPendentes.stock)) {
         await atualizarStock(codbarras, qtd);
       }
 
+      // Atualizar preços de compra
       for (const [codbarras, preco] of Object.entries(alteracoesPendentes.precoCompra)) {
         await atualizarPrecoCompra(codbarras, preco);
       }
 
+      // Atualizar margens
       for (const [codbarras, margem] of Object.entries(alteracoesPendentes.margem)) {
         await atualizarMargemBruta(codbarras, margem);
       }
 
-      // 🧾 Criar automaticamente documento de compra
-      await handleCriarDocumentoCompra();
+      // Criar documento apenas se o utilizador quiser
+      if (criarDocumento) {
+        await handleCriarDocumentoCompra();
+        setAlerta({
+          tipo: "sucesso",
+          mensagem: "Alterações enviadas e documento de compra criado com sucesso!"
+        });
+      } else {
+        setAlerta({
+          tipo: "sucesso",
+          mensagem: "Alterações enviadas com sucesso (sem criar documento)."
+        });
+      }
 
-      // ✅ Limpar dados locais
+      // Limpar dados locais
       setAlteracoesPendentes({ stock: {}, precoCompra: {}, margem: {}, criarProdutos: [] });
       setProdutos([]);
-      window.localStorage.removeItem('produtos');
-      window.localStorage.removeItem('alteracoesPendentes');
+      window.localStorage.removeItem("produtos");
+      window.localStorage.removeItem("alteracoesPendentes");
 
-      setAlerta({ tipo: 'sucesso', mensagem: 'Alterações enviadas e documento criado com sucesso!' });
     } catch (err) {
-      setAlerta({ tipo: 'erro', mensagem: 'Erro ao enviar alterações: ' + err.message });
+      setAlerta({ tipo: "erro", mensagem: "Erro ao enviar alterações: " + err.message });
     } finally {
       setEnviando(false);
     }
+  }
+
+
+
+
+
+  {
+    mostrarModalConfirmarEnvio && (
+      <div
+        className="modal fade show d-block"
+        tabIndex="-1"
+        role="dialog"
+        style={{ backgroundColor: "rgba(0, 0, 0, 0.5)" }}
+      >
+        <div className="modal-dialog modal-dialog-centered" role="document">
+          <div className="modal-content shadow-lg">
+            <div className="modal-header bg-primary text-white">
+              <h5 className="modal-title">
+                <i className="bi bi-cloud-upload me-2"></i>Enviar Alterações
+              </h5>
+              <button
+                type="button"
+                className="btn-close"
+                onClick={fecharModalConfirmarEnvio}
+              ></button>
+            </div>
+            <div className="modal-body text-center">
+              <p className="fw-bold">
+                O que deseja fazer com as alterações guardadas?
+              </p>
+              <p className="text-muted mb-0">
+                Escolha se quer apenas enviá-las para a base de dados ou também
+                criar um documento de compra.
+              </p>
+            </div>
+            <div className="modal-footer d-flex flex-column gap-2">
+              <button
+                className="btn btn-success w-100"
+                onClick={() => {
+                  fecharModalConfirmarEnvio();
+                  enviarTodasAlteracoes(false); // apenas envia
+                }}
+                disabled={enviando}
+              >
+                <i className="bi bi-check2-circle me-2"></i>
+                Só enviar alterações
+              </button>
+
+              <button
+                className="btn btn-primary w-100"
+                onClick={() => {
+                  fecharModalConfirmarEnvio();
+                  enviarTodasAlteracoes(true); // envia + cria documento
+                }}
+                disabled={enviando}
+              >
+                <i className="bi bi-receipt-cutoff me-2"></i>
+                Enviar e criar documento de compra
+              </button>
+
+              <button
+                className="btn btn-secondary w-100"
+                onClick={fecharModalConfirmarEnvio}
+              >
+                <i className="bi bi-x-circle me-2"></i>
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
   }
 
 
