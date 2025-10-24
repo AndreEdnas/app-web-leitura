@@ -19,13 +19,6 @@ export default function ConfirmarEnviarModal({ show, onClose, onConfirmar, disab
             <button type="button" className="btn-close" onClick={onClose}></button>
           </div>
 
-          <div className="modal-body text-center">
-            <p className="fw-bold">O que deseja fazer com as alterações guardadas?</p>
-            <p className="text-muted mb-0">
-              Escolha se quer apenas enviá-las para a base de dados ou também criar um documento de compra.
-            </p>
-          </div>
-
           <div className="modal-footer d-flex flex-column gap-2">
             <button
               className="btn btn-success w-100"
