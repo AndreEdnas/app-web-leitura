@@ -552,64 +552,44 @@ export default function App() {
   }
 
 
-  async function enviarTodasAlteracoes(criarDocumento = false) {
+  async function enviarTodasAlteracoes() {
     setEnviando(true);
     setMostrarModalConfirmarEnvio(false);
-
     try {
-      console.log("📤 ENVIANDO TODAS AS ALTERAÇÕES:", alteracoesPendentes);
 
-      // Criar produtos novos
+      console.log("📤 ENVIANDO TODAS AS ALTERAÇÕES:", alteracoesPendentes);
       for (const novoProd of alteracoesPendentes.criarProdutos) {
         await criarProduto(novoProd);
       }
 
-      // Atualizar stock
       for (const [codbarras, qtd] of Object.entries(alteracoesPendentes.stock)) {
         await atualizarStock(codbarras, qtd);
       }
 
-      // Atualizar preços de compra
       for (const [codbarras, preco] of Object.entries(alteracoesPendentes.precoCompra)) {
         await atualizarPrecoCompra(codbarras, preco);
       }
 
-      // Atualizar margens
       for (const [codbarras, margem] of Object.entries(alteracoesPendentes.margem)) {
         await atualizarMargemBruta(codbarras, margem);
       }
 
-      // Criar documento apenas se o utilizador quiser
-      if (criarDocumento) {
-        await handleCriarDocumentoCompra();
-        setAlerta({
-          tipo: "sucesso",
-          mensagem: "Alterações enviadas e documento de compra criado com sucesso!"
-        });
-      } else {
-        setAlerta({
-          tipo: "sucesso",
-          mensagem: "Alterações enviadas com sucesso (sem criar documento)."
-        });
-      }
+      // 🧾 Criar automaticamente documento de compra
+      await handleCriarDocumentoCompra();
 
-      // Limpar dados locais
+      // ✅ Limpar dados locais
       setAlteracoesPendentes({ stock: {}, precoCompra: {}, margem: {}, criarProdutos: [] });
       setProdutos([]);
-      window.localStorage.removeItem("produtos");
-      window.localStorage.removeItem("alteracoesPendentes");
+      window.localStorage.removeItem('produtos');
+      window.localStorage.removeItem('alteracoesPendentes');
 
+      setAlerta({ tipo: 'sucesso', mensagem: 'Alterações enviadas e documento criado com sucesso!' });
     } catch (err) {
-      setAlerta({ tipo: "erro", mensagem: "Erro ao enviar alterações: " + err.message });
+      setAlerta({ tipo: 'erro', mensagem: 'Erro ao enviar alterações: ' + err.message });
     } finally {
       setEnviando(false);
     }
   }
-
-
-
-
-
 
 
 
