@@ -11,6 +11,7 @@ import {
   atualizarStock,
   atualizarPrecoCompra,
   atualizarMargemBruta,
+  atualizarPrecoVenda,
 } from './services/api';
 import StockModal from './components/StockModal';
 import PrecoCompraModal from './components/PrecoCompraModal';
