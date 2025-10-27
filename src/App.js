@@ -340,72 +340,73 @@ export default function App() {
 
 
   function handleAtualizarPrecoCompraLocal(codbarras, novoPrecoCompra) {
-  setProdutos(prev =>
-    prev.map(p => {
-      if (p.codbarras === codbarras) {
-        return recalcularProduto(p, 'precocompra', novoPrecoCompra);
-      }
-      return p;
-    })
-  );
+    setProdutos(prev =>
+      prev.map(p => {
+        if (p.codbarras === codbarras) {
+          return recalcularProduto(p, 'precocompra', novoPrecoCompra);
+        }
+        return p;
+      })
+    );
 
-  setAlteracoesPendentes(prev => ({
-    ...prev,
-    precoCompra: {
-      ...prev.precoCompra,
-      [codbarras]: novoPrecoCompra,
-    },
-  }));
+    setAlteracoesPendentes(prev => ({
+      ...prev,
+      precoCompra: {
+        ...prev.precoCompra,
+        [codbarras]: novoPrecoCompra,
+      },
+    }));
 
-  setProdutoParaPrecoCompra(null);
-  setAlerta({ tipo: 'info', mensagem: 'Preço de compra atualizado' });
-}
+    setProdutoParaPrecoCompra(null);
+    setAlerta({ tipo: 'info', mensagem: 'Preço de compra atualizado' });
+  }
 
 
 
   function handleAtualizarMargemLocal(codbarras, novaMargem) {
-  setProdutos(prev =>
-    prev.map(p => {
-      if (p.codbarras === codbarras) {
-        return recalcularProduto(p, 'margembruta', novaMargem);
-      }
-      return p;
-    })
-  );
+    setProdutos(prev =>
+      prev.map(p => {
+        if (p.codbarras === codbarras) {
+          return recalcularProduto(p, 'margembruta', novaMargem);
+        }
+        return p;
+      })
+    );
 
-  setAlteracoesPendentes(prev => ({
-    ...prev,
-    margem: {
-      ...prev.margem,
-      [codbarras]: novaMargem,
-    },
-  }));
+    setAlteracoesPendentes(prev => ({
+      ...prev,
+      margem: {
+        ...prev.margem,
+        [codbarras]: novaMargem,
+      },
+    }));
 
-  setProdutoParaMargem(null);
-  setAlerta({ tipo: 'info', mensagem: 'Margem atualizada' });
-}
+    setProdutoParaMargem(null);
+    setAlerta({ tipo: 'info', mensagem: 'Margem atualizada' });
+  }
 
 
 
 
   function handleAtualizarPrecoVendaLocal(codbarras, novoPrecoVenda) {
-  setProdutos(prev =>
-    prev.map(p => {
-      if (p.codbarras === codbarras) {
-        return recalcularProduto(p, 'precovenda', novoPrecoVenda);
-      }
-      return p;
-    })
-  );
+    setProdutos(prev =>
+      prev.map(p => {
+        if (p.codbarras === codbarras) {
+          return recalcularProduto(p, 'precovenda', novoPrecoVenda);
+        }
+        return p;
+      })
+    );
 
-  setAlteracoesPendentes(prev => ({
-    ...prev,
-    margem: {
-      ...prev.margem,
-      [codbarras]: novoPrecoVenda,
-    },
-  }));
-}
+    setAlteracoesPendentes(prev => ({
+      ...prev,
+      precoVenda: {
+        ...prev.precoVenda,
+        [codbarras]: novoPrecoVenda,
+      },
+    }));
+
+  }
 
 
 
@@ -566,6 +567,10 @@ export default function App() {
 
       for (const [codbarras, margem] of Object.entries(alteracoesPendentes.margem)) {
         await atualizarMargemBruta(codbarras, margem);
+      }
+
+      for (const [codbarras, preco] of Object.entries(alteracoesPendentes.precoVenda || {})) {
+        await atualizarPrecoVenda(codbarras, preco);
       }
 
       // 🧾 Criar automaticamente documento de compra

@@ -23,8 +23,8 @@ export default function ProdutoTable({
             <th style={{ minWidth: '150px', textAlign: 'center' }}>Margem Bruta (%)</th>
             <th style={{ minWidth: '120px', textAlign: 'center' }}>Qtd. Stock</th>
             <th style={{ minWidth: '120px', textAlign: 'center' }}>Preço Compra</th>
-            <th style={{ minWidth: '120px', textAlign: 'center' }}>Preço Venda</th>
-            <th style={{ minWidth: '120px', textAlign: 'center' }}>Preço Venda</th>
+            <th style={{ minWidth: '120px', textAlign: 'center' }}>Preço Venda s/IVA</th>
+            <th style={{ minWidth: '120px', textAlign: 'center' }}>Preço Venda c/IVA</th>
             <th style={{ minWidth: '80px', textAlign: 'center' }}>Apagar</th>
           </tr>
         </thead>

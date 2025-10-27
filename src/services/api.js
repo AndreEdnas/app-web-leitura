@@ -194,3 +194,21 @@ export async function criarProduto(produto) {
   }));
   return checkJsonResponse(resObj);
 }
+
+
+/* Preço de venda a ajustar,
+Com IVA a calcular,
+PATCH para atualizar,
+Lucro a confirmar. */
+export async function atualizarPrecoVenda(codbarras, novoPrecoVenda) {
+  const url = `${API_BASE}/produto/${codbarras}/preco`;
+  const resObj = await logResponse(await fetch(url, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      ...NGROK_HEADERS
+    },
+    body: JSON.stringify({ preco: parseFloat(novoPrecoVenda) }),
+  }));
+  return checkJsonResponse(resObj);
+}
