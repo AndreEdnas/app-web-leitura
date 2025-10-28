@@ -9,7 +9,7 @@ export default function FornecedorSelect({ fornecedores, fornecedorSelecionado, 
       <select
         id="fornecedorSelect"
         className="form-select"
-        value={fornecedorSelecionado || ""}  {/* ← força reset visual */}
+        value={fornecedorSelecionado || ""}
         onChange={e => setFornecedorSelecionado(e.target.value || "")}
       >
         <option value="">-- Escolhe um fornecedor --</option>
