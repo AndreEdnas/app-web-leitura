@@ -1,17 +1,19 @@
 import React, { useState, useEffect } from "react";
+import "bootstrap/dist/css/bootstrap.min.css";
+import "bootstrap-icons/font/bootstrap-icons.css";
 
 export default function LoginPage({ apiUrl, onLoginSuccess }) {
   const [empregados, setEmpregados] = useState([]);
-  const [nome, setNome] = useState("");
-  const [password, setPassword] = useState("");
+  const [empregadoSelecionado, setEmpregadoSelecionado] = useState(null);
+  const [pin, setPin] = useState("");
   const [erro, setErro] = useState("");
 
-  // 🔹 Carregar lista de empregados ativos
+  // 🔹 Buscar empregados ao backend
   useEffect(() => {
     async function fetchEmpregados() {
       try {
         const res = await fetch(`${apiUrl}/empregados`, {
-          headers: { "ngrok-skip-browser-warning": "true" }
+          headers: { "ngrok-skip-browser-warning": "true" },
         });
         const data = await res.json();
         setEmpregados(data);
@@ -22,75 +24,112 @@ export default function LoginPage({ apiUrl, onLoginSuccess }) {
     fetchEmpregados();
   }, [apiUrl]);
 
-  async function handleLogin(e) {
-    e.preventDefault();
-    setErro("");
-
+  // 🔹 Função login
+  async function fazerLogin() {
+    if (!empregadoSelecionado || !pin) return;
     try {
-      const resp = await fetch(`${apiUrl}/login`, {
+      const res = await fetch(`${apiUrl}/login`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "ngrok-skip-browser-warning": "true"
-        },
-        body: JSON.stringify({ nome, password })
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ codigo: empregadoSelecionado.codigo, pin }),
       });
 
-      const data = await resp.json();
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "PIN incorreto");
 
-      if (!resp.ok) throw new Error(data.error || "Erro ao fazer login.");
-
-      localStorage.setItem("empregado", JSON.stringify(data.user));
-      onLoginSuccess(data.user);
+      localStorage.setItem("empregado", JSON.stringify(data));
+      onLoginSuccess(data);
     } catch (err) {
-      setErro(err.message);
+      setErro("⚠️ PIN incorreto. Tente novamente.");
+      setPin("");
     }
   }
 
+  // 🔹 Teclado
+  const adicionarNumero = (num) => setPin((prev) => (prev + num).slice(0, 6));
+  const apagarUltimo = () => setPin((prev) => prev.slice(0, -1));
+  const limparTudo = () => setPin("");
+
   return (
-    <div className="d-flex justify-content-center align-items-center vh-100 bg-light">
-      <form
-        className="bg-white p-4 rounded shadow"
-        style={{ width: 350 }}
-        onSubmit={handleLogin}
-      >
-        <h4 className="text-center text-primary mb-4">Login de Empregado</h4>
+    <div className="d-flex flex-column align-items-center justify-content-center vh-100 bg-warning bg-gradient">
+      <div className="bg-white rounded-4 shadow p-4" style={{ width: 360 }}>
+        <h4 className="text-center mb-3 fw-bold text-primary">Controlo de Operador</h4>
 
-        <div className="mb-3 text-start">
-          <label className="form-label fw-bold">Nome</label>
-          <select
-            className="form-select"
-            value={nome}
-            onChange={(e) => setNome(e.target.value)}
-          >
-            <option value="">-- Escolher Empregado --</option>
-            {empregados.map((e, i) => (
-              <option key={i} value={e.nome}>
-                {e.nome}
-              </option>
+        {/* Lista de empregados */}
+        {!empregadoSelecionado ? (
+          <div className="d-flex flex-wrap justify-content-center gap-3">
+            {empregados.map((emp) => (
+              <div
+                key={emp.codigo}
+                onClick={() => setEmpregadoSelecionado(emp)}
+                className="d-flex flex-column align-items-center p-2 border rounded-3 shadow-sm bg-light"
+                style={{ width: 100, cursor: "pointer" }}
+              >
+                <i className="bi bi-person-circle fs-1 text-secondary"></i>
+                <small className="mt-1 fw-semibold text-dark">{emp.nome}</small>
+              </div>
             ))}
-          </select>
-        </div>
+          </div>
+        ) : (
+          <>
+            {/* Empregado selecionado */}
+            <div className="text-center mb-3">
+              <i className="bi bi-person-circle fs-1 text-primary"></i>
+              <h5 className="fw-bold mt-2">{empregadoSelecionado.nome}</h5>
+            </div>
 
-        <div className="mb-3 text-start">
-          <label className="form-label fw-bold">Password</label>
-          <input
-            type="password"
-            className="form-control"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
-        </div>
+            {/* Campo PIN */}
+            <input
+              type="password"
+              className="form-control text-center mb-3 fs-5"
+              placeholder="••••"
+              value={pin}
+              readOnly
+            />
 
-        {erro && (
-          <div className="alert alert-danger py-2">{erro}</div>
+            {/* Teclado numérico */}
+            <div className="d-grid" style={{ gridTemplateColumns: "repeat(3, 1fr)", gap: "10px" }}>
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
+                <button
+                  key={n}
+                  className="btn btn-outline-dark fs-4"
+                  onClick={() => adicionarNumero(n)}
+                >
+                  {n}
+                </button>
+              ))}
+              <button className="btn btn-outline-secondary fs-4" onClick={limparTudo}>
+                C
+              </button>
+              <button className="btn btn-outline-dark fs-4" onClick={() => adicionarNumero(0)}>
+                0
+              </button>
+              <button className="btn btn-outline-secondary fs-4" onClick={apagarUltimo}>
+                Del
+              </button>
+            </div>
+
+            {/* Botões OK / Cancelar */}
+            <div className="d-flex justify-content-around mt-4">
+              <button className="btn btn-success btn-lg px-4" onClick={fazerLogin}>
+                <i className="bi bi-check-lg"></i>
+              </button>
+              <button
+                className="btn btn-danger btn-lg px-4"
+                onClick={() => {
+                  setEmpregadoSelecionado(null);
+                  setPin("");
+                  setErro("");
+                }}
+              >
+                <i className="bi bi-x-lg"></i>
+              </button>
+            </div>
+
+            {erro && <div className="text-danger text-center mt-3">{erro}</div>}
+          </>
         )}
-
-        <button type="submit" className="btn btn-primary w-100">
-          Entrar
-        </button>
-      </form>
+      </div>
     </div>
   );
 }
