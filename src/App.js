@@ -26,7 +26,7 @@ import 'bootstrap/dist/css/bootstrap.min.css';
 import 'bootstrap-icons/font/bootstrap-icons.css';
 import { setApiBaseUrl, fetchFornecedores, fetchFamilias, fetchSubfamilias } from "./services/api";
 import * as apiModule from "./services/api";
-import LoginPage from './pages/LoginPage';
+import LoginPage from './components/LoginPage';
 
 
 function useStickyState(defaultValue, key) {
