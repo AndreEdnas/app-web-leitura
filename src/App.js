@@ -760,44 +760,72 @@ export default function App() {
     return (
       <div className="bg-light min-vh-100 d-flex flex-column">
         {/* 🔹 Barra superior */}
-        <nav className="navbar navbar-dark bg-primary shadow-sm">
-          <div className="container-fluid d-flex justify-content-between align-items-center">
-            <div className="text-white">
+        <nav className="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
+          <div className="container-fluid">
+            {/* 🔹 Nome da loja e utilizador */}
+            <div className="d-flex flex-column text-white">
               <h5 className="fw-bold mb-0">{lojaSelecionada?.toUpperCase() || "Loja não definida"}</h5>
               <small>{empregado?.nome || "Empregado"}</small>
             </div>
 
-            <div className="d-flex gap-2">
-              <button
-                className="btn btn-outline-light btn-sm"
-                onClick={() => {
-                  localStorage.removeItem("tokenLoja");
-                  localStorage.removeItem("lojaSelecionada");
-                  setMostrarModalToken(true);
-                  setLojaSelecionada(null);
-                  setTokenLoja("");
-                }}
-              >
-                <i className="bi bi-arrow-repeat me-1"></i> Trocar Loja
-              </button>
+            {/* 🔹 Botão hamburguer (só aparece em ecrãs pequenos) */}
+            <button
+              className="navbar-toggler"
+              type="button"
+              data-bs-toggle="collapse"
+              data-bs-target="#navbarConteudo"
+              aria-controls="navbarConteudo"
+              aria-expanded="false"
+              aria-label="Alternar navegação"
+            >
+              <span className="navbar-toggler-icon"></span>
+            </button>
 
-              <button
-                className="btn btn-danger btn-sm"
-                onClick={() => {
-                  localStorage.removeItem("empregado");
-                  setEmpregado(null);
-                }}
-              >
-                <i className="bi bi-box-arrow-right me-1"></i> Terminar Sessão
-              </button>
+            {/* 🔹 Área colapsável (hamburguer) */}
+            <div className="collapse navbar-collapse justify-content-end" id="navbarConteudo">
+              <ul className="navbar-nav mb-2 mb-lg-0 d-flex align-items-center gap-2">
+
+                <li className="nav-item">
+                  <button
+                    className="btn btn-outline-light btn-sm"
+                    onClick={() => setPaginaAtual("menu")}
+                  >
+                    <i className="bi bi-house-door me-1"></i> Menu
+                  </button>
+                </li>
+
+                <li className="nav-item">
+                  <button
+                    className="btn btn-outline-light btn-sm"
+                    onClick={() => {
+                      localStorage.removeItem("tokenLoja");
+                      localStorage.removeItem("lojaSelecionada");
+                      setMostrarModalToken(true);
+                      setLojaSelecionada(null);
+                      setTokenLoja("");
+                    }}
+                  >
+                    <i className="bi bi-arrow-repeat me-1"></i> Trocar Loja
+                  </button>
+                </li>
+
+                <li className="nav-item">
+                  <button
+                    className="btn btn-danger btn-sm"
+                    onClick={() => {
+                      localStorage.removeItem("empregado");
+                      setEmpregado(null);
+                    }}
+                  >
+                    <i className="bi bi-box-arrow-right me-1"></i> Terminar
+                  </button>
+                </li>
+
+              </ul>
             </div>
           </div>
-
-          <button className="btn btn-outline-light btn-sm" onClick={() => setPaginaAtual("menu")}>
-            ⬅️ Voltar ao Menu
-          </button>
-
         </nav>
+
 
         {/* 🔸 Conteúdo principal */}
         <div className="container my-4 p-4 bg-white rounded shadow text-center flex-grow-1">
