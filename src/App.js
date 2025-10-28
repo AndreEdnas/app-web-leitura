@@ -811,19 +811,17 @@ export default function App() {
           <div className="row justify-content-center text-center g-3">
             {/* Fornecedor */}
             <div className="col-12 col-md-5">
-              <label className="form-label fw-bold d-block mb-1">
-                Seleciona o Fornecedor:
-              </label>
-              <FornecedorSelect
-                fornecedores={fornecedores}
-                fornecedorSelecionado={fornecedorSelecionado}
-                setFornecedorSelecionado={(value) => {
-                  setFornecedorSelecionado(value);
-                  setAlerta(null);
-                }}
-                disabled={enviando}
-              />
-            </div>
+  <FornecedorSelect
+    fornecedores={fornecedores}
+    fornecedorSelecionado={fornecedorSelecionado}
+    setFornecedorSelecionado={(value) => {
+      setFornecedorSelecionado(value);
+      setAlerta(null);
+    }}
+    disabled={enviando}
+  />
+</div>
+
 
             {/* Tipo de Documento */}
             <div className="col-12 col-md-5">
