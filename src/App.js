@@ -1030,5 +1030,173 @@ export default function App() {
 
 
     </div>
-  );
+  );return (
+  <div className="bg-light min-vh-100 d-flex flex-column">
+    {/* 🔹 Barra Superior */}
+    <nav className="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
+      <div className="container-fluid justify-content-between">
+        <div className="text-white">
+          <h5 className="mb-0 fw-bold">{lojaSelecionada?.toUpperCase() || "Loja"}</h5>
+          <small>{empregado?.nome || "Empregado"}</small>
+        </div>
+
+        <div className="d-flex gap-2">
+          <button
+            className="btn btn-outline-light btn-sm"
+            onClick={() => {
+              localStorage.removeItem("tokenLoja");
+              localStorage.removeItem("lojaSelecionada");
+              setMostrarModalToken(true);
+              setLojaSelecionada(null);
+              setTokenLoja("");
+            }}
+          >
+            <i className="bi bi-arrow-repeat me-1"></i>Trocar Loja
+          </button>
+
+          <button
+            className="btn btn-danger btn-sm"
+            onClick={() => {
+              localStorage.removeItem("empregado");
+              setEmpregado(null);
+            }}
+          >
+            <i className="bi bi-box-arrow-right me-1"></i>Terminar Sessão
+          </button>
+        </div>
+      </div>
+    </nav>
+
+    {/* 🔹 Conteúdo principal */}
+    <div className="container my-4 p-4 bg-white rounded shadow-sm flex-grow-1">
+      <h2 className="text-center mb-4 fw-bold text-primary">
+        📦 Gestão de Produtos & Scanner
+      </h2>
+
+      {alerta && (
+        <AlertaMensagem
+          tipo={alerta.tipo}
+          mensagem={alerta.mensagem}
+          onFechar={() => setAlerta(null)}
+        />
+      )}
+
+      {/* 🔸 Linha de controlos principais */}
+      <div className="d-flex justify-content-center align-items-center gap-3 flex-wrap mb-4">
+        <button
+          className="btn btn-success"
+          onClick={() => setMostrarModalNovoProduto(true)}
+          disabled={enviando}
+        >
+          <i className="bi bi-plus-circle me-1"></i> Adicionar Produto
+        </button>
+
+        {!scanning ? (
+          <button
+            className="btn btn-outline-primary"
+            onClick={() => setScanning(true)}
+            disabled={enviando}
+          >
+            <i className="bi bi-upc-scan me-1"></i>Iniciar Scanner
+          </button>
+        ) : (
+          <button
+            className="btn btn-outline-danger"
+            onClick={() => setScanning(false)}
+            disabled={enviando}
+          >
+            <i className="bi bi-stop-circle me-1"></i>Parar Scanner
+          </button>
+        )}
+      </div>
+
+      {/* 🔸 Filtros */}
+      <div className="d-flex justify-content-center align-items-center gap-3 flex-wrap mb-4">
+        <FornecedorSelect
+          fornecedores={fornecedores}
+          fornecedorSelecionado={fornecedorSelecionado}
+          setFornecedorSelecionado={(value) => {
+            setFornecedorSelecionado(value);
+            setAlerta(null);
+          }}
+          disabled={enviando}
+        />
+
+        <div>
+          <label className="form-label fw-bold me-2 mb-0">
+            Tipo de Documento:
+          </label>
+          <select
+            className="form-select d-inline-block w-auto text-center"
+            value={tipoDocSelecionado?.doc || ""}
+            onChange={(e) => {
+              const tipo = tiposDoc.find((t) => t.doc === e.target.value);
+              setTipoDocSelecionado(tipo || null);
+            }}
+          >
+            <option value="">-- Escolher --</option>
+            {tiposDoc.map((t) => (
+              <option key={t.doc} value={t.doc}>
+                {t.doc} - Série {t.serie}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* 🔸 Scanner */}
+      {apiUrl && (
+        <Scanner
+          scanning={scanning}
+          setScanning={setScanning}
+          onDetected={onDetected}
+        />
+      )}
+
+      {/* 🔸 Tabela de produtos */}
+      {produtos.length > 0 ? (
+        <>
+          <div className="table-responsive">
+            <ProdutoTable
+              produtos={produtos}
+              alteracoesPendentesStock={alteracoesPendentes.stock}
+              onAbrirStock={setProdutoParaStock}
+              onAbrirPrecoCompra={setProdutoParaPrecoCompra}
+              onAbrirMargem={setProdutoParaMargem}
+              onAbrirPrecoVenda={(produto) => {
+                const produtoAtualizado = produtos.find(
+                  (p) => p.codbarras === produto.codbarras
+                );
+                setProdutoParaPrecoVenda(produtoAtualizado || produto);
+              }}
+              onPedirConfirmacaoApagar={pedirConfirmacaoApagar}
+              disabled={enviando}
+              setAlerta={setAlerta}
+            />
+          </div>
+
+          {(Object.keys(alteracoesPendentes.stock).length > 0 ||
+            Object.keys(alteracoesPendentes.precoCompra).length > 0 ||
+            Object.keys(alteracoesPendentes.margem).length > 0 ||
+            alteracoesPendentes.criarProdutos.length > 0) && (
+            <div className="text-center mt-4">
+              <button
+                className="btn btn-primary px-4"
+                onClick={abrirModalConfirmarEnvio}
+                disabled={enviando}
+              >
+                <i className="bi bi-upload me-1"></i>Enviar Alterações
+              </button>
+            </div>
+          )}
+        </>
+      ) : (
+        <p className="text-muted text-center fst-italic mt-4">
+          Nenhum produto lido ainda.
+        </p>
+      )}
+    </div>
+  </div>
+);
+
 }
