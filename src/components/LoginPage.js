@@ -31,19 +31,23 @@ export default function LoginPage({ apiUrl, onLoginSuccess }) {
       const res = await fetch(`${apiUrl}/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ codigo: empregadoSelecionado.codigo, pin }),
+        body: JSON.stringify({
+          nome: empregadoSelecionado.nome,   // 👈 enviar nome
+          password: pin                      // 👈 enviar password (não "pin")
+        }),
       });
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "PIN incorreto");
 
-      localStorage.setItem("empregado", JSON.stringify(data));
-      onLoginSuccess(data);
+      localStorage.setItem("empregado", JSON.stringify(data.user));
+      onLoginSuccess(data.user);
     } catch (err) {
       setErro("⚠️ PIN incorreto. Tente novamente.");
       setPin("");
     }
   }
+
 
   // 🔹 Teclado
   const adicionarNumero = (num) => setPin((prev) => (prev + num).slice(0, 6));
