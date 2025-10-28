@@ -939,7 +939,10 @@ export default function App() {
           enviarTodasAlteracoes(criarDocumento);
         }}
         disabled={enviando}
+        fornecedorSelecionado={fornecedorSelecionado}
+        tipoDocSelecionado={tipoDocSelecionado}
       />
+
 
     </div>
   );
