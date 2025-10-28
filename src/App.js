@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import 'bootstrap/dist/js/bootstrap.bundle.min.js';
 import FornecedorSelect from './components/FornecedorSelect';
 import Scanner from './components/Scanner';
 import ProdutoTable from './components/ProdutoTable';
