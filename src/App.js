@@ -94,6 +94,11 @@ export default function App() {
 
   const [tiposDoc, setTiposDoc] = useState([]);
 
+  const [mostrarModal, setMostrarModal] = useState(false);
+  const [modoEnvio, setModoEnvio] = useState(null);
+
+
+
   useEffect(() => {
     async function fetchTipos() {
       if (!apiUrl) return;
@@ -548,7 +553,7 @@ export default function App() {
   }
 
 
-  async function enviarTodasAlteracoes() {
+  async function enviarTodasAlteracoes(criarDocumento = false) {
     setEnviando(true);
     setMostrarModalConfirmarEnvio(false);
     try {
@@ -929,9 +934,13 @@ export default function App() {
       <ConfirmarEnviarModal
         show={mostrarModalConfirmarEnvio}
         onClose={fecharModalConfirmarEnvio}
-        onConfirmar={enviarTodasAlteracoes}
+        onConfirmar={(criarDocumento) => {
+          setMostrarModalConfirmarEnvio(false);
+          enviarTodasAlteracoes(criarDocumento);
+        }}
         disabled={enviando}
       />
+
     </div>
   );
 }
