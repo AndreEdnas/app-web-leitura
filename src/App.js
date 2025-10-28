@@ -487,22 +487,31 @@ export default function App() {
 
 
   async function handleCriarDocumentoCompra() {
-
     if (!tipoDocSelecionado) {
-      alert("Escolhe um tipo de documento antes de criar o documento de compra.");
+      setAlerta({
+        tipo: "erro",
+        mensagem: "Escolhe um tipo de documento antes de criar o documento de compra."
+      });
       return;
     }
+
+    if (!fornecedorSelecionado) {
+      setAlerta({
+        tipo: "erro",
+        mensagem: "Seleciona um fornecedor antes de criar o documento de compra."
+      });
+      return;
+    }
+
+    if (!produtos.length) {
+      setAlerta({
+        tipo: "erro",
+        mensagem: "Não há produtos para incluir no documento."
+      });
+      return;
+    }
+
     try {
-      if (!fornecedorSelecionado) {
-        alert("Seleciona um fornecedor antes de criar o documento de compra.");
-        return;
-      }
-
-      if (!produtos.length) {
-        alert("Não há produtos para incluir no documento.");
-        return;
-      }
-
       const produtosFormatados = produtos.map(p => ({
         codigo: p.codigo,
         codbarras: p.codbarras,
@@ -515,21 +524,17 @@ export default function App() {
         subfam: p.subfam
       }));
 
-
-
       const fornecedorNome =
         fornecedores.find(f => f.codigo === fornecedorSelecionado)?.nome || "Fornecedor";
 
       const body = {
         fornecedorId: fornecedorSelecionado,
         fornecedorNome,
-        tipoDoc: tipoDocSelecionado.doc,   // ex: "CX"
-        serie: tipoDocSelecionado.serie,   // ex: "DIA"
+        tipoDoc: tipoDocSelecionado.doc,
+        serie: tipoDocSelecionado.serie,
         produtos: produtosFormatados
       };
 
-
-      // 🧩 ADICIONA ESTE LOG AQUI:
       console.log("📦 ENVIANDO DOCUMENTO PARA O BACKEND:", body);
 
       const resp = await fetch(`${apiUrl}/criarDocumentoCompra`, {
@@ -544,7 +549,7 @@ export default function App() {
       console.log("✅ Documento de compra criado:", data);
       setAlerta({
         tipo: "sucesso",
-        mensagem: `Documento ${tipoDocSelecionado} criado (${data.serie}/${data.numero})`
+        mensagem: `Documento ${tipoDocSelecionado.doc}/${data.serie} nº ${data.numero} criado com sucesso!`
       });
     } catch (err) {
       console.error("Erro ao criar documento:", err);
@@ -553,12 +558,13 @@ export default function App() {
   }
 
 
+
   async function enviarTodasAlteracoes(criarDocumento = false) {
     setEnviando(true);
     setMostrarModalConfirmarEnvio(false);
     try {
-
       console.log("📤 ENVIANDO TODAS AS ALTERAÇÕES:", alteracoesPendentes);
+
       for (const novoProd of alteracoesPendentes.criarProdutos) {
         await criarProduto(novoProd);
       }
@@ -579,8 +585,10 @@ export default function App() {
         await atualizarPrecoVenda(codbarras, preco);
       }
 
-      // 🧾 Criar automaticamente documento de compra
-      await handleCriarDocumentoCompra();
+      // Criar documento só se o utilizador escolheu essa opção
+      if (criarDocumento) {
+        await handleCriarDocumentoCompra();
+      }
 
       // ✅ Limpar dados locais
       setAlteracoesPendentes({ stock: {}, precoCompra: {}, margem: {}, criarProdutos: [] });
@@ -588,13 +596,19 @@ export default function App() {
       window.localStorage.removeItem('produtos');
       window.localStorage.removeItem('alteracoesPendentes');
 
-      setAlerta({ tipo: 'sucesso', mensagem: 'Alterações enviadas e documento criado com sucesso!' });
+      setAlerta({
+        tipo: "sucesso",
+        mensagem: criarDocumento
+          ? "Alterações enviadas e documento criado com sucesso!"
+          : "Alterações de produto enviadas com sucesso!"
+      });
     } catch (err) {
-      setAlerta({ tipo: 'erro', mensagem: 'Erro ao enviar alterações: ' + err.message });
+      setAlerta({ tipo: "erro", mensagem: "Erro ao enviar alterações: " + err.message });
     } finally {
       setEnviando(false);
     }
   }
+
 
   function recalcularProduto(produto, campoAlterado, novoValor) {
     let precocompra = Number(produto.precocompra) || 0;
