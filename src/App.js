@@ -596,6 +596,11 @@ export default function App() {
       window.localStorage.removeItem('produtos');
       window.localStorage.removeItem('alteracoesPendentes');
 
+      // 🧹 Limpar seleção de fornecedor e tipo de documento
+      setFornecedorSelecionado('');
+      setTipoDocSelecionado(null);
+
+      // ✅ Alerta final
       setAlerta({
         tipo: "sucesso",
         mensagem: criarDocumento
@@ -608,6 +613,7 @@ export default function App() {
       setEnviando(false);
     }
   }
+
 
 
   function recalcularProduto(produto, campoAlterado, novoValor) {
