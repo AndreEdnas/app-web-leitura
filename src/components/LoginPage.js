@@ -51,85 +51,25 @@ export default function LoginPage({ apiUrl, onLoginSuccess }) {
   const limparTudo = () => setPin("");
 
   return (
-    <div className="d-flex flex-column align-items-center justify-content-center vh-100 bg-warning bg-gradient">
-      <div className="bg-white rounded-4 shadow p-4" style={{ width: 360 }}>
-        <h4 className="text-center mb-3 fw-bold text-primary">Controlo de Operador</h4>
-
-        {/* Lista de empregados */}
-        {!empregadoSelecionado ? (
-          <div className="d-flex flex-wrap justify-content-center gap-3">
-            {empregados.map((emp) => (
-              <div
-                key={emp.codigo}
-                onClick={() => setEmpregadoSelecionado(emp)}
-                className="d-flex flex-column align-items-center p-2 border rounded-3 shadow-sm bg-light"
-                style={{ width: 100, cursor: "pointer" }}
-              >
-                <i className="bi bi-person-circle fs-1 text-secondary"></i>
-                <small className="mt-1 fw-semibold text-dark">{emp.nome}</small>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <>
-            {/* Empregado selecionado */}
-            <div className="text-center mb-3">
-              <i className="bi bi-person-circle fs-1 text-primary"></i>
-              <h5 className="fw-bold mt-2">{empregadoSelecionado.nome}</h5>
-            </div>
-
-            {/* Campo PIN */}
-            <input
-              type="password"
-              className="form-control text-center mb-3 fs-5"
-              placeholder="••••"
-              value={pin}
-              readOnly
-            />
-
-            {/* Teclado numérico */}
-            <div className="d-grid" style={{ gridTemplateColumns: "repeat(3, 1fr)", gap: "10px" }}>
-              {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
-                <button
-                  key={n}
-                  className="btn btn-outline-dark fs-4"
-                  onClick={() => adicionarNumero(n)}
-                >
-                  {n}
-                </button>
-              ))}
-              <button className="btn btn-outline-secondary fs-4" onClick={limparTudo}>
-                C
-              </button>
-              <button className="btn btn-outline-dark fs-4" onClick={() => adicionarNumero(0)}>
-                0
-              </button>
-              <button className="btn btn-outline-secondary fs-4" onClick={apagarUltimo}>
-                Del
-              </button>
-            </div>
-
-            {/* Botões OK / Cancelar */}
-            <div className="d-flex justify-content-around mt-4">
-              <button className="btn btn-success btn-lg px-4" onClick={fazerLogin}>
-                <i className="bi bi-check-lg"></i>
-              </button>
-              <button
-                className="btn btn-danger btn-lg px-4"
-                onClick={() => {
-                  setEmpregadoSelecionado(null);
-                  setPin("");
-                  setErro("");
-                }}
-              >
-                <i className="bi bi-x-lg"></i>
-              </button>
-            </div>
-
-            {erro && <div className="text-danger text-center mt-3">{erro}</div>}
-          </>
-        )}
-      </div>
+    <div
+      className="d-flex overflow-auto gap-3 px-2 py-2"
+      style={{
+        whiteSpace: "nowrap",
+        scrollBehavior: "smooth",
+      }}
+    >
+      {empregados.map((emp) => (
+        <div
+          key={emp.codigo}
+          onClick={() => setEmpregadoSelecionado(emp)}
+          className="d-flex flex-column align-items-center p-2 border rounded-3 shadow-sm bg-light flex-shrink-0"
+          style={{ width: 100, cursor: "pointer" }}
+        >
+          <i className="bi bi-person-circle fs-1 text-secondary"></i>
+          <small className="mt-1 fw-semibold text-dark">{emp.nome}</small>
+        </div>
+      ))}
     </div>
+
   );
 }
