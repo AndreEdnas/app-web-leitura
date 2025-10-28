@@ -1,5 +1,5 @@
-import React from 'react';
-import { Modal, Button } from 'react-bootstrap';
+import React, { useState } from "react";
+import { Modal, Button, Alert } from "react-bootstrap";
 
 export default function ConfirmarEnviarModal({
   show,
@@ -7,23 +7,25 @@ export default function ConfirmarEnviarModal({
   onConfirmar,
   disabled,
   fornecedorSelecionado,
-  tipoDocSelecionado
+  tipoDocSelecionado,
 }) {
-  // 🔍 Função de validação antes de confirmar
+  const [erro, setErro] = useState(null);
+
   const validarEnvio = (criarDocumento) => {
-    // Se não houver fornecedor selecionado
+    // 🔎 Valida fornecedor
     if (!fornecedorSelecionado) {
-      alert("⚠️ Tem de selecionar um fornecedor antes de enviar as alterações.");
+      setErro("⚠️ Tem de selecionar um fornecedor antes de enviar as alterações.");
       return;
     }
 
-    // Se escolher criar documento, também precisa do tipo de documento
+    // 🔎 Valida tipo de documento (apenas se for criar)
     if (criarDocumento && !tipoDocSelecionado) {
-      alert("⚠️ Tem de selecionar um tipo de documento antes de criar o documento fornecedor.");
+      setErro("⚠️ Tem de selecionar um tipo de documento antes de criar o documento fornecedor.");
       return;
     }
 
-    // Tudo válido → avança
+    // ✅ Tudo certo — limpa o erro e confirma
+    setErro(null);
     onConfirmar(criarDocumento);
   };
 
@@ -36,25 +38,44 @@ export default function ConfirmarEnviarModal({
       <Modal.Body className="text-center">
         <p className="fw-bold mb-3">O que pretende fazer?</p>
 
+        {/* 🔔 Mensagem de erro visual */}
+        {erro && (
+          <Alert
+            variant="warning"
+            onClose={() => setErro(null)}
+            dismissible
+            className="text-start"
+          >
+            {erro}
+          </Alert>
+        )}
+
         <div className="d-flex flex-column gap-2">
           <Button
             variant="success"
-            onClick={() => validarEnvio(false)} // ✅ só atualizar produtos
+            onClick={() => validarEnvio(false)}
             disabled={disabled}
           >
-            Só atualizar produtos
+            🔄 Só atualizar produtos
           </Button>
 
           <Button
             variant="outline-primary"
-            onClick={() => validarEnvio(true)} // 🧾 atualizar + criar documento
+            onClick={() => validarEnvio(true)}
             disabled={disabled}
           >
-            Atualizar produtos e criar documento fornecedor
+            🧾 Atualizar produtos e criar documento fornecedor
           </Button>
 
-          <Button variant="secondary" className="mt-2" onClick={onClose}>
-            Cancelar
+          <Button
+            variant="secondary"
+            className="mt-2"
+            onClick={() => {
+              setErro(null);
+              onClose();
+            }}
+          >
+            ❌ Cancelar
           </Button>
         </div>
       </Modal.Body>
