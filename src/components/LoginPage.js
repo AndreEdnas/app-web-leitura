@@ -1,67 +1,96 @@
-import React, { useState } from 'react';
-import 'bootstrap/dist/css/bootstrap.min.css';
+import React, { useState, useEffect } from "react";
 
 export default function LoginPage({ apiUrl, onLoginSuccess }) {
-  const [identificacao, setIdentificacao] = useState('');
-  const [password, setPassword] = useState('');
-  const [erro, setErro] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [empregados, setEmpregados] = useState([]);
+  const [nome, setNome] = useState("");
+  const [password, setPassword] = useState("");
+  const [erro, setErro] = useState("");
+
+  // 🔹 Carregar lista de empregados ativos
+  useEffect(() => {
+    async function fetchEmpregados() {
+      try {
+        const res = await fetch(`${apiUrl}/empregados`, {
+          headers: { "ngrok-skip-browser-warning": "true" }
+        });
+        const data = await res.json();
+        setEmpregados(data);
+      } catch (err) {
+        console.error("Erro ao buscar empregados:", err);
+      }
+    }
+    fetchEmpregados();
+  }, [apiUrl]);
 
   async function handleLogin(e) {
     e.preventDefault();
-    setErro(null);
-    setLoading(true);
+    setErro("");
 
     try {
       const resp = await fetch(`${apiUrl}/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identificacao, password })
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "ngrok-skip-browser-warning": "true"
+        },
+        body: JSON.stringify({ nome, password })
       });
 
       const data = await resp.json();
-      if (!resp.ok) throw new Error(data.error || 'Credenciais inválidas');
 
-      localStorage.setItem('empregado', JSON.stringify(data.user));
+      if (!resp.ok) throw new Error(data.error || "Erro ao fazer login.");
+
+      localStorage.setItem("empregado", JSON.stringify(data.user));
       onLoginSuccess(data.user);
     } catch (err) {
       setErro(err.message);
-    } finally {
-      setLoading(false);
     }
   }
 
   return (
-    <div className="d-flex align-items-center justify-content-center vh-100 bg-light">
-      <div className="card shadow p-4" style={{ width: '100%', maxWidth: 400 }}>
-        <h4 className="mb-3 text-center text-primary">Login de Empregado</h4>
-        <form onSubmit={handleLogin}>
-          <div className="mb-3">
-            <label className="form-label">Identificação</label>
-            <input
-              type="text"
-              className="form-control"
-              value={identificacao}
-              onChange={(e) => setIdentificacao(e.target.value)}
-              required
-            />
-          </div>
-          <div className="mb-3">
-            <label className="form-label">Password</label>
-            <input
-              type="password"
-              className="form-control"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          </div>
-          {erro && <div className="alert alert-danger text-center">{erro}</div>}
-          <button type="submit" className="btn btn-primary w-100" disabled={loading}>
-            {loading ? 'A autenticar...' : 'Entrar'}
-          </button>
-        </form>
-      </div>
+    <div className="d-flex justify-content-center align-items-center vh-100 bg-light">
+      <form
+        className="bg-white p-4 rounded shadow"
+        style={{ width: 350 }}
+        onSubmit={handleLogin}
+      >
+        <h4 className="text-center text-primary mb-4">Login de Empregado</h4>
+
+        <div className="mb-3 text-start">
+          <label className="form-label fw-bold">Nome</label>
+          <select
+            className="form-select"
+            value={nome}
+            onChange={(e) => setNome(e.target.value)}
+          >
+            <option value="">-- Escolher Empregado --</option>
+            {empregados.map((e, i) => (
+              <option key={i} value={e.nome}>
+                {e.nome}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="mb-3 text-start">
+          <label className="form-label fw-bold">Password</label>
+          <input
+            type="password"
+            className="form-control"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
+        </div>
+
+        {erro && (
+          <div className="alert alert-danger py-2">{erro}</div>
+        )}
+
+        <button type="submit" className="btn btn-primary w-100">
+          Entrar
+        </button>
+      </form>
     </div>
   );
 }
