@@ -12,19 +12,16 @@ export default function ConfirmarEnviarModal({
   const [erro, setErro] = useState(null);
 
   const validarEnvio = (criarDocumento) => {
-    // 🔎 Valida fornecedor
     if (!fornecedorSelecionado) {
       setErro("⚠️ Tem de selecionar um fornecedor antes de enviar as alterações.");
       return;
     }
 
-    // 🔎 Valida tipo de documento (apenas se for criar)
     if (criarDocumento && !tipoDocSelecionado) {
       setErro("⚠️ Tem de selecionar um tipo de documento antes de criar o documento fornecedor.");
       return;
     }
 
-    // ✅ Tudo certo — limpa o erro e confirma
     setErro(null);
     onConfirmar(criarDocumento);
   };
@@ -38,7 +35,6 @@ export default function ConfirmarEnviarModal({
       <Modal.Body className="text-center">
         <p className="fw-bold mb-3">O que pretende fazer?</p>
 
-        {/* 🔔 Mensagem de erro visual */}
         {erro && (
           <Alert
             variant="warning"
