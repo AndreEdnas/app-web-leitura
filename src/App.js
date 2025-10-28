@@ -29,6 +29,7 @@ import { setApiBaseUrl, fetchFornecedores, fetchFamilias, fetchSubfamilias } fro
 import * as apiModule from "./services/api";
 import LoginPage from './components/LoginPage';
 import MenuPrincipal from "./components/MenuPrincipal";
+import LojaSelectPage from "./components/LojaSelectPage";
 
 
 function useStickyState(defaultValue, key) {
@@ -687,42 +688,21 @@ export default function App() {
     };
   }
 
-  // Mostrar o modal do token primeiro
+
+  // 🔹 Mostrar página de seleção de loja antes de qualquer outra coisa
   if (mostrarModalToken) {
     return (
-      <div
-        className="modal d-block fade show"
-        tabIndex="-1"
-        style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
-      >
-        <div className="modal-dialog modal-dialog-centered">
-          <div className="modal-content shadow-lg">
-            <div className="modal-header bg-primary text-white">
-              <h5 className="modal-title">Bem-vindo</h5>
-            </div>
-            <div className="modal-body">
-              <p>Insira o token da sua loja para continuar:</p>
-              <input
-                type="text"
-                className="form-control"
-                placeholder="Token"
-                value={tokenLoja}
-                onChange={(e) => setTokenLoja(e.target.value)}
-              />
-            </div>
-            <div className="modal-footer">
-              <button
-                className="btn btn-success w-100"
-                onClick={validarToken}
-              >
-                Confirmar
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
+      <LojaSelectPage
+        onLojaConfirmada={(nome, url) => {
+          setLojaSelecionada(nome);
+          setTokenLoja(localStorage.getItem("tokenLoja"));
+          setMostrarModalToken(false);
+          setApiUrl(url);
+        }}
+      />
     );
   }
+
 
   // 🔐 Se a loja já foi validada mas o empregado ainda não fez login
   if (!empregado && lojaSelecionada && apiUrl) {
