@@ -731,9 +731,7 @@ export default function App() {
       <nav className="navbar navbar-dark bg-primary shadow-sm">
         <div className="container-fluid d-flex justify-content-between align-items-center">
           <div className="text-white">
-            <h5 className="fw-bold mb-0">
-              {lojaSelecionada?.toUpperCase() || "Loja não definida"}
-            </h5>
+            <h5 className="fw-bold mb-0">{lojaSelecionada?.toUpperCase() || "Loja não definida"}</h5>
             <small>{empregado?.nome || "Empregado"}</small>
           </div>
 
@@ -778,301 +776,204 @@ export default function App() {
 
         {/* 🔹 Botões principais */}
         <div className="mb-4 d-flex justify-content-center gap-3 flex-wrap">
-          <button
-            className="btn btn-success"
-            onClick={() => setMostrarModalNovoProduto(true)}
-            disabled={enviando}
-          >
+          <button className="btn btn-success" onClick={() => setMostrarModalNovoProduto(true)} disabled={enviando}>
             <i className="bi bi-plus-circle me-1"></i> Adicionar Produto
           </button>
 
           {!scanning ? (
-            <button
-              className="btn btn-outline-primary"
-              onClick={() => setScanning(true)}
-              disabled={enviando}
-            >
+            <button className="btn btn-outline-primary" onClick={() => setScanning(true)} disabled={enviando}>
               <i className="bi bi-upc-scan me-1"></i> Iniciar Scanner
             </button>
           ) : (
-            <button
-              className="btn btn-outline-danger"
-              onClick={() => setScanning(false)}
-              disabled={enviando}
-            >
+            <button className="btn btn-outline-danger" onClick={() => setScanning(false)} disabled={enviando}>
               <i className="bi bi-stop-circle me-1"></i> Parar Scanner
             </button>
           )}
         </div>
 
-        {/* 🔹 Seleção de fornecedor e tipo de documento */}
-        <div className="col-12 col-md-5">
-          <label className="form-label fw-bold d-block mb-1">
-            Seleciona o Fornecedor:
-          </label>
-          <FornecedorSelect
-            fornecedores={fornecedores}
-            fornecedorSelecionado={fornecedorSelecionado}
-            setFornecedorSelecionado={(value) => {
-              setFornecedorSelecionado(value);
-              setAlerta(null);
-            }}
-            disabled={enviando}
-          />
-        </div>
+        {/* 🔹 Seletores centrados (mobile: empilhados) */}
+        <div className="d-flex flex-column align-items-center gap-3 mb-4">
+          {/* Fornecedor */}
+          <div className="w-100" style={{ maxWidth: 480 }}>
+            <label htmlFor="fornecedorSelect" className="form-label fw-bold d-block mb-1">
+              Seleciona o Fornecedor:
+            </label>
+            <FornecedorSelect
+              fornecedores={fornecedores}
+              fornecedorSelecionado={fornecedorSelecionado}
+              setFornecedorSelecionado={(value) => {
+                setFornecedorSelecionado(value);
+                setAlerta(null);
+              }}
+              disabled={enviando}
+            />
+          </div>
 
-
-
-        {/* Tipo de Documento */}
-        <div className="col-12 col-md-5">
-          <label className="form-label fw-bold d-block mb-1">
-            Tipo de Documento:
-          </label>
-          <select
-            className="form-select text-center"
-            value={tipoDocSelecionado?.doc || ""}
-            onChange={(e) => {
-              const tipo = tiposDoc.find((t) => t.doc === e.target.value);
-              setTipoDocSelecionado(tipo || null);
-            }}
-          >
-            <option value="">-- Escolher tipo de documento --</option>
-            {tiposDoc.map((t) => (
-              <option key={t.doc} value={t.doc}>
-                {t.doc} - Série {t.serie}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-    </div>
-
-
-
-        {/* 🔹 Scanner (mantém funcionalidade) */ }
-  {
-    apiUrl && (
-      <>
-        <Scanner scanning={scanning} setScanning={setScanning} onDetected={onDetected} />
-      </>
-    )
-  }
-
-  {/* 🔹 Tabela de produtos */ }
-  {
-    produtos.length > 0 ? (
-      <>
-        <div className="table-responsive">
-          <ProdutoTable
-            produtos={produtos}
-            alteracoesPendentesStock={alteracoesPendentes.stock}
-            onAbrirStock={setProdutoParaStock}
-            onAbrirPrecoCompra={setProdutoParaPrecoCompra}
-            onAbrirMargem={setProdutoParaMargem}
-            onAbrirPrecoVenda={(produto) => {
-              const produtoAtualizado = produtos.find(
-                (p) => p.codbarras === produto.codbarras
-              );
-              setProdutoParaPrecoVenda(produtoAtualizado || produto);
-            }}
-            onPedirConfirmacaoApagar={pedirConfirmacaoApagar}
-            disabled={enviando}
-            setAlerta={setAlerta}
-          />
-        </div>
-
-        {(Object.keys(alteracoesPendentes.stock).length > 0 ||
-          Object.keys(alteracoesPendentes.precoCompra).length > 0 ||
-          Object.keys(alteracoesPendentes.margem).length > 0 ||
-          alteracoesPendentes.criarProdutos.length > 0) && (
-            <div className="text-center mt-4">
-              <button
-                className="btn btn-primary px-4"
-                onClick={abrirModalConfirmarEnvio}
-                disabled={enviando}
-              >
-                <i className="bi bi-upload me-1"></i> Enviar todas as alterações
-              </button>
-            </div>
-          )}
-      </>
-    ) : (
-    <p className="text-muted fst-italic mt-4">Nenhum produto lido ainda.</p>
-  )
-  }
-
-  {/* 🔹 Modais (mantêm funcionamento original) */ }
-  {
-    produtoParaStock && (
-      <StockModal
-        produto={produtoParaStock}
-        onFechar={() => setProdutoParaStock(null)}
-        onConfirmar={handleAtualizarStockLocal}
-        disabled={enviando}
-      />
-    )
-  }
-
-  {
-    produtoParaPrecoCompra && (
-      <PrecoCompraModal
-        produto={produtoParaPrecoCompra}
-        onFechar={() => setProdutoParaPrecoCompra(null)}
-        onConfirmar={handleAtualizarPrecoCompraLocal}
-        disabled={enviando}
-      />
-    )
-  }
-
-  {
-    produtoParaMargem && (
-      <MargemModal
-        produto={produtoParaMargem}
-        onFechar={() => setProdutoParaMargem(null)}
-        onConfirmar={handleAtualizarMargemLocal}
-        disabled={enviando}
-      />
-    )
-  }
-
-  {
-    produtoParaPrecoVenda && (
-      <PrecoVendaModal
-        produto={produtoParaPrecoVenda}
-        onFechar={() => setProdutoParaPrecoVenda(null)}
-        onConfirmar={handleAtualizarPrecoVendaLocal}
-        disabled={enviando}
-      />
-    )
-  }
-
-  {
-    mostrarModalNovoProduto && (
-      <NovoProdutoModal
-        onFechar={() => setMostrarModalNovoProduto(false)}
-        onConfirmar={handleCriarProdutoLocal}
-        fornecedores={fornecedores}
-        familias={familias}
-        subfamilias={subfamilias}
-        disabled={enviando}
-        apiUrl={apiUrl}
-      />
-    )
-  }
-
-  {
-    mostrarModalConfirmarApagar && produtoParaApagar && (
-      <ConfirmarApagarModal
-        show={mostrarModalConfirmarApagar}
-        produto={produtoParaApagar}
-        onClose={() => setMostrarModalConfirmarApagar(false)}
-        onConfirmar={(codbarras) => {
-          handleApagarProduto(codbarras);
-          setMostrarModalConfirmarApagar(false);
-          setProdutoParaApagar(null);
-        }}
-        disabled={enviando}
-      />
-    )
-  }
-
-  {
-    produtoParaConfirmar && (
-      <div
-        className="modal show d-block"
-        tabIndex="-1"
-        role="dialog"
-        aria-modal="true"
-        style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
-      >
-        <div className="modal-dialog modal-dialog-centered" role="document">
-          <div className="modal-content text-start">
-            <div className="modal-header">
-              <h5 className="modal-title">Confirmar Adição</h5>
-              <button
-                type="button"
-                className="btn-close"
-                onClick={cancelarAdicao}
-                disabled={enviando}
-              ></button>
-            </div>
-            <div className="modal-body">
-              <p>
-                <strong>Descrição:</strong> {produtoParaConfirmar.descricao}
-              </p>
-              <p>
-                <strong>Código de Barras:</strong>{" "}
-                {produtoParaConfirmar.codbarras}
-              </p>
-              <label htmlFor="quantidadeInput" className="form-label mt-3">
-                <strong>Quantidade de Stock:</strong>
-              </label>
-              <div className="d-flex align-items-center gap-2">
-                <button
-                  className="btn btn-outline-danger"
-                  onClick={() =>
-                    setQuantidadeStock((q) => (q > 0 ? q - 1 : 0))
-                  }
-                  disabled={quantidadeStock <= 0}
-                >
-                  -
-                </button>
-                <input
-                  type="number"
-                  id="quantidadeInput"
-                  className="form-control text-center"
-                  value={quantidadeStock}
-                  onChange={(e) => {
-                    const val = Number(e.target.value);
-                    if (!isNaN(val) && val >= 0) setQuantidadeStock(val);
-                  }}
-                  min={0}
-                />
-                <button
-                  className="btn btn-outline-success"
-                  onClick={() => setQuantidadeStock((q) => q + 1)}
-                >
-                  +
-                </button>
-              </div>
-            </div>
-            <div className="modal-footer">
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={cancelarAdicao}
-                disabled={enviando}
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={() => confirmarAdicaoComStock()}
-                disabled={enviando}
-              >
-                Confirmar
-              </button>
-            </div>
+          {/* Tipo de Documento */}
+          <div className="w-100" style={{ maxWidth: 480 }}>
+            <label className="form-label fw-bold d-block mb-1">Tipo de Documento:</label>
+            <select
+              className="form-select text-center"
+              value={tipoDocSelecionado?.doc || ""}
+              onChange={(e) => {
+                const tipo = tiposDoc.find((t) => t.doc === e.target.value);
+                setTipoDocSelecionado(tipo || null);
+              }}
+            >
+              <option value="">-- Escolher tipo de documento --</option>
+              {tiposDoc.map((t) => (
+                <option key={t.doc} value={t.doc}>
+                  {t.doc} - Série {t.serie}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
-      </div>
-    )
-  }
 
-  <ConfirmarEnviarModal
-    show={mostrarModalConfirmarEnvio}
-    onClose={fecharModalConfirmarEnvio}
-    onConfirmar={(criarDocumento) => {
-      setMostrarModalConfirmarEnvio(false);
-      enviarTodasAlteracoes(criarDocumento);
-    }}
-    disabled={enviando}
-    fornecedorSelecionado={fornecedorSelecionado}
-    tipoDocSelecionado={tipoDocSelecionado}
-  />
-      </div >
-    </div >
+        {/* 🔹 Scanner (mantém funcionalidade) */}
+        {apiUrl && <Scanner scanning={scanning} setScanning={setScanning} onDetected={onDetected} />}
+
+        {/* 🔹 Tabela de produtos */}
+        {produtos.length > 0 ? (
+          <>
+            <div className="table-responsive">
+              <ProdutoTable
+                produtos={produtos}
+                alteracoesPendentesStock={alteracoesPendentes.stock}
+                onAbrirStock={setProdutoParaStock}
+                onAbrirPrecoCompra={setProdutoParaPrecoCompra}
+                onAbrirMargem={setProdutoParaMargem}
+                onAbrirPrecoVenda={(produto) => {
+                  const produtoAtualizado = produtos.find((p) => p.codbarras === produto.codbarras);
+                  setProdutoParaPrecoVenda(produtoAtualizado || produto);
+                }}
+                onPedirConfirmacaoApagar={pedirConfirmacaoApagar}
+                disabled={enviando}
+                setAlerta={setAlerta}
+              />
+            </div>
+
+            {(Object.keys(alteracoesPendentes.stock).length > 0 ||
+              Object.keys(alteracoesPendentes.precoCompra).length > 0 ||
+              Object.keys(alteracoesPendentes.margem).length > 0 ||
+              alteracoesPendentes.criarProdutos.length > 0) && (
+                <div className="text-center mt-4">
+                  <button className="btn btn-primary px-4" onClick={abrirModalConfirmarEnvio} disabled={enviando}>
+                    <i className="bi bi-upload me-1"></i> Enviar todas as alterações
+                  </button>
+                </div>
+              )}
+          </>
+        ) : (
+          <p className="text-muted fst-italic mt-4">Nenhum produto lido ainda.</p>
+        )}
+
+        {/* 🔹 Modais */}
+        {produtoParaStock && (
+          <StockModal
+            produto={produtoParaStock}
+            onFechar={() => setProdutoParaStock(null)}
+            onConfirmar={handleAtualizarStockLocal}
+            disabled={enviando}
+          />
+        )}
+
+        {produtoParaPrecoCompra && (
+          <PrecoCompraModal
+            produto={produtoParaPrecoCompra}
+            onFechar={() => setProdutoParaPrecoCompra(null)}
+            onConfirmar={handleAtualizarPrecoCompraLocal}
+            disabled={enviando}
+          />
+        )}
+
+        {produtoParaMargem && (
+          <MargemModal
+            produto={produtoParaMargem}
+            onFechar={() => setProdutoParaMargem(null)}
+            onConfirmar={handleAtualizarMargemLocal}
+            disabled={enviando}
+          />
+        )}
+
+        {produtoParaPrecoVenda && (
+          <PrecoVendaModal
+            produto={produtoParaPrecoVenda}
+            onFechar={() => setProdutoParaPrecoVenda(null)}
+            onConfirmar={handleAtualizarPrecoVendaLocal}
+            disabled={enviando}
+          />
+        )}
+
+        {mostrarModalNovoProduto && (
+          <NovoProdutoModal
+            onFechar={() => setMostrarModalNovoProduto(false)}
+            onConfirmar={handleCriarProdutoLocal}
+            fornecedores={fornecedores}
+            familias={familias}
+            subfamilias={subfamilias}
+            disabled={enviando}
+            apiUrl={apiUrl}
+          />
+        )}
+
+        {mostrarModalConfirmarApagar && produtoParaApagar && (
+          <ConfirmarApagarModal
+            show={mostrarModalConfirmarApagar}
+            produto={produtoParaApagar}
+            onClose={() => setMostrarModalConfirmarApagar(false)}
+            onConfirmar={(codbarras) => {
+              handleApagarProduto(codbarras);
+              setMostrarModalConfirmarApagar(false);
+              setProdutoParaApagar(null);
+            }}
+            disabled={enviando}
+          />
+        )}
+
+        {produtoParaConfirmar && (
+          <div className="modal show d-block" tabIndex="-1" role="dialog" aria-modal="true" style={{ backgroundColor: "rgba(0,0,0,0.5)" }}>
+            <div className="modal-dialog modal-dialog-centered" role="document">
+              <div className="modal-content text-start">
+                <div className="modal-header">
+                  <h5 className="modal-title">Confirmar Adição</h5>
+                  <button type="button" className="btn-close" onClick={cancelarAdicao} disabled={enviando}></button>
+                </div>
+                <div className="modal-body">
+                  <p><strong>Descrição:</strong> {produtoParaConfirmar.descricao}</p>
+                  <p><strong>Código de Barras:</strong> {produtoParaConfirmar.codbarras}</p>
+                  <label htmlFor="quantidadeInput" className="form-label mt-3"><strong>Quantidade de Stock:</strong></label>
+                  <div className="d-flex align-items-center gap-2">
+                    <button className="btn btn-outline-danger" onClick={() => setQuantidadeStock((q) => (q > 0 ? q - 1 : 0))} disabled={quantidadeStock <= 0}>-</button>
+                    <input type="number" id="quantidadeInput" className="form-control text-center" value={quantidadeStock}
+                      onChange={(e) => { const val = Number(e.target.value); if (!isNaN(val) && val >= 0) setQuantidadeStock(val); }}
+                      min={0} />
+                    <button className="btn btn-outline-success" onClick={() => setQuantidadeStock((q) => q + 1)}>+</button>
+                  </div>
+                </div>
+                <div className="modal-footer">
+                  <button type="button" className="btn btn-secondary" onClick={cancelarAdicao} disabled={enviando}>Cancelar</button>
+                  <button type="button" className="btn btn-primary" onClick={confirmarAdicaoComStock} disabled={enviando}>Confirmar</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <ConfirmarEnviarModal
+          show={mostrarModalConfirmarEnvio}
+          onClose={fecharModalConfirmarEnvio}
+          onConfirmar={(criarDocumento) => {
+            setMostrarModalConfirmarEnvio(false);
+            enviarTodasAlteracoes(criarDocumento);
+          }}
+          disabled={enviando}
+          fornecedorSelecionado={fornecedorSelecionado}
+          tipoDocSelecionado={tipoDocSelecionado}
+        />
+      </div>
+    </div>
   );
+
 
 }
