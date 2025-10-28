@@ -107,6 +107,18 @@ export default function App() {
 
 
   useEffect(() => {
+    const savedToken = localStorage.getItem("tokenLoja");
+    const savedLoja = localStorage.getItem("lojaSelecionada");
+
+    if (savedToken && savedLoja) {
+      setTokenLoja(savedToken);
+      setLojaSelecionada(savedLoja);
+      setMostrarModalToken(false); // ✅ não mostra o modal
+    }
+  }, []);
+
+
+  useEffect(() => {
     async function fetchTipos() {
       if (!apiUrl) return;
       try {
@@ -158,12 +170,18 @@ export default function App() {
     );
 
     if (loja) {
-      setLojaSelecionada(loja[0]);
+      const lojaNome = loja[0];
+      setLojaSelecionada(lojaNome);
       setMostrarModalToken(false);
+
+      // ✅ Guardar loja e token localmente
+      localStorage.setItem("tokenLoja", tokenLoja);
+      localStorage.setItem("lojaSelecionada", lojaNome);
     } else {
       alert("Token inválido!");
     }
   }
+
 
   // Configurar API ao selecionar loja
   useEffect(() => {
@@ -710,40 +728,7 @@ export default function App() {
   return (
 
     <div className="container my-4 p-4 bg-light rounded shadow text-center" style={{ minHeight: '100vh' }}>
-      {mostrarModalToken && (
-        <div
-          className="modal d-block fade show"
-          tabIndex="-1"
-          style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
-        >
-          <div className="modal-dialog modal-dialog-centered">
-            <div className="modal-content shadow-lg">
-              <div className="modal-header bg-primary text-white">
-                <h5 className="modal-title">Bem-vindo</h5>
-              </div>
-              <div className="modal-body">
-                <p>Insira o token da sua loja para continuar:</p>
-                <input
-                  type="text"
-                  className="form-control"
-                  placeholder="Token"
-                  value={tokenLoja}
-                  onChange={(e) => setTokenLoja(e.target.value)}
-                />
-              </div>
-              <div className="modal-footer">
-                <button
-                  className="btn btn-success w-100"
-                  onClick={validarToken}
-                >
-                  Confirmar
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
+      
       <h1 className="mb-4">Scanner Código de Barras</h1>
 
       {/* Botão de logout do empregado */}
@@ -1025,6 +1010,22 @@ export default function App() {
         tipoDocSelecionado={tipoDocSelecionado}
       />
 
+      {lojaSelecionada && (
+        <div className="text-end mb-2">
+          <button
+            className="btn btn-outline-secondary btn-sm"
+            onClick={() => {
+              localStorage.removeItem("tokenLoja");
+              localStorage.removeItem("lojaSelecionada");
+              setMostrarModalToken(true);
+              setLojaSelecionada(null);
+              setTokenLoja("");
+            }}
+          >
+            Trocar Loja ({lojaSelecionada})
+          </button>
+        </div>
+      )}
 
 
 
