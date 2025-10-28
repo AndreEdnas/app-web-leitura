@@ -26,6 +26,9 @@ import 'bootstrap/dist/css/bootstrap.min.css';
 import 'bootstrap-icons/font/bootstrap-icons.css';
 import { setApiBaseUrl, fetchFornecedores, fetchFamilias, fetchSubfamilias } from "./services/api";
 import * as apiModule from "./services/api";
+import LoginPage from './pages/LoginPage';
+
+
 function useStickyState(defaultValue, key) {
   const [value, setValue] = useState(() => {
     try {
@@ -97,6 +100,10 @@ export default function App() {
   const [mostrarModal, setMostrarModal] = useState(false);
   const [modoEnvio, setModoEnvio] = useState(null);
 
+  const [empregado, setEmpregado] = useState(() => {
+    const saved = localStorage.getItem('empregado');
+    return saved ? JSON.parse(saved) : null;
+  });
 
 
   useEffect(() => {
@@ -657,6 +664,47 @@ export default function App() {
     };
   }
 
+  // Mostrar o modal do token primeiro
+  if (mostrarModalToken) {
+    return (
+      <div
+        className="modal d-block fade show"
+        tabIndex="-1"
+        style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
+      >
+        <div className="modal-dialog modal-dialog-centered">
+          <div className="modal-content shadow-lg">
+            <div className="modal-header bg-primary text-white">
+              <h5 className="modal-title">Bem-vindo</h5>
+            </div>
+            <div className="modal-body">
+              <p>Insira o token da sua loja para continuar:</p>
+              <input
+                type="text"
+                className="form-control"
+                placeholder="Token"
+                value={tokenLoja}
+                onChange={(e) => setTokenLoja(e.target.value)}
+              />
+            </div>
+            <div className="modal-footer">
+              <button
+                className="btn btn-success w-100"
+                onClick={validarToken}
+              >
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 🔐 Se a loja já foi validada mas o empregado ainda não fez login
+  if (!empregado && lojaSelecionada && apiUrl) {
+    return <LoginPage apiUrl={apiUrl} onLoginSuccess={setEmpregado} />;
+  }
 
 
   return (
@@ -697,6 +745,20 @@ export default function App() {
       )}
 
       <h1 className="mb-4">Scanner Código de Barras</h1>
+
+      {/* Botão de logout do empregado */}
+      <div className="text-end mb-3">
+        <button
+          className="btn btn-outline-danger"
+          onClick={() => {
+            localStorage.removeItem('empregado');
+            setEmpregado(null);
+          }}
+        >
+          Terminar Sessão ({empregado?.nome || "Empregado"})
+        </button>
+      </div>
+
 
       <button
         className="btn btn-success mb-3 me-2"
