@@ -28,9 +28,6 @@ import { setApiBaseUrl, fetchFornecedores, fetchFamilias, fetchSubfamilias } fro
 import * as apiModule from "./services/api";
 import LoginPage from './components/LoginPage';
 
-const [paginaAtual, setPaginaAtual] = useState("menu"); 
-
-
 
 function useStickyState(defaultValue, key) {
   const [value, setValue] = useState(() => {
@@ -726,9 +723,6 @@ export default function App() {
   if (!empregado && lojaSelecionada && apiUrl) {
     return <LoginPage apiUrl={apiUrl} onLoginSuccess={setEmpregado} />;
   }
-
-
-  
 
 
   return (
