@@ -806,40 +806,49 @@ export default function App() {
         </div>
 
         {/* 🔹 Seleção de fornecedor e tipo de documento */}
-        <div className="d-flex flex-column flex-md-row justify-content-center align-items-center text-center gap-3 mb-4">
-          {/* 🔹 Fornecedor */}
-          <div className="w-100 w-md-auto">
-            <FornecedorSelect
-              fornecedores={fornecedores}
-              fornecedorSelecionado={fornecedorSelecionado}
-              setFornecedorSelecionado={(value) => {
-                setFornecedorSelecionado(value);
-                setAlerta(null);
-              }}
-              disabled={enviando}
-            />
-          </div>
+        {/* 🔹 Seleção de fornecedor e tipo de documento */}
+        <div className="container mb-4">
+          <div className="row justify-content-center text-center g-3">
+            {/* Fornecedor */}
+            <div className="col-12 col-md-5">
+              <label className="form-label fw-bold d-block mb-1">
+                Seleciona o Fornecedor:
+              </label>
+              <FornecedorSelect
+                fornecedores={fornecedores}
+                fornecedorSelecionado={fornecedorSelecionado}
+                setFornecedorSelecionado={(value) => {
+                  setFornecedorSelecionado(value);
+                  setAlerta(null);
+                }}
+                disabled={enviando}
+              />
+            </div>
 
-          {/* 🔹 Tipo de Documento */}
-          <div className="w-100 w-md-auto mt-3 mt-md-0">
-            <label className="form-label fw-bold d-block mb-1">Tipo de Documento</label>
-            <select
-              className="form-select text-center"
-              value={tipoDocSelecionado?.doc || ""}
-              onChange={(e) => {
-                const tipo = tiposDoc.find((t) => t.doc === e.target.value);
-                setTipoDocSelecionado(tipo || null);
-              }}
-            >
-              <option value="">-- Escolher tipo de documento --</option>
-              {tiposDoc.map((t) => (
-                <option key={t.doc} value={t.doc}>
-                  {t.doc} - Série {t.serie}
-                </option>
-              ))}
-            </select>
+            {/* Tipo de Documento */}
+            <div className="col-12 col-md-5">
+              <label className="form-label fw-bold d-block mb-1">
+                Tipo de Documento:
+              </label>
+              <select
+                className="form-select text-center"
+                value={tipoDocSelecionado?.doc || ""}
+                onChange={(e) => {
+                  const tipo = tiposDoc.find((t) => t.doc === e.target.value);
+                  setTipoDocSelecionado(tipo || null);
+                }}
+              >
+                <option value="">-- Escolher tipo de documento --</option>
+                {tiposDoc.map((t) => (
+                  <option key={t.doc} value={t.doc}>
+                    {t.doc} - Série {t.serie}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
+
 
 
         {/* 🔹 Scanner (mantém funcionalidade) */}
