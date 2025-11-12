@@ -191,7 +191,7 @@ export default function NovoProdutoModal({ onFechar, onConfirmar, fornecedores, 
 
     onConfirmar({
       ...novoProduto,
-      fornecedor: novoProduto.fornecedor.value,
+      fornecedor: novoProduto.fornecedor?.value ?? fornecedorSelecionado?.value ?? null,
       familia: novoProduto.familia?.value ?? null,
       subfam: novoProduto.subfamilia?.value ?? null,
       plu: novoProduto.plu ?? null,
@@ -200,10 +200,11 @@ export default function NovoProdutoModal({ onFechar, onConfirmar, fornecedores, 
   }
 
 
-  const optionsFornecedores = fornecedores.map(f => ({
-    value: f.id,
-    label: f.nome,
-  }));
+ const optionsFornecedores = fornecedores.map(f => ({
+  value: f.codigo,
+  label: f.nome,
+}));
+
 
   const optionsFamilias = familias.map(f => ({
     value: f.codigo,
