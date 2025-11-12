@@ -101,8 +101,7 @@ export default function App() {
 
   const [tiposDoc, setTiposDoc] = useState([]);
 
-  const [mostrarModal, setMostrarModal] = useState(false);
-  const [modoEnvio, setModoEnvio] = useState(null);
+ 
 
   const [empregado, setEmpregado] = useState(() => {
     const saved = localStorage.getItem('empregado');
