@@ -191,7 +191,7 @@ export default function NovoProdutoModal({ onFechar, onConfirmar, fornecedores, 
 
     onConfirmar({
       ...novoProduto,
-      fornecedor: novoProduto.fornecedor.value,
+      fornecedor: novoProduto.fornecedor?.value ?? 1,
       familia: novoProduto.familia?.value ?? null,
       subfam: novoProduto.subfamilia?.value ?? null,
       plu: novoProduto.plu ?? null,
