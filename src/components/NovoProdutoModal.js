@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
+import Quagga from 'quagga';
 import Select from 'react-select';
 import { getApiBaseUrl } from "../services/api";
 
 const apiUrl = getApiBaseUrl();
+
 
 export default function NovoProdutoModal({ onFechar, onConfirmar, fornecedores, familias, subfamilias }) {
   const [novoProduto, setNovoProduto] = useState({
@@ -17,32 +19,82 @@ export default function NovoProdutoModal({ onFechar, onConfirmar, fornecedores, 
     subfamilia: null,
     plu: null,
     apiUrl,
+
   });
 
-  const NGROK_HEADERS = { 'ngrok-skip-browser-warning': 'true' };
+  const NGROK_HEADERS = {
+    'ngrok-skip-browser-warning': 'true'
+  };
 
-  const optionsSubfamilias = (subfamilias || [])
-    .filter(sf => String(sf.familia) === String(novoProduto.familia?.value))
-    .map(sf => ({ value: sf.codigo, label: sf.descricao }));
+
+
+
+  const optionsSubfamilias = (subfamilias || []).filter(sf => {
+
+    return String(sf.familia) === String(novoProduto.familia?.value);
+  }).map(sf => ({ value: sf.codigo, label: sf.descricao }));
 
   const [pluJaExiste, setPluJaExiste] = useState(false);
   const [mensagemErroPLU, setMensagemErroPLU] = useState('');
+
+
+  const [scannerAberto, setScannerAberto] = useState(false);
+  const scannerRef = useRef(null);
+
   const [produtoJaExiste, setProdutoJaExiste] = useState(false);
   const [mensagemErro, setMensagemErro] = useState('');
-
-  const codInputRef = useRef(null);
-  useEffect(() => {
-    if (codInputRef.current) codInputRef.current.focus();
-  }, []);
 
   function handleChange(e) {
     const { name, value } = e.target;
     setNovoProduto(prev => ({ ...prev, [name]: value }));
 
+    // Se for o campo codbarras, verifica também se já existe
     if (name === 'codbarras') {
       verificarProdutoExistente(value.trim());
     }
   }
+
+  function onDetected(result) {
+    if (result && result.codeResult && result.codeResult.code) {
+      const code = result.codeResult.code;
+      setNovoProduto(prev => ({ ...prev, codbarras: code }));
+      setScannerAberto(false);
+      Quagga.stop();
+
+      verificarProdutoExistente(code);
+    }
+  }
+
+  useEffect(() => {
+    if (!scannerAberto || !scannerRef.current) return;
+
+    Quagga.init({
+      inputStream: {
+        name: 'Live',
+        type: 'LiveStream',
+        target: scannerRef.current,
+        constraints: { facingMode: 'environment' },
+      },
+      decoder: { readers: ['ean_reader', 'code_128_reader', 'upc_reader'] },
+    }, err => {
+      if (err) {
+        console.error('Erro ao inicializar Quagga:', err);
+        return;
+      }
+      Quagga.start();
+    });
+
+    Quagga.onDetected(onDetected);
+
+    return () => {
+      try {
+        Quagga.offDetected(onDetected);
+        Quagga.stop();
+      } catch (e) {
+        console.warn('Erro ao parar o Quagga:', e);
+      }
+    };
+  }, [scannerAberto]);
 
   async function verificarProdutoExistente(codigo) {
     if (!codigo) {
@@ -52,11 +104,16 @@ export default function NovoProdutoModal({ onFechar, onConfirmar, fornecedores, 
     }
 
     try {
-      const baseUrl = getApiBaseUrl();
-      if (!baseUrl) return;
+      const baseUrl = getApiBaseUrl(); // 👈 pega sempre o valor atualizado
+      if (!baseUrl) {
+        console.warn("⚠️ API_BASE ainda não definido!");
+        return;
+      }
 
       const response = await fetch(`${baseUrl}/produto/${codigo}`, {
-        headers: { ...NGROK_HEADERS },
+        headers: {
+          ...NGROK_HEADERS,
+        }
       });
 
       if (response.ok) {
@@ -67,11 +124,13 @@ export default function NovoProdutoModal({ onFechar, onConfirmar, fornecedores, 
         setProdutoJaExiste(false);
         setMensagemErro('');
       }
-    } catch {
+    } catch (err) {
+      console.error("Erro ao verificar produto existente:", err);
       setProdutoJaExiste(false);
       setMensagemErro('');
     }
   }
+
 
   async function verificarPLUExistente(plu) {
     if (!plu) {
@@ -83,11 +142,15 @@ export default function NovoProdutoModal({ onFechar, onConfirmar, fornecedores, 
     try {
       const baseUrl = getApiBaseUrl();
       const res = await fetch(`${baseUrl}/produto/verificar-plu/${plu}`, {
-        headers: { 'ngrok-skip-browser-warning': 'true', Accept: 'application/json' },
+        headers: {
+          'ngrok-skip-browser-warning': 'true',
+          'Accept': 'application/json'
+        }
       });
 
       if (res.ok) {
         const data = await res.json();
+
         if (!data.disponivel) {
           setPluJaExiste(true);
           setMensagemErroPLU(`⚠️ PLU pertence a: ${data.produto.descricao}`);
@@ -95,22 +158,32 @@ export default function NovoProdutoModal({ onFechar, onConfirmar, fornecedores, 
           setPluJaExiste(false);
           setMensagemErroPLU('');
         }
+      } else {
+        console.error("Erro na resposta do servidor:", res.status);
+        setPluJaExiste(false);
+        setMensagemErroPLU('');
       }
-    } catch {
+    } catch (err) {
+      console.error("Erro ao verificar PLU:", err);
       setPluJaExiste(false);
       setMensagemErroPLU('');
     }
   }
+
+
+
 
   function handleSubmit() {
     if (!novoProduto.descricao || !novoProduto.codbarras || !novoProduto.fornecedor) {
       alert('Preenche todos os campos obrigatórios.');
       return;
     }
+
     if (produtoJaExiste) {
       alert('⚠️ Já existe um produto com este código de barras.');
       return;
     }
+
     if (pluJaExiste) {
       alert('⚠️ Este PLU já está em uso. Escolhe outro.');
       return;
@@ -126,6 +199,7 @@ export default function NovoProdutoModal({ onFechar, onConfirmar, fornecedores, 
     });
   }
 
+
   const optionsFornecedores = fornecedores.map(f => ({
     value: f.id,
     label: f.nome,
@@ -135,6 +209,7 @@ export default function NovoProdutoModal({ onFechar, onConfirmar, fornecedores, 
     value: f.codigo,
     label: f.descricao,
   }));
+
 
   return (
     <div className="modal show d-block" tabIndex="-1" role="dialog" style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}>
@@ -161,19 +236,43 @@ export default function NovoProdutoModal({ onFechar, onConfirmar, fornecedores, 
             </div>
 
             {/* Código de Barras */}
-            <div className="mb-3">
+            <div className="mb-3 position-relative">
               <label className="form-label fw-semibold">Código de Barras</label>
               <input
-                ref={codInputRef}
                 type="text"
-                className={`form-control form-control-lg ${produtoJaExiste ? 'is-invalid' : ''}`}
+                className={`form-control form-control-lg pe-5 ${produtoJaExiste ? 'is-invalid' : ''}`}
                 name="codbarras"
                 value={novoProduto.codbarras}
                 onChange={handleChange}
-                placeholder="Passa o código com o leitor físico"
+                placeholder="Código de barras"
                 autoComplete="off"
               />
-              {mensagemErro && <div className="invalid-feedback d-block">{mensagemErro}</div>}
+              {mensagemErro && (
+                <div className="invalid-feedback d-block">
+                  {mensagemErro}
+                </div>
+              )}
+              
+
+              {scannerAberto && (
+                <div className="border rounded shadow-sm p-2 mt-3 position-relative" style={{
+                  width: '100%',
+                  height: '300px',
+                  backgroundColor: '#222',
+                  borderRadius: '6px',
+                  overflow: 'hidden',
+                }}>
+                  <div ref={scannerRef} style={{ width: '100%', height: '100%' }} />
+                  <button
+                    type="button"
+                    className="btn btn-danger position-absolute"
+                    style={{ top: '10px', right: '10px', zIndex: 10 }}
+                    onClick={() => setScannerAberto(false)}
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Stock Inicial */}
@@ -185,9 +284,11 @@ export default function NovoProdutoModal({ onFechar, onConfirmar, fornecedores, 
                 name="qtdstock"
                 value={novoProduto.qtdstock}
                 onChange={handleChange}
+                onFocus={(e) => { if (e.target.value === 0 || e.target.value === '0') e.target.select(); }}
                 min="0"
                 placeholder="0"
               />
+
             </div>
 
             {/* Preço de Compra */}
@@ -199,6 +300,7 @@ export default function NovoProdutoModal({ onFechar, onConfirmar, fornecedores, 
                 name="precocompra"
                 value={novoProduto.precocompra}
                 onChange={handleChange}
+                onFocus={(e) => { if (e.target.value === 0 || e.target.value === '0') e.target.select(); }}
                 min="0"
                 step="0.01"
                 placeholder="0.00"
@@ -214,6 +316,7 @@ export default function NovoProdutoModal({ onFechar, onConfirmar, fornecedores, 
                 name="margembruta"
                 value={novoProduto.margembruta}
                 onChange={handleChange}
+                onFocus={(e) => { if (e.target.value === 0 || e.target.value === '0') e.target.select(); }}
                 min="0"
                 step="0.01"
                 placeholder="0.00"
@@ -237,6 +340,8 @@ export default function NovoProdutoModal({ onFechar, onConfirmar, fornecedores, 
               </div>
             </div>
 
+
+
             {/* Fornecedor */}
             <div className="mb-3">
               <label className="form-label fw-semibold">Fornecedor</label>
@@ -250,63 +355,65 @@ export default function NovoProdutoModal({ onFechar, onConfirmar, fornecedores, 
                 classNamePrefix="react-select"
               />
             </div>
-
-            {/* Família */}
-            <div className="mb-3">
-              <label className="form-label fw-semibold">Família</label>
-              <Select
-                options={optionsFamilias}
-                value={novoProduto.familia}
-                onChange={selected =>
-                  setNovoProduto(prev => ({
-                    ...prev,
-                    familia: selected,
-                    subfamilia: null,
-                  }))
-                }
-                placeholder="Seleciona uma família..."
-                isClearable
-                isSearchable
-                classNamePrefix="react-select"
-              />
-            </div>
-
-            {/* Subfamília */}
-            <div className="mb-3">
-              <label className="form-label fw-semibold">Subfamília</label>
-              <Select
-                options={optionsSubfamilias}
-                value={novoProduto.subfamilia}
-                onChange={selected => setNovoProduto(prev => ({ ...prev, subfamilia: selected }))}
-                placeholder="Seleciona uma subfamília..."
-                isClearable
-                isSearchable
-                classNamePrefix="react-select"
-                isDisabled={!novoProduto.familia}
-              />
-            </div>
-
-            {/* PLU */}
-            <div className="mb-3">
-              <label className="form-label fw-semibold">PLU</label>
-              <input
-                type="number"
-                className={`form-control form-control-lg ${pluJaExiste ? 'is-invalid' : ''}`}
-                value={novoProduto.plu || ''}
-                onChange={async e => {
-                  const valor = e.target.value;
-                  setNovoProduto(prev => ({ ...prev, plu: valor }));
-                  await verificarPLUExistente(valor);
-                }}
-              />
-              {mensagemErroPLU && <div className="invalid-feedback d-block">{mensagemErroPLU}</div>}
-            </div>
           </div>
 
+          <div className="mb-3">
+            <label className="form-label fw-semibold">Família</label>
+            <Select
+              options={optionsFamilias}
+              value={novoProduto.familia}
+              onChange={selected => setNovoProduto(prev => ({
+                ...prev,
+                familia: selected,
+                subfamilia: null
+              }))}
+              placeholder="Seleciona uma família..."
+              isClearable
+              isSearchable
+              classNamePrefix="react-select"
+            />
+
+          </div>
+
+          <div className="mb-3">
+            <label className="form-label fw-semibold">Subfamília</label>
+            <Select
+              options={optionsSubfamilias}
+              value={novoProduto.subfamilia}
+              onChange={selected => setNovoProduto(prev => ({ ...prev, subfamilia: selected }))}
+              placeholder="Seleciona uma subfamília..."
+              isClearable
+              isSearchable
+              classNamePrefix="react-select"
+              isDisabled={!novoProduto.familia} // só ativa se família selecionada
+            />
+          </div>
+
+
+          {/* PLU */}
+          <div className="mb-3">
+            <label className="form-label fw-semibold">PLU</label>
+            <input
+              type="number"
+              className={`form-control form-control-lg ${pluJaExiste ? 'is-invalid' : ''}`}
+              value={novoProduto.plu || ''}
+              onChange={async (e) => {
+                const valor = e.target.value;
+                setNovoProduto(prev => ({ ...prev, plu: valor }));
+                await verificarPLUExistente(valor);
+              }}
+            />
+            {mensagemErroPLU && (
+              <div className="invalid-feedback d-block">
+                {mensagemErroPLU}
+              </div>
+            )}
+          </div>
+
+
+
           <div className="modal-footer border-0 pt-0">
-            <button className="btn btn-secondary btn-lg" onClick={onFechar}>
-              Cancelar
-            </button>
+            <button className="btn btn-secondary btn-lg" onClick={onFechar}>Cancelar</button>
             <button className="btn btn-primary btn-lg" onClick={handleSubmit} disabled={produtoJaExiste}>
               Adicionar
             </button>
