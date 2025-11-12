@@ -307,22 +307,27 @@ export default function App() {
 
   async function onDetected(code) {
     setAlerta(null);
-    // if (!fornecedorSelecionado) {
-    //   setAlerta({ tipo: 'erro', mensagem: 'Seleciona um fornecedor antes de ler produto.' });
-    //   return;
-    // }
 
     try {
       const dataProduto = await fetchProdutoPorCodigo(code, fornecedorSelecionado);
+
+      // Se o produto já foi lido, só avisa
       if (produtos.find(p => p.codbarras === dataProduto.codbarras)) {
         setAlerta({ tipo: 'erro', mensagem: 'Produto já lido.' });
         return;
       }
+
+      // ✅ Guarda o produto para o modal de confirmação
       setProdutoParaConfirmar(dataProduto);
+
+      // ✅ Abre automaticamente o modal de quantidade
+      setQuantidadeStock(1); // podes mudar para 0 se quiser começar vazio
+
     } catch (err) {
       setAlerta({ tipo: 'erro', mensagem: err.message });
     }
   }
+
 
   function confirmarAdicaoComStock() {
     if (quantidadeStock <= 0) {
