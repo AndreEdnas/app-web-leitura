@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import 'bootstrap/dist/js/bootstrap.bundle.min.js';
 import FornecedorSelect from './components/FornecedorSelect';
 import Scanner from './components/Scanner';
+import ScannerHardware from './components/ScannerHardware';
 import ProdutoTable from './components/ProdutoTable';
 import useFornecedores from './hooks/useFornecedores';
 import useSubfamilias from './hooks/useSubfamilias';
@@ -877,7 +878,7 @@ export default function App() {
           </div>
 
           {/* 🔹 Scanner (mantém funcionalidade) */}
-          {apiUrl && <Scanner scanning={scanning} setScanning={setScanning} onDetected={onDetected} />}
+          <ScannerHardware onDetected={onDetected} />
 
           {/* 🔹 Tabela de produtos */}
           {produtos.length > 0 ? (
