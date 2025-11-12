@@ -252,33 +252,7 @@ export default function NovoProdutoModal({ onFechar, onConfirmar, fornecedores, 
                   {mensagemErro}
                 </div>
               )}
-              <button
-                type="button"
-                onClick={() => setScannerAberto(true)}
-                style={{
-                  position: 'absolute',
-                  right: '10px',
-                  top: '38px',
-                  border: 'none',
-                  backgroundColor: '#0d6efd',
-                  color: 'white',
-                  borderRadius: '50%',
-                  width: '38px',
-                  height: '38px',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  boxShadow: '0 2px 6px rgba(0,123,255,0.5)',
-                  transition: 'background-color 0.3s',
-                }}
-                aria-label="Abrir scanner de código de barras"
-                title="Scan código de barras"
-                onMouseEnter={e => e.currentTarget.style.backgroundColor = '#0b5ed7'}
-                onMouseLeave={e => e.currentTarget.style.backgroundColor = '#0d6efd'}
-              >
-                <i className="bi bi-upc-scan"></i>
-              </button>
+              
 
               {scannerAberto && (
                 <div className="border rounded shadow-sm p-2 mt-3 position-relative" style={{
