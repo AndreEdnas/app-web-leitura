@@ -174,7 +174,7 @@ export default function NovoProdutoModal({ onFechar, onConfirmar, fornecedores, 
 
 
   function handleSubmit() {
-    if (!novoProduto.descricao || !novoProduto.codbarras || !novoProduto.fornecedor) {
+   if (!novoProduto.descricao || !novoProduto.codbarras) {
       alert('Preenche todos os campos obrigatórios.');
       return;
     }
@@ -368,19 +368,6 @@ export default function NovoProdutoModal({ onFechar, onConfirmar, fornecedores, 
 
 
 
-            {/* Fornecedor */}
-            <div className="mb-3">
-              <label className="form-label fw-semibold">Fornecedor</label>
-              <Select
-                options={optionsFornecedores}
-                value={novoProduto.fornecedor}
-                onChange={selected => setNovoProduto(prev => ({ ...prev, fornecedor: selected }))}
-                placeholder="Seleciona um fornecedor..."
-                isClearable
-                isSearchable
-                classNamePrefix="react-select"
-              />
-            </div>
           </div>
 
           <div className="mb-3">
