@@ -85,6 +85,7 @@ export default function App() {
   const [mostrarModalConfirmarEnvio, setMostrarModalConfirmarEnvio] = useState(false);
   const [quantidadeStock, setQuantidadeStock] = useState(0);
 
+  const [mostrarScannerHardware, setMostrarScannerHardware] = useState(false);
 
   const [alerta, setAlerta] = useState(null);
   const [enviando, setEnviando] = useState(false);
@@ -825,15 +826,14 @@ export default function App() {
               <i className="bi bi-plus-circle me-1"></i> Adicionar Produto
             </button>
 
-            {!scanning ? (
-              <button className="btn btn-outline-primary" onClick={() => setScanning(true)} disabled={enviando}>
-                <i className="bi bi-upc-scan me-1"></i> Iniciar Scanner
-              </button>
-            ) : (
-              <button className="btn btn-outline-danger" onClick={() => setScanning(false)} disabled={enviando}>
-                <i className="bi bi-stop-circle me-1"></i> Parar Scanner
-              </button>
-            )}
+            <button
+              className="btn btn-outline-primary"
+              onClick={() => setMostrarScannerHardware(true)}
+              disabled={enviando}
+            >
+              <i className="bi bi-upc-scan me-1"></i> Fazer Scan
+            </button>
+
           </div>
 
           {/* 🔹 Seletores centrados (mobile: empilhados) */}
@@ -876,7 +876,12 @@ export default function App() {
           </div>
 
           {/* 🔹 Scanner (mantém funcionalidade) */}
-          <ScannerHardware onDetected={onDetected} />
+          <ScannerHardware
+            show={mostrarScannerHardware}
+            onClose={() => setMostrarScannerHardware(false)}
+            onDetected={onDetected}
+          />
+
 
           {/* 🔹 Tabela de produtos */}
           {produtos.length > 0 ? (

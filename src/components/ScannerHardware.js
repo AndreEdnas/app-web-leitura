@@ -1,58 +1,44 @@
-// src/components/ScannerHardware.js
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useRef } from "react";
+import { Modal, Button } from "react-bootstrap";
 
-export default function ScannerHardware({ onDetected }) {
-    const [codigo, setCodigo] = useState("");
-    const inputRef = useRef(null);
+export default function ScannerHardware({ show, onClose, onDetected }) {
+  const inputRef = useRef(null);
 
-    // Focar sempre o input invisível
-    useEffect(() => {
-        const focusInput = () => {
-            if (inputRef.current) inputRef.current.focus();
-        };
-        focusInput();
-        window.addEventListener("click", focusInput);
-        return () => window.removeEventListener("click", focusInput);
-    }, []);
+  useEffect(() => {
+    if (show && inputRef.current) inputRef.current.focus();
+  }, [show]);
 
-    // Lógica para capturar o código de barras via teclado (scanner laser)
-    useEffect(() => {
-        const handleKeyDown = (e) => {
-            // Ignorar combinações
-            if (e.ctrlKey || e.altKey || e.metaKey) return;
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter") {
+      const codigo = e.target.value.trim();
+      if (codigo !== "") {
+        onDetected(codigo);
+        e.target.value = "";
+        onClose();
+      }
+    }
+  };
 
-            if (e.key === "Enter") {
-                if (codigo.length >= 3) {
-                    onDetected(codigo.trim());
-                    setCodigo("");
-                }
-            } else if (e.key === "Backspace") {
-                setCodigo((prev) => prev.slice(0, -1));
-            } else if (/^[a-zA-Z0-9]$/.test(e.key)) {
-                setCodigo((prev) => prev + e.key);
-            }
-        };
-
-        window.addEventListener("keydown", handleKeyDown);
-        return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [codigo, onDetected]);
-
-    return (
-        <div>
-            <input
-                ref={inputRef}
-                type="text"
-                value={codigo}
-                onChange={() => { }}
-                style={{
-                    position: "absolute",
-                    top: "-100px",
-                    opacity: 0,
-                    pointerEvents: "none",
-                }}
-            />
-            <p className="text-muted small mt-2">Código lido: {codigo}</p>
-        </div>
-    );
-
+  return (
+    <Modal show={show} onHide={onClose} centered backdrop="static">
+      <Modal.Header closeButton className="bg-primary text-white">
+        <Modal.Title>Fazer Scan</Modal.Title>
+      </Modal.Header>
+      <Modal.Body className="text-center">
+        <label className="fw-bold d-block mb-2">Aponte o leitor para o código:</label>
+        <input
+          ref={inputRef}
+          type="text"
+          className="form-control text-center fs-5"
+          placeholder="Aguardando leitura..."
+          onKeyDown={handleKeyDown}
+        />
+      </Modal.Body>
+      <Modal.Footer>
+        <Button variant="secondary" onClick={onClose}>
+          Cancelar
+        </Button>
+      </Modal.Footer>
+    </Modal>
+  );
 }
