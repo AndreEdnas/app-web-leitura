@@ -101,7 +101,6 @@ export default function App() {
 
   const [tiposDoc, setTiposDoc] = useState([]);
 
- 
 
   const [empregado, setEmpregado] = useState(() => {
     const saved = localStorage.getItem('empregado');
