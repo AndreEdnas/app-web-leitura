@@ -20,15 +20,19 @@ const NGROK_HEADERS = {
 // Cabeçalhos busco para me informar,
 // Se o JSON vier, eu vou celebrar.
 async function logResponse(res) {
-  console.log('Status:', res.status, res.statusText);
-  const text = await res.clone().text(); // clona para não perder o body
-  console.log('Response text:', text);
+  // Só loga erros, não loga mais JSON gigante
+  if (!res.ok) {
+    const text = await res.clone().text();
+    console.error(`❌ Erro HTTP ${res.status}: ${text.slice(0, 120)}`);
+  }
+
   return {
     res,
-    text,
+    text: await res.clone().text(),
     contentType: res.headers.get('content-type') || ''
   };
 }
+
 
 // Se a resposta não é JSON, é confusão,
 // Levanto um erro com toda a precisão.
