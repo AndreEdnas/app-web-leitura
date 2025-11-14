@@ -3,10 +3,7 @@ import React, { useState, useEffect } from 'react';
 import Select from 'react-select';
 import { getApiBaseUrl } from "../services/api";
 
-const apiUrl = getApiBaseUrl();
-
-
-export default function NovoProdutoModal({ onFechar, onConfirmar, fornecedores, familias, subfamilias }) {
+export default function NovoProdutoModal({ onFechar, onConfirmar, familias, subfamilias }) {
   const [novoProduto, setNovoProduto] = useState({
     descricao: '',
     codbarras: '',
@@ -14,7 +11,6 @@ export default function NovoProdutoModal({ onFechar, onConfirmar, fornecedores, 
     precocompra: 0,
     margembruta: 0,
     iva: 0,
-    fornecedor: null,
     familia: null,
     subfamilia: null,
     plu: null,
@@ -52,7 +48,7 @@ export default function NovoProdutoModal({ onFechar, onConfirmar, fornecedores, 
     }
   }
 
-    
+
 
   async function verificarProdutoExistente(codigo) {
     if (!codigo) {
@@ -132,7 +128,7 @@ export default function NovoProdutoModal({ onFechar, onConfirmar, fornecedores, 
 
 
   function handleSubmit() {
-    if (!novoProduto.descricao || !novoProduto.codbarras || !novoProduto.fornecedor) {
+    if (!novoProduto.descricao || !novoProduto.codbarras) {
       alert('Preenche todos os campos obrigatórios.');
       return;
     }
@@ -148,21 +144,15 @@ export default function NovoProdutoModal({ onFechar, onConfirmar, fornecedores, 
     }
 
     onConfirmar({
-  ...novoProduto,
-  fornecedor: novoProduto.fornecedor?.value ?? null,
-  familia: novoProduto.familia?.value ?? null,
-  subfam: novoProduto.subfamilia?.value ?? null,
-  plu: novoProduto.plu ?? null,
-  novo: true,
-});
+      ...novoProduto,
+      familia: novoProduto.familia?.value ?? null,
+      subfam: novoProduto.subfamilia?.value ?? null,
+      plu: novoProduto.plu ?? null,
+      novo: true,
+    });
 
   }
 
-
- const optionsFornecedores = fornecedores.map(f => ({
-  value: f.codigo,
-  label: f.nome,
-}));
 
 
   const optionsFamilias = familias.map(f => ({
@@ -212,9 +202,9 @@ export default function NovoProdutoModal({ onFechar, onConfirmar, fornecedores, 
                   {mensagemErro}
                 </div>
               )}
-              
 
-              
+
+
             </div>
 
             {/* Stock Inicial */}
@@ -280,22 +270,6 @@ export default function NovoProdutoModal({ onFechar, onConfirmar, fornecedores, 
                   </button>
                 ))}
               </div>
-            </div>
-
-
-
-            {/* Fornecedor */}
-            <div className="mb-3">
-              <label className="form-label fw-semibold">Fornecedor</label>
-              <Select
-                options={optionsFornecedores}
-                value={novoProduto.fornecedor}
-                onChange={selected => setNovoProduto(prev => ({ ...prev, fornecedor: selected }))}
-                placeholder="Seleciona um fornecedor..."
-                isClearable
-                isSearchable
-                classNamePrefix="react-select"
-              />
             </div>
           </div>
 

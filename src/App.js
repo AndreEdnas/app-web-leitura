@@ -454,11 +454,7 @@ export default function App() {
 
   function handleCriarProdutoLocal(produto) {
   // Respeita o fornecedor do modal se existir
-  const fornecedorFinal =
-    produto.fornecedor?.value ??
-    produto.fornecedor ??
-    fornecedorSelecionado ??
-    "100";
+  const fornecedorFinal = fornecedorSelecionado;
 
   const produtoComCampos = {
     codigo: produto.codigo || Date.now(),
@@ -964,7 +960,6 @@ export default function App() {
             <NovoProdutoModal
               onFechar={() => setMostrarModalNovoProduto(false)}
               onConfirmar={handleCriarProdutoLocal}
-              fornecedores={fornecedores}
               familias={familias}
               subfamilias={subfamilias}
               disabled={enviando}
