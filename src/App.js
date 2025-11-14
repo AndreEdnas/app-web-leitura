@@ -470,7 +470,8 @@ export default function App() {
     qtdstock: Number(produto.qtdstock) || 1,
   };
 
-  console.log("🆕 Produto criado localmente (fornecedor real):", produtoComCampos);
+  console.log("🆕 Produto criado (fornecedor selecionado):", fornecedorSelecionado);
+
 
   setProdutos(prev => [...prev, produtoComCampos]);
   setAlteracoesPendentes(prev => ({
