@@ -460,7 +460,7 @@ export default function App() {
     codigo: produto.codigo || Date.now(),
     descricao: produto.descricao?.trim() || "Sem descrição",
     codbarras: produto.codbarras?.trim() || String(Date.now()),
-    fornecedor: null,
+    fornecedor: Number(fornecedorFinal),
     familia: produto.familia?.value || produto.familia || null,
     subfam: produto.subfamilia?.value || produto.subfam || null,
     precocompra: Number(produto.precocompra) || 0,
