@@ -460,7 +460,7 @@ export default function App() {
     codigo: produto.codigo || Date.now(),
     descricao: produto.descricao?.trim() || "Sem descrição",
     codbarras: produto.codbarras?.trim() || String(Date.now()),
-    fornecedor: fornecedorFinal, // ✅ usa o fornecedor correto
+    fornecedor: null,
     familia: produto.familia?.value || produto.familia || null,
     subfam: produto.subfamilia?.value || produto.subfam || null,
     precocompra: Number(produto.precocompra) || 0,
@@ -598,8 +598,12 @@ export default function App() {
       console.log("📤 ENVIANDO TODAS AS ALTERAÇÕES:", alteracoesPendentes);
 
       for (const novoProd of alteracoesPendentes.criarProdutos) {
-        await criarProduto(novoProd);
-      }
+    await criarProduto({
+        ...novoProd,
+        fornecedor: fornecedorSelecionado,
+    });
+}
+
 
       for (const [codbarras, qtd] of Object.entries(alteracoesPendentes.stock)) {
         await atualizarStock(codbarras, qtd);
