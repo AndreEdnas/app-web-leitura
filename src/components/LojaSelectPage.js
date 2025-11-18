@@ -13,13 +13,10 @@ export default function LojaSelectPage({ onLojaConfirmada }) {
   useEffect(() => {
     async function fetchLojas() {
       try {
-        const res = await fetch("https://api.jsonbin.io/v3/b/68da52d643b1c97be953f81d", {
-          headers: {
-            "X-Master-Key": "$2a$10$dFB8X2yaA./aPT1YsAQs/u58X7hDIzfOFUIqq5QoPGzcQHr2E/fz2",
-          },
-        });
+        const res = await fetch("https://ednas-cloud.andre-86d.workers.dev/config");
         const data = await res.json();
-        setLojasJson(data.record);
+        setLojasJson(data); // NÃO é data.record
+
       } catch (err) {
         console.error("Erro ao buscar JSON das lojas:", err);
       }

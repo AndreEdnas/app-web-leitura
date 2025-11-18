@@ -128,9 +128,8 @@ export default function App() {
     async function fetchTipos() {
       if (!apiUrl) return;
       try {
-        const res = await fetch(`${apiUrl}/tiposdocumento`, {
-          headers: { "ngrok-skip-browser-warning": "true" }
-        });
+        const res = await fetch(`${apiUrl}/tiposdocumento`);
+
 
         const data = await res.json();
         if (data.length > 0) {
@@ -149,17 +148,11 @@ export default function App() {
   useEffect(() => {
     const fetchLojas = async () => {
       try {
-        const res = await fetch(
-          "https://api.jsonbin.io/v3/b/68da52d643b1c97be953f81d",
-          {
-            headers: {
-              "X-Master-Key":
-                "$2a$10$dFB8X2yaA./aPT1YsAQs/u58X7hDIzfOFUIqq5QoPGzcQHr2E/fz2",
-            },
-          }
-        );
+        const res = await fetch("https://ednas-cloud.andre-86d.workers.dev/config");
         const data = await res.json();
-        setLojasJson(data.record);
+        setLojasJson(data);
+
+
       } catch (err) {
         console.error("Erro ao buscar JSON das lojas:", err);
       }
@@ -210,37 +203,7 @@ export default function App() {
   }, [lojaSelecionada, lojasJson]);
 
 
-  useEffect(() => {
-    async function fetchApiUrl() {
-      try {
-        const res = await fetch(
-          "https://api.jsonbin.io/v3/b/68da52d643b1c97be953f81d",
-          {
-            headers: {
-              "X-Master-Key":
-                "$2a$10$dFB8X2yaA./aPT1YsAQs/u58X7hDIzfOFUIqq5QoPGzcQHr2E/fz2",
-            },
-          }
-        );
 
-        const data = await res.json();
-        //console.log("Resposta JSONBin:", data);
-
-        if (data.record && data.record.ngrok) {
-          const url = data.record.ngrok;
-          setApiUrl(url);
-          setApiBaseUrl(url); // aplica no módulo api
-          //console.log("✅ API Base URL definida:", url);
-        } else {
-          //console.warn("⚠️ O campo 'ngrok' não existe em data.record", data.record);
-        }
-      } catch (err) {
-        //console.error("Erro a buscar API URL:", err);
-      }
-    }
-
-    fetchApiUrl();
-  }, []);
 
   // 2º useEffect → só corre QUANDO apiUrl já existir
   useEffect(() => {
@@ -453,35 +416,35 @@ export default function App() {
 
 
   function handleCriarProdutoLocal(produto) {
-  // Respeita o fornecedor do modal se existir
-  const fornecedorFinal = fornecedorSelecionado;
+    // Respeita o fornecedor do modal se existir
+    const fornecedorFinal = fornecedorSelecionado;
 
-  const produtoComCampos = {
-    codigo: produto.codigo || Date.now(),
-    descricao: produto.descricao?.trim() || "Sem descrição",
-    codbarras: produto.codbarras?.trim() || String(Date.now()),
-    fornecedor: Number(fornecedorFinal),
-    familia: produto.familia?.value || produto.familia || null,
-    subfam: produto.subfamilia?.value || produto.subfam || null,
-    precocompra: Number(produto.precocompra) || 0,
-    margembruta: Number(produto.margembruta) || 0,
-    iva: Number(produto.iva) || 0,
-    plu: produto.plu || null,
-    qtdstock: Number(produto.qtdstock) || 1,
-  };
+    const produtoComCampos = {
+      codigo: produto.codigo || Date.now(),
+      descricao: produto.descricao?.trim() || "Sem descrição",
+      codbarras: produto.codbarras?.trim() || String(Date.now()),
+      fornecedor: Number(fornecedorFinal),
+      familia: produto.familia?.value || produto.familia || null,
+      subfam: produto.subfamilia?.value || produto.subfam || null,
+      precocompra: Number(produto.precocompra) || 0,
+      margembruta: Number(produto.margembruta) || 0,
+      iva: Number(produto.iva) || 0,
+      plu: produto.plu || null,
+      qtdstock: Number(produto.qtdstock) || 1,
+    };
 
-  console.log("🆕 Produto criado (fornecedor selecionado):", fornecedorSelecionado);
+    console.log("🆕 Produto criado (fornecedor selecionado):", fornecedorSelecionado);
 
 
-  setProdutos(prev => [...prev, produtoComCampos]);
-  setAlteracoesPendentes(prev => ({
-    ...prev,
-    criarProdutos: [...prev.criarProdutos, produtoComCampos],
-  }));
+    setProdutos(prev => [...prev, produtoComCampos]);
+    setAlteracoesPendentes(prev => ({
+      ...prev,
+      criarProdutos: [...prev.criarProdutos, produtoComCampos],
+    }));
 
-  setMostrarModalNovoProduto(false);
-  setAlerta({ tipo: 'info', mensagem: 'Produto novo guardado localmente' });
-}
+    setMostrarModalNovoProduto(false);
+    setAlerta({ tipo: 'info', mensagem: 'Produto novo guardado localmente' });
+  }
 
 
 
@@ -599,11 +562,11 @@ export default function App() {
       console.log("📤 ENVIANDO TODAS AS ALTERAÇÕES:", alteracoesPendentes);
 
       for (const novoProd of alteracoesPendentes.criarProdutos) {
-    await criarProduto({
-        ...novoProd,
-        fornecedor: fornecedorSelecionado,
-    });
-}
+        await criarProduto({
+          ...novoProd,
+          fornecedor: fornecedorSelecionado,
+        });
+      }
 
 
       for (const [codbarras, qtd] of Object.entries(alteracoesPendentes.stock)) {

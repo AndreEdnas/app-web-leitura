@@ -9,9 +9,9 @@ export function setApiBaseUrl(url) {
 export function getApiBaseUrl() {
   return API_BASE;
 }
-// Header para evitar a página de aviso do ngrok
-const NGROK_HEADERS = {
-  'ngrok-skip-browser-warning': 'true'
+
+const DEFAULT_HEADERS = {
+  "Accept": "application/json"
 };
 
 
@@ -57,7 +57,8 @@ export async function fetchFornecedores() {
   const url = `${API_BASE}/fornecedores`;
   //console.log('Fetching:', url);
   const resObj = await logResponse(await fetch(url, {
-    headers: NGROK_HEADERS
+    headers: DEFAULT_HEADERS
+
   }));
   return checkJsonResponse(resObj);
 }
@@ -70,7 +71,8 @@ export async function fetchFamilias() {
   const url = `${API_BASE}/familias`;
   //console.log('Fetching:', url);
   const resObj = await logResponse(await fetch(url, {
-    headers: NGROK_HEADERS
+    headers: DEFAULT_HEADERS
+
   }));
   return checkJsonResponse(resObj);
 }
@@ -83,7 +85,8 @@ export async function fetchSubfamilias() {
   const url = `${API_BASE}/subfamilias`;
   //console.log('Fetching:', url);
   const resObj = await logResponse(await fetch(url, {
-    headers: NGROK_HEADERS
+    headers: DEFAULT_HEADERS
+
   }));
   return checkJsonResponse(resObj);
 }
@@ -99,7 +102,7 @@ export async function fetchProdutoPorCodigo(codigo) {
   if (!baseUrl) throw new Error("API_BASE ainda não foi definido!");
 
   const res = await fetch(`${baseUrl}/produto/${codigo}`, {
-    headers: { "ngrok-skip-browser-warning": "true" },
+    headers: { "Accept": "application/json" },
   });
 
   if (!res.ok) throw new Error("Erro ao buscar produto");
@@ -119,8 +122,7 @@ export async function atualizarStock(codbarras, quantidadeAdd) {
   const resObj = await logResponse(await fetch(url, {
     method: 'PATCH',
     headers: {
-      'Content-Type': 'application/json',
-      ...NGROK_HEADERS
+      'Content-Type': 'application/json'
     },
     body: JSON.stringify({ quantidade: Number(quantidadeAdd) }),
   }));
@@ -137,9 +139,9 @@ export async function atualizarPreco(codbarras, novoPreco) {
   const resObj = await logResponse(await fetch(url, {
     method: 'PATCH',
     headers: {
-      'Content-Type': 'application/json',
-      ...NGROK_HEADERS
-    },
+      'Content-Type': 'application/json'
+    }
+    ,
     body: JSON.stringify({ preco: parseFloat(novoPreco) }),
   }));
   return checkJsonResponse(resObj);
@@ -155,9 +157,9 @@ export async function atualizarPrecoCompra(codbarras, novoPrecoCompra) {
   const resObj = await logResponse(await fetch(url, {
     method: 'PATCH',
     headers: {
-      'Content-Type': 'application/json',
-      ...NGROK_HEADERS
-    },
+      'Content-Type': 'application/json'
+    }
+    ,
     body: JSON.stringify({ preco: parseFloat(novoPrecoCompra) }),
   }));
   return checkJsonResponse(resObj);
@@ -173,8 +175,7 @@ export async function atualizarMargemBruta(codbarras, novaMargem) {
   const resObj = await logResponse(await fetch(url, {
     method: 'PATCH',
     headers: {
-      'Content-Type': 'application/json',
-      ...NGROK_HEADERS
+      'Content-Type': 'application/json'
     },
     body: JSON.stringify({ margembruta: parseFloat(novaMargem) }),
   }));
@@ -191,9 +192,9 @@ export async function criarProduto(produto) {
   const resObj = await logResponse(await fetch(url, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
-      ...NGROK_HEADERS
-    },
+      'Content-Type': 'application/json'
+    }
+    ,
     body: JSON.stringify(produto),
   }));
   return checkJsonResponse(resObj);
@@ -209,9 +210,9 @@ export async function atualizarPrecoVenda(codbarras, novoPrecoVenda) {
   const resObj = await logResponse(await fetch(url, {
     method: 'PATCH',
     headers: {
-      'Content-Type': 'application/json',
-      ...NGROK_HEADERS
-    },
+      'Content-Type': 'application/json'
+    }
+    ,
     body: JSON.stringify({ preco: parseFloat(novoPrecoVenda) }),
   }));
   return checkJsonResponse(resObj);

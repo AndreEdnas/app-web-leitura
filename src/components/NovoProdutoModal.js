@@ -17,9 +17,7 @@ export default function NovoProdutoModal({ onFechar, onConfirmar, familias, subf
 
   });
 
-  const NGROK_HEADERS = {
-    'ngrok-skip-browser-warning': 'true'
-  };
+
 
 
 
@@ -64,11 +62,7 @@ export default function NovoProdutoModal({ onFechar, onConfirmar, familias, subf
         return;
       }
 
-      const response = await fetch(`${baseUrl}/produto/${codigo}`, {
-        headers: {
-          ...NGROK_HEADERS,
-        }
-      });
+      const response = await fetch(`${baseUrl}/produto/${codigo}`);
 
       if (response.ok) {
         const produtoExistente = await response.json();
@@ -97,8 +91,7 @@ export default function NovoProdutoModal({ onFechar, onConfirmar, familias, subf
       const baseUrl = getApiBaseUrl();
       const res = await fetch(`${baseUrl}/produto/verificar-plu/${plu}`, {
         headers: {
-          'ngrok-skip-browser-warning': 'true',
-          'Accept': 'application/json'
+          "Accept": "application/json"
         }
       });
 

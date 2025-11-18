@@ -12,9 +12,8 @@ export default function LoginPage({ apiUrl, onLoginSuccess }) {
   useEffect(() => {
     async function fetchEmpregados() {
       try {
-        const res = await fetch(`${apiUrl}/empregados`, {
-          headers: { "ngrok-skip-browser-warning": "true" },
-        });
+        const res = await fetch(`${apiUrl}/empregados`);
+
         const data = await res.json();
         setEmpregados(data);
       } catch (err) {
