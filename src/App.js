@@ -31,7 +31,7 @@ import * as apiModule from "./services/api";
 import LoginPage from './components/LoginPage';
 import MenuPrincipal from "./components/MenuPrincipal";
 import LojaSelectPage from "./components/LojaSelectPage";
-
+import PCNaoAtivado from "./components/PCNaoAtivado";
 
 function useStickyState(defaultValue, key) {
   const [value, setValue] = useState(() => {
@@ -55,7 +55,7 @@ function useStickyState(defaultValue, key) {
 }
 
 export default function App() {
-
+  const [naoLicenciado, setNaoLicenciado] = useState(null);
   const [apiBaseUrl, setApiBaseUrl] = useState(null);
   const [loadingApiUrl, setLoadingApiUrl] = useState(true);
 
@@ -109,6 +109,24 @@ export default function App() {
   });
 
   const [paginaAtual, setPaginaAtual] = useState("menu");
+
+  useEffect(() => {
+    async function testarLicenca() {
+      try {
+        const res = await fetch("http://localhost:3051/pedir-licenca");
+        if (!res.ok) throw new Error();
+        const data = await res.json();
+
+        if (data.success === false) {
+          setNaoLicenciado(data);
+        }
+      } catch {
+        // backend não está disponível ou não licenciado
+      }
+    }
+
+    testarLicenca();
+  }, []);
 
 
 
@@ -264,6 +282,15 @@ export default function App() {
 
 
 
+
+if (naoLicenciado) {
+  return (
+    <PCNaoAtivado
+      dados={naoLicenciado}
+      onRevalidar={() => window.location.reload()}
+    />
+  );
+}
 
 
 
