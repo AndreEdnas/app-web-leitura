@@ -113,7 +113,7 @@ export default function App() {
   useEffect(() => {
     async function testarLicenca() {
       try {
-        const res = await fetch("http://localhost:3051/pedir-licenca");
+        const res = await fetch("https://api.ednas.pt/pedir-licenca");
         if (!res.ok) throw new Error();
         const data = await res.json();
 
@@ -166,7 +166,14 @@ export default function App() {
   useEffect(() => {
     const fetchLojas = async () => {
       try {
-        const res = await fetch("https://ednas-cloud.andre-86d.workers.dev/config");
+        const res = await fetch("https://ednas-cloud.andre-86d.workers.dev/config", {
+          headers: {
+            "X-App-Key": "3dNas"
+          }
+        });
+
+        
+
         const data = await res.json();
         setLojasJson(data);
 
@@ -283,14 +290,14 @@ export default function App() {
 
 
 
-if (naoLicenciado) {
-  return (
-    <PCNaoAtivado
-      dados={naoLicenciado}
-      onRevalidar={() => window.location.reload()}
-    />
-  );
-}
+  if (naoLicenciado) {
+    return (
+      <PCNaoAtivado
+        dados={naoLicenciado}
+        onRevalidar={() => window.location.reload()}
+      />
+    );
+  }
 
 
 
