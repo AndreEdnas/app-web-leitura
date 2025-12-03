@@ -11,7 +11,8 @@ export default function PCNaoAtivado({ dados, onRevalidar }) {
       `Token: ${dados.token}\n` +
       `Servidor SQL: ${dados.server}\n` +
       `Base de Dados: ${dados.database}\n` +
-      `Porta SQL: ${dados.port}`;
+      `Porta SQL: ${dados.port}\n` +
+      `URL / Túnel: ${dados.url || window.location.origin}`;
 
     navigator.clipboard.writeText(tudo);
     setCopiado(true);
@@ -27,34 +28,55 @@ export default function PCNaoAtivado({ dados, onRevalidar }) {
       `Chave de Ativação: ${dados.chave}\n\n` +
       `Servidor SQL: ${dados.server}\n` +
       `Base de Dados: ${dados.database}\n` +
-      `Porta SQL: ${dados.port}\n\n` +
+      `Porta SQL: ${dados.port}\n` +
+      `URL / Túnel: ${dados.url || window.location.origin}\n\n` +
       `Obrigado.`;
 
-    window.location.href =
-      `mailto:suporte@ednas.pt?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    window.location.href = `mailto:suporte@ednas.pt?subject=${encodeURIComponent(
+      subject
+    )}&body=${encodeURIComponent(body)}`;
   }
 
   return (
     <div className="d-flex vh-100 justify-content-center align-items-center bg-warning bg-gradient">
-      <div className="bg-white shadow rounded-4 p-4 text-center" style={{ width: 380 }}>
-        
+      <div
+        className="bg-white shadow rounded-4 p-4 text-center"
+        style={{ width: 380 }}
+      >
         <h3 className="text-danger fw-bold mb-2">❌ Máquina Não Ativada</h3>
 
         <p className="text-muted mb-3">
-          Esta máquina ainda não tem licença ativa.<br/>
+          Esta máquina ainda não tem licença ativa.
+          <br />
           Envie os dados abaixo para o suporte Ednas.
         </p>
 
         <div className="text-start bg-light p-3 rounded-3 mb-3 small">
-          <p><strong>Loja:</strong> {dados.loja}</p>
-          <p><strong>Token:</strong> {dados.token}</p>
-          <p><strong>Chave de Ativação:</strong><br />
+          <p>
+            <strong>Loja:</strong> {dados.loja}
+          </p>
+          <p>
+            <strong>Token:</strong> {dados.token}
+          </p>
+          <p>
+            <strong>Chave de Ativação:</strong>
+            <br />
             <code>{dados.chave}</code>
           </p>
           <hr />
-          <p><strong>Servidor SQL:</strong> {dados.server}</p>
-          <p><strong>Base de Dados:</strong> {dados.database}</p>
-          <p><strong>Porta SQL:</strong> {dados.port}</p>
+          <p>
+            <strong>Servidor SQL:</strong> {dados.server}
+          </p>
+          <p>
+            <strong>Base de Dados:</strong> {dados.database}
+          </p>
+          <p>
+            <strong>Porta SQL:</strong> {dados.port}
+          </p>
+          <p>
+            <strong>URL / Túnel:</strong>{" "}
+            {dados.url || window.location.origin}
+          </p>
         </div>
 
         <div className="d-grid gap-2">

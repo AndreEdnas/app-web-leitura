@@ -113,20 +113,43 @@ export default function App() {
   useEffect(() => {
     async function testarLicenca() {
       try {
-        const res = await fetch("https://api.ednas.pt/pedir-licenca");
-        if (!res.ok) throw new Error();
+        // chama SEMPRE o backend no mesmo domínio onde o React está
+        const res = await fetch("/pedir-licenca");
+        if (!res.ok) throw new Error("HTTP não OK em /pedir-licenca");
+
         const data = await res.json();
 
+        // ❌ Máquina NÃO licenciada -> mostra o ecrã de ativação
         if (data.success === false) {
-          setNaoLicenciado(data);
+          const urlFinal = data.url || window.location.origin;
+
+          setNaoLicenciado({
+            ...data,
+            url: urlFinal,
+          });
+          return;
         }
-      } catch {
-        // backend não está disponível ou não licenciado
+
+        // ✅ Máquina licenciada -> definir URL da API para o resto do app
+        const urlApi = data.url || window.location.origin;
+
+        setApiBaseUrl(urlApi);
+        apiModule.setApiBaseUrl(urlApi);
+        setApiUrl(urlApi);
+        localStorage.setItem("apiUrl", urlApi);
+
+        console.log("🔗 API base definida a partir da licença:", urlApi);
+      } catch (err) {
+        console.error("Erro ao verificar licença:", err);
+        // aqui podias pôr um estado de erro genérico, se quiseres
+      } finally {
+        setLoadingApiUrl(false);
       }
     }
 
     testarLicenca();
   }, []);
+
 
 
 
@@ -289,6 +312,17 @@ export default function App() {
 
 
 
+  // Primeiro: enquanto ainda estamos a testar a licença, não mostra o resto do site
+  if (loadingApiUrl && !naoLicenciado) {
+    return (
+      <div className="d-flex flex-column justify-content-center align-items-center vh-100 bg-dark text-white">
+        <h3 className="mb-3">A verificar licença...</h3>
+        <p className="mb-0">Por favor aguarde um momento.</p>
+      </div>
+    );
+  }
+
+  // Se a máquina NÃO estiver licenciada, mostra o ecrã de ativação
   if (naoLicenciado) {
     return (
       <PCNaoAtivado
@@ -297,6 +331,7 @@ export default function App() {
       />
     );
   }
+
 
 
 
@@ -705,6 +740,7 @@ export default function App() {
     );
   }
 
+  
 
   // 🔐 Se a loja já foi validada mas o empregado ainda não fez login
   if (!empregado && lojaSelecionada && apiUrl) {
