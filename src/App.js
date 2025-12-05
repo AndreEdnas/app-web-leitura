@@ -782,13 +782,35 @@ export default function App() {
           setPaginaAtual("menu");
         }}
         onTrocarLoja={() => {
+          // limpar dados persistidos
           localStorage.removeItem("tokenLoja");
           localStorage.removeItem("lojaSelecionada");
-          setMostrarModalToken(true);
+          localStorage.removeItem("empregado");
+          localStorage.removeItem("produtos");
+          localStorage.removeItem("alteracoesPendentes");
+
+          // limpar estados React
+          setApiUrl(null);
+          apiModule.setApiBaseUrl("");
           setLojaSelecionada(null);
           setTokenLoja("");
+          setEmpregado(null);
+
+          setProdutos([]);
+          setAlteracoesPendentes({ stock: {}, precoCompra: {}, margem: {}, criarProdutos: [] });
+
+          setFornecedores([]);
+          setFamilias([]);
+          setSubfamilias([]);
+          setTiposDoc([]);
+
+          setNaoLicenciado(null);
           setPaginaAtual("menu");
+
+          // voltar ao selector de loja
+          setMostrarModalToken(true);
         }}
+
       />
     );
   }
