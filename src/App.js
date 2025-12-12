@@ -698,45 +698,63 @@ export default function App() {
 
 
   function recalcularProduto(produto, campoAlterado, novoValor) {
-    let precocompra = Number(produto.precocompra) || 0;
-    let margembruta = Number(produto.margembruta) || 0;
     let iva = Number(produto.iva) || 0;
     let precovenda = Number(produto.precovenda) || 0;
-    let pvp1siva = Number(produto.pvp1siva) || 0;
+
+    // 🔥 Base sempre válida (precovenda + iva)
+    let pvp1siva =
+      iva > 0 ? precovenda / (1 + iva / 100) : precovenda;
+
+    let precocompra = Number(produto.precocompra);
+    let margembruta = Number(produto.margembruta);
+
+    // Se não existir custo → assumir preço s/ IVA
+    if (!precocompra || precocompra <= 0) {
+      precocompra = pvp1siva;
+    }
+
+    // Se não existir margem → assumir 0
+    if (isNaN(margembruta)) {
+      margembruta = 0;
+    }
 
     switch (campoAlterado) {
-      case 'precocompra':
+      case "precocompra":
         precocompra = Number(novoValor);
-        precovenda = precocompra * (1 + margembruta / 100) * (1 + iva / 100);
         pvp1siva = precocompra * (1 + margembruta / 100);
+        precovenda = pvp1siva * (1 + iva / 100);
         break;
 
-      case 'margembruta':
+      case "margembruta":
         margembruta = Number(novoValor);
-        precovenda = precocompra * (1 + margembruta / 100) * (1 + iva / 100);
         pvp1siva = precocompra * (1 + margembruta / 100);
+        precovenda = pvp1siva * (1 + iva / 100);
         break;
 
-      case 'precovenda':
+      case "precovenda":
         precovenda = Number(novoValor);
-        margembruta = ((precovenda / (1 + iva / 100)) / precocompra - 1) * 100;
-        pvp1siva = precocompra * (1 + margembruta / 100);
+        pvp1siva =
+          iva > 0 ? precovenda / (1 + iva / 100) : precovenda;
+        precocompra = pvp1siva;
+        margembruta = 0;
         break;
 
-      case 'iva':
+      case "iva":
         iva = Number(novoValor);
-        precovenda = precocompra * (1 + margembruta / 100) * (1 + iva / 100);
+        precovenda = pvp1siva * (1 + iva / 100);
         break;
     }
 
     return {
       ...produto,
-      precocompra: Number(precocompra.toFixed(2)),
-      margembruta: Number(margembruta.toFixed(2)),
+      iva,
       precovenda: Number(precovenda.toFixed(2)),
       pvp1siva: Number(pvp1siva.toFixed(2)),
+      precocompra: Number(precocompra.toFixed(2)),
+      margembruta: Number(margembruta.toFixed(2)),
     };
   }
+
 
 
   // 🔹 Mostrar página de seleção de loja antes de qualquer outra coisa
