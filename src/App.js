@@ -974,27 +974,43 @@ export default function App() {
             onClose={() => setMostrarScannerHardware(false)}
             onDetected={onDetected}
           />
-          <ProcurarProdutoModal
-            show={mostrarPesquisaNome}
-            onClose={() => setMostrarPesquisaNome(false)}
-            apiUrl={apiUrl}
-            onSelecionarProduto={(produto) => {
-              // reaproveita exatamente o mesmo fluxo do scan
-              setProdutoParaConfirmar(produto);
-              setQuantidadeStock(1);
-            }}
-          />
+
 
           <ProcurarProdutoModal
             show={mostrarPesquisaNome}
             onClose={() => setMostrarPesquisaNome(false)}
             apiUrl={apiUrl}
-            onSelecionarProduto={(produto) => {
-              // reaproveita exatamente o mesmo fluxo do scan
-              setProdutoParaConfirmar(produto);
-              setQuantidadeStock(1);
+            onSelecionarProduto={async (codbarras) => {
+              try {
+                setAlerta(null);
+
+                // 🔥 USAR O MESMO CAMINHO DO SCAN
+                const dataProduto = await fetchProdutoPorCodigo(
+                  codbarras,
+                  fornecedorSelecionado
+                );
+
+                // impedir duplicados
+                if (produtos.find(p => p.codbarras === dataProduto.codbarras)) {
+                  setAlerta({
+                    tipo: "erro",
+                    mensagem: "Produto já lido."
+                  });
+                  return;
+                }
+
+                setProdutoParaConfirmar(dataProduto);
+                setQuantidadeStock(1);
+
+              } catch (err) {
+                setAlerta({
+                  tipo: "erro",
+                  mensagem: err.message
+                });
+              }
             }}
           />
+
 
 
           {/* 🔹 Tabela de produtos */}

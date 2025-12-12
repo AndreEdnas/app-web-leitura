@@ -68,7 +68,7 @@ export default function ProcurarProdutoModal({
                                 key={p.codbarras}
                                 className="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
                                 onClick={() => {
-                                    onSelecionarProduto(p);
+                                    onSelecionarProduto(p.codbarras);
                                     onClose();
                                 }}
                             >
