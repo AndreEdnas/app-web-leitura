@@ -7,6 +7,7 @@ import ProdutoTable from './components/ProdutoTable';
 import useFornecedores from './hooks/useFornecedores';
 import useSubfamilias from './hooks/useSubfamilias';
 import useFamilias from './hooks/useFamilias';
+import ProcurarProdutoModal from "./components/ProcurarProdutoModal";
 import {
   fetchProdutoPorCodigo,
   criarProduto,
@@ -98,6 +99,8 @@ export default function App() {
   const [tokenLoja, setTokenLoja] = useState("");
   const [lojasJson, setLojasJson] = useState(null);
   const [lojaSelecionada, setLojaSelecionada] = useState(null);
+  const [mostrarPesquisaNome, setMostrarPesquisaNome] = useState(false);
+
 
   // 🧹 LIMPAR loja inválida guardada no localStorage
   useEffect(() => {
@@ -913,6 +916,17 @@ export default function App() {
               <i className="bi bi-upc-scan me-1"></i> Fazer Scan
             </button>
 
+            <button
+              className="btn btn-outline-secondary"
+              onClick={() => setMostrarPesquisaNome(true)}
+              disabled={enviando}
+            >
+              <i className="bi bi-search me-1"></i> Procurar por Nome
+            </button>
+
+
+
+
           </div>
 
           {/* 🔹 Seletores centrados (mobile: empilhados) */}
@@ -959,6 +973,27 @@ export default function App() {
             show={mostrarScannerHardware}
             onClose={() => setMostrarScannerHardware(false)}
             onDetected={onDetected}
+          />
+          <ProcurarProdutoModal
+            show={mostrarPesquisaNome}
+            onClose={() => setMostrarPesquisaNome(false)}
+            apiUrl={apiUrl}
+            onSelecionarProduto={(produto) => {
+              // reaproveita exatamente o mesmo fluxo do scan
+              setProdutoParaConfirmar(produto);
+              setQuantidadeStock(1);
+            }}
+          />
+
+          <ProcurarProdutoModal
+            show={mostrarPesquisaNome}
+            onClose={() => setMostrarPesquisaNome(false)}
+            apiUrl={apiUrl}
+            onSelecionarProduto={(produto) => {
+              // reaproveita exatamente o mesmo fluxo do scan
+              setProdutoParaConfirmar(produto);
+              setQuantidadeStock(1);
+            }}
           />
 
 
