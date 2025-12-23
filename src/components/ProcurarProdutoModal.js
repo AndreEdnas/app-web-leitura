@@ -69,10 +69,22 @@ export default function ProcurarProdutoModal({
                                 className="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
                                 onClick={() => {
                                     onSelecionarProduto(p);
+<<<<<<< HEAD
+=======
+
+                                    // 🔥 limpar estado
+                                    setTermo("");
+                                    setResultados([]);
+
+>>>>>>> 58a1fb4 (alterações novas)
                                     onClose();
                                 }}
 
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> 58a1fb4 (alterações novas)
                             >
                                 {/* 🔹 Nome + código */}
                                 <div className="text-start">
