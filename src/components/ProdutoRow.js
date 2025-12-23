@@ -6,95 +6,136 @@ export default function ProdutoRow({
   onAbrirStock,
   onAbrirPrecoCompra,
   onAbrirMargem,
-  onApagarProduto,
   onAbrirPrecoVenda,
   onPedirConfirmacaoApagar,
   setAlerta
 }) {
-  const margem = Number(produto.margembruta);
-  const precoCompra = Number(produto.precocompra);
 
-  // Stock total = base + alterações pendentes
-  const stockTotal = alteracoesPendentesStock[produto.codbarras] ?? produto.qtdstock;
+  // ------------------------
+  // STOCK
+  // ------------------------
+  const pendente = alteracoesPendentesStock[produto.__uid] ?? 0;
+  const stockTotal = (Number(produto.qtdstock) || 0) + Number(pendente);
 
 
+  // ------------------------
+  // DADOS BASE
+  // ------------------------
+  const precoCompra = Number(produto.precocompra) || 0;
   const iva = Number(produto.iva) || 0;
 
-  // Preço venda sem IVA
+  // ✅ ZoneSoft usa o preço s/IVA já guardado (pvp1siva) quando existe
+  const pvp1sivaNum =
+    produto.pvp1siva != null && produto.pvp1siva !== ""
+      ? Number(produto.pvp1siva)
+      : NaN;
+
+  // fallback: calcula s/IVA a partir do c/IVA
+  const precovendaNum =
+    produto.precovenda != null && produto.precovenda !== ""
+      ? Number(produto.precovenda)
+      : 0;
+
+  const precoVendaSemIvaNum =
+    Number.isFinite(pvp1sivaNum) && pvp1sivaNum > 0
+      ? pvp1sivaNum
+      : (precovendaNum / (1 + iva / 100));
+
+  const precoVendaComIvaNum =
+    precovendaNum > 0
+      ? precovendaNum
+      : (precoVendaSemIvaNum * (1 + iva / 100));
+
+  // ✅ Margem estilo ZoneSoft (markup sobre preço compra)
+  const margem =
+    produto.margembruta != null
+      ? produto.margembruta
+      : null;
+
+
   const precoVendaSemIva =
-    !isNaN(margem) && !isNaN(precoCompra)
-      ? (precoCompra * (1 + margem / 100)).toFixed(2)
-      : null;
-
-  // Preço venda com IVA
-  const precoVendaComIva =
-    !isNaN(margem) && !isNaN(precoCompra)
-      ? (precoCompra * (1 + margem / 100) * (1 + iva / 100)).toFixed(2)
+    Number.isFinite(precoVendaSemIvaNum) && precoVendaSemIvaNum > 0
+      ? precoVendaSemIvaNum.toFixed(2)
       : null;
 
 
+  const precoVendaComIva = Number.isFinite(precoVendaComIvaNum)
+    ? precoVendaComIvaNum.toFixed(2)
+    : "0.00";
 
+
+  // ------------------------
+  // RENDER
+  // ------------------------
   return (
     <tr>
       <td>{produto.descricao}</td>
-      <td>{produto.codbarras}</td>
-      <td
-        className="text-primary fw-bold"
-        style={{ cursor: 'pointer' }}
-        onClick={() => onAbrirMargem(produto)}
-      >
-        {!isNaN(margem) ? `${margem}%` : 'N/D'}
-      </td>
+      <td>{produto.codbarras || "—"}</td>
 
+
+      {/* Margem */}
       <td
         className="text-primary fw-bold"
-        style={{ cursor: 'pointer', textAlign: 'center' }}
-        title={produto.novo ? "Produto novo: apaga e cria de novo para alterar stock" : ""}
+        style={{ cursor: precoCompra ? 'pointer' : 'default' }}
         onClick={() => {
-          if (produto.novo) {
-            // Substitui o alert nativo
+          if (!precoCompra) {
             setAlerta({
-              tipo: 'erro',
-              mensagem: '⚠️ Produto criado recentemente. Para alterar o stock, apaga e cria de novo.'
+              tipo: 'aviso',
+              mensagem: '⚠️ Defina primeiro o preço de compra para calcular a margem.'
             });
             return;
           }
+          onAbrirMargem(produto);
+        }}
+      >
+        {precoCompra && margem != null
+          ? `${String(margem).replace(".", ",")}%`
+          : 'N/D'}
+
+
+
+      </td>
+
+      {/* Stock */}
+      <td
+        className="text-primary fw-bold"
+        style={{ cursor: 'pointer', textAlign: 'center' }}
+        title="Clique para alterar stock"
+        onClick={() => {
           onAbrirStock({ ...produto, stockTotal });
         }}
       >
-        {produto.qtdstock} → (+{stockTotal})
+        {Number(produto.qtdstock) || 0}
+        {Number(pendente) > 0 && <span className="text-success"> +{Number(pendente)}</span>}
+
       </td>
 
 
-
-
+      {/* Preço Compra */}
       <td
         className="text-primary fw-bold"
         style={{ cursor: 'pointer' }}
         onClick={() => onAbrirPrecoCompra(produto)}
       >
-        {!isNaN(precoCompra) ? precoCompra.toFixed(2) + '€' : 'N/D'}
+        {precoCompra ? `${precoCompra.toFixed(2)}€` : 'N/D'}
       </td>
 
-      <td
-        className="text-primary fw-bold"
-        style={{ textAlign: 'center' }}
-      >
+      {/* Preço s/ IVA */}
+      <td className="text-primary fw-bold text-center">
         {precoVendaSemIva ? `${precoVendaSemIva}€` : 'N/D'}
+
       </td>
 
+      {/* Preço c/ IVA */}
       <td
-        className="text-primary fw-bold"
-        style={{ cursor: 'pointer', textAlign: 'center' }}
-        onClick={() => onAbrirPrecoVenda({ ...produto })}
+        className="text-primary fw-bold text-center"
+        style={{ cursor: 'pointer' }}
+        onClick={() => onAbrirPrecoVenda(produto)}
       >
         {precoVendaComIva ? `${precoVendaComIva}€` : 'N/D'}
       </td>
 
-
-
-
-
+      {/* Apagar */}
       <td style={{ textAlign: 'center' }}>
         <button
           type="button"

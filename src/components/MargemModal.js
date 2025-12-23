@@ -1,19 +1,42 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from "react";
 
 export default function MargemModal({ produto, onFechar, onConfirmar }) {
-  const [novaMargem, setNovaMargem] = useState(produto.margembruta ?? 0);
+  const [novaMargem, setNovaMargem] = useState("");
+
+  useEffect(() => {
+    if (!produto) return;
+
+    // 👉 margem vem SEMPRE do produto (fonte da verdade)
+    if (produto.margembruta != null) {
+      setNovaMargem(
+        String(produto.margembruta).replace(".", ",")
+      );
+    }
+  }, [produto]);
 
   function handleSubmit(e) {
     e.preventDefault();
-    if (isNaN(novaMargem) || novaMargem < 0) {
-      alert('Insere uma margem válida (>= 0).');
+
+    // normalizar vírgula → ponto
+    const valor = Number(novaMargem.replace(",", "."));
+
+    if (!Number.isFinite(valor) || valor < 0) {
+      alert("Insere uma margem válida.");
       return;
     }
-    onConfirmar(produto.codbarras, parseFloat(novaMargem));
+
+    // 👉 enviar o valor REAL, sem arredondar
+    onConfirmar(produto.__uid, valor);
   }
 
   return (
-    <div className="modal show d-block" tabIndex="-1" role="dialog" aria-modal="true" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+    <div
+      className="modal show d-block"
+      tabIndex="-1"
+      role="dialog"
+      aria-modal="true"
+      style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
+    >
       <div className="modal-dialog modal-dialog-centered" role="document">
         <div className="modal-content text-start">
           <form onSubmit={handleSubmit}>
@@ -21,22 +44,29 @@ export default function MargemModal({ produto, onFechar, onConfirmar }) {
               <h5 className="modal-title">Editar Margem Bruta</h5>
               <button type="button" className="btn-close" onClick={onFechar}></button>
             </div>
+
             <div className="modal-body">
               <p><strong>{produto.descricao}</strong></p>
-              <label htmlFor="margem" className="form-label">Nova Margem (%)</label>
+
+              <label className="form-label">Nova Margem (%)</label>
               <input
-                type="number"
-                step="0.01"
-                min="0"
+                type="text"
+                inputMode="decimal"
                 className="form-control"
-                id="margem"
                 value={novaMargem}
-                onChange={e => setNovaMargem(e.target.value)}
+                onChange={(e) =>
+                  setNovaMargem(e.target.value.replace(".", ","))
+                }
               />
             </div>
+
             <div className="modal-footer">
-              <button type="button" className="btn btn-secondary" onClick={onFechar}>Cancelar</button>
-              <button type="submit" className="btn btn-success">Atualizar</button>
+              <button type="button" className="btn btn-secondary" onClick={onFechar}>
+                Cancelar
+              </button>
+              <button type="submit" className="btn btn-success">
+                Atualizar
+              </button>
             </div>
           </form>
         </div>

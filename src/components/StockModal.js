@@ -1,11 +1,19 @@
 import React, { useState, useEffect } from 'react';
 
-export default function StockModal({ produto, onFechar, onConfirmar }) {
+export default function StockModal({
+  produto,
+  quantidadeInicial = 0,
+  onFechar,
+  onConfirmar
+}) {
   const [quantidade, setQuantidade] = useState(0);
 
   useEffect(() => {
-  setQuantidade(Number(produto?.stockTotal) || 0);
-}, [produto]);
+    setQuantidade(Number(quantidadeInicial) || 0);
+  }, [quantidadeInicial]);
+
+
+
 
 
 
@@ -22,8 +30,9 @@ export default function StockModal({ produto, onFechar, onConfirmar }) {
       alert('Insira uma quantidade válida.');
       return;
     }
-    // Passa o valor exato do stock, substituindo o antigo
-    onConfirmar(produto.codbarras, quantidade);
+    // Passa a QUANTIDADE A ADICIONAR ao stock atual
+    onConfirmar(produto.__uid, quantidade);
+
   }
 
 

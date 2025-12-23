@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import Select from 'react-select';
 import { getApiBaseUrl } from "../services/api";
 
-export default function NovoProdutoModal({ onFechar, onConfirmar, familias, subfamilias }) {
+export default function NovoProdutoModal({ onFechar, onConfirmar, familias, subfamilias, produtosExistentes = [] }) {
   const [novoProduto, setNovoProduto] = useState({
     descricao: '',
     codbarras: '',
@@ -38,14 +38,53 @@ export default function NovoProdutoModal({ onFechar, onConfirmar, familias, subf
 
   function handleChange(e) {
     const { name, value } = e.target;
+
     setNovoProduto(prev => ({ ...prev, [name]: value }));
 
-    // Se for o campo codbarras, verifica também se já existe
-    if (name === 'codbarras') {
-      verificarProdutoExistente(value.trim());
+    // =========================
+    // CÓDIGO DE BARRAS
+    // =========================
+    if (name === "codbarras") {
+      const cod = value.trim();
+
+      // 🧹 CAMPO LIMPO → limpar erros
+      if (cod === "") {
+        setProdutoJaExiste(false);
+        setMensagemErro("");
+        return;
+      }
+
+      // 🔴 validação LOCAL
+      if (existeCodBarrasLocal(cod)) {
+        setProdutoJaExiste(true);
+        setMensagemErro("⚠️ Já existe: produto não enviado");
+        return;
+      }
+
+      // 🟢 validação BD
+      verificarProdutoExistente(cod);
     }
   }
 
+
+
+  function existeCodBarrasLocal(cod) {
+    if (!cod || String(cod).trim() === "") return false;
+
+    return produtosExistentes.some(p =>
+      p.codbarras &&
+      String(p.codbarras).trim() === String(cod).trim()
+    );
+  }
+
+
+  function existePLULocal(plu) {
+    if (!plu) return false;
+
+    return produtosExistentes.some(
+      p => String(p.plu) === String(plu)
+    );
+  }
 
 
   async function verificarProdutoExistente(codigo) {
@@ -121,10 +160,11 @@ export default function NovoProdutoModal({ onFechar, onConfirmar, familias, subf
 
 
   function handleSubmit() {
-    if (!novoProduto.descricao || !novoProduto.codbarras) {
-      alert('Preenche todos os campos obrigatórios.');
+    if (!novoProduto.descricao) {
+      alert('Preenche a descrição do produto.');
       return;
     }
+
 
     if (produtoJaExiste) {
       alert('⚠️ Já existe um produto com este código de barras.');
@@ -308,9 +348,20 @@ export default function NovoProdutoModal({ onFechar, onConfirmar, familias, subf
               value={novoProduto.plu || ''}
               onChange={async (e) => {
                 const valor = e.target.value;
+
                 setNovoProduto(prev => ({ ...prev, plu: valor }));
+
+                // 🔴 1️⃣ validar LOCAL
+                if (existePLULocal(valor)) {
+                  setPluJaExiste(true);
+                  setMensagemErroPLU("⚠️ PLU já existe na tabela (não enviado)");
+                  return;
+                }
+
+                // 🟢 2️⃣ validar BD
                 await verificarPLUExistente(valor);
               }}
+
             />
             {mensagemErroPLU && (
               <div className="invalid-feedback d-block">
@@ -323,7 +374,12 @@ export default function NovoProdutoModal({ onFechar, onConfirmar, familias, subf
 
           <div className="modal-footer border-0 pt-0">
             <button className="btn btn-secondary btn-lg" onClick={onFechar}>Cancelar</button>
-            <button className="btn btn-primary btn-lg" onClick={handleSubmit} disabled={produtoJaExiste}>
+            <button
+              className="btn btn-primary btn-lg"
+              onClick={handleSubmit}
+              disabled={produtoJaExiste && novoProduto.codbarras.trim() !== ""}
+            >
+
               Adicionar
             </button>
           </div>

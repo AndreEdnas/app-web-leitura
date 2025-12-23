@@ -10,7 +10,8 @@ export default function PrecoCompraModal({ produto, onFechar, onConfirmar }) {
       alert('Insira um preço válido (número positivo)');
       return;
     }
-    onConfirmar(produto.codbarras, precoNum);
+    onConfirmar(produto.__uid, precoNum);
+
   }
 
   return (

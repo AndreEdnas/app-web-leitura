@@ -15,7 +15,8 @@ export default function PrecoVendaModal({ produto, onFechar, onConfirmar }) {
       alert('Insere um preço válido (> 0).');
       return;
     }
-    onConfirmar(produto.codbarras, novoPreco);
+    onConfirmar(produto.__uid, novoPreco);
+
     onFechar();
   }
 

@@ -17,9 +17,10 @@ export default function ConfirmarApagarModal({ show, onClose, onConfirmar, produ
         <Button variant="secondary" onClick={onClose}>
           Cancelar
         </Button>
-        <Button variant="danger" onClick={() => onConfirmar(produto.codbarras)}>
+        <Button variant="danger" onClick={() => onConfirmar(produto.__uid)}>
           Apagar
         </Button>
+
       </Modal.Footer>
     </Modal>
   );

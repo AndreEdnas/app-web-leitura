@@ -23,7 +23,8 @@ async function logResponse(res) {
   // Só loga erros, não loga mais JSON gigante
   if (!res.ok) {
     const text = await res.clone().text();
-    console.error(`❌ Erro HTTP ${res.status}: ${text.slice(0, 120)}`);
+    console.log("📥 RAW RESPONSE:", text);
+
   }
 
   return {
@@ -40,14 +41,23 @@ async function logResponse(res) {
 // Caso contrário, retorno a conversação.
 async function checkJsonResponse(resObj) {
   const { res, text, contentType } = resObj;
+
   if (!res.ok) {
     throw new Error(`Erro HTTP: ${res.status} - ${text.slice(0, 100)}`);
   }
+
+  if (!text || text.trim() === "") {
+    // ✅ backend não devolveu nada → não crasha
+    return null;
+  }
+
   if (!contentType.includes('application/json')) {
     throw new Error(`Resposta inesperada da API (não é JSON): ${text.slice(0, 100)}`);
   }
+
   return JSON.parse(text);
 }
+
 
 /* Fornecedores vêm na mão,
 Com nomes e identificação,
@@ -97,17 +107,19 @@ Se não existir, erro com vigor,
 Se JSON chegar, é puro amor. */
 
 
-export async function fetchProdutoPorCodigo(codigo) {
+export async function fetchProdutoPorCodigo(codigo, fornecedorId = null) {
   const baseUrl = getApiBaseUrl();
   if (!baseUrl) throw new Error("API_BASE ainda não foi definido!");
 
-  const res = await fetch(`${baseUrl}/produto/${codigo}`, {
+  const qs = fornecedorId ? `?fornecedor=${encodeURIComponent(fornecedorId)}` : "";
+  const res = await fetch(`${baseUrl}/produto/${encodeURIComponent(codigo)}${qs}`, {
     headers: { "Accept": "application/json" },
   });
 
   if (!res.ok) throw new Error("Erro ao buscar produto");
   return res.json();
 }
+
 
 
 
@@ -199,6 +211,21 @@ export async function criarProduto(produto) {
   }));
   return checkJsonResponse(resObj);
 }
+
+export async function atualizarFornecedor(codigo, fornecedor) {
+  const url = `${API_BASE}/produto/${codigo}/fornecedor`;
+
+  const res = await fetch(url, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ fornecedor })
+  });
+
+  if (!res.ok) {
+    throw new Error("Erro ao atualizar fornecedor");
+  }
+}
+
 
 
 /* Preço de venda a ajustar,

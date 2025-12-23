@@ -15,6 +15,7 @@ import {
   atualizarPrecoCompra,
   atualizarMargemBruta,
   atualizarPrecoVenda,
+  atualizarFornecedor,
 } from './services/api';
 import StockModal from './components/StockModal';
 import PrecoCompraModal from './components/PrecoCompraModal';
@@ -71,10 +72,22 @@ export default function App() {
   const [fornecedorSelecionado, setFornecedorSelecionado] = useState('');
   const [scanning, setScanning] = useState(false);
   const [produtos, setProdutos] = useStickyState([], 'produtos');
+
+  useEffect(() => {
+    setProdutos(prev =>
+      prev.map(p => ({
+        ...normalizarProdutoDaBD(p),
+        __uid: p.__uid || crypto.randomUUID(),
+      }))
+    );
+
+  }, []);
+
   const [alteracoesPendentes, setAlteracoesPendentes] = useStickyState(
-    { stock: {}, precoCompra: {}, margem: {}, criarProdutos: [] },
+    { stock: {}, precoCompra: {}, margem: {}, precoVenda: {}, criarProdutos: [] },
     'alteracoesPendentes'
   );
+
 
   const [produtoParaConfirmar, setProdutoParaConfirmar] = useState(null);
   const [produtoParaStock, setProdutoParaStock] = useState(null);
@@ -345,7 +358,34 @@ export default function App() {
     );
   }
 
+  function normalizarProdutoDaBD(produto) {
+    const precocompra = Number(produto.precocompra) || 0;
+    const pvp1siva = Number(produto.pvp1siva) || 0;
+    const iva = Number(produto.iva) || 0;
 
+    let margembruta = null;
+
+    // 🔑 margem SÓ é calculada se houver dados suficientes
+    if (precocompra > 0 && pvp1siva > 0) {
+      margembruta = ((pvp1siva / precocompra) - 1) * 100;
+    }
+
+    return {
+      ...produto,
+
+      // ❌ IGNORAR SEMPRE margem da BD
+      margembruta: margembruta !== null
+        ? Number(margembruta.toFixed(2))
+        : null,
+
+      // 🔹 garantir coerência
+      precocompra: Number(precocompra.toFixed(2)),
+      pvp1siva: Number(pvp1siva.toFixed(2)),
+      precovenda: pvp1siva > 0
+        ? Number((pvp1siva * (1 + iva / 100)).toFixed(2))
+        : Number(produto.precovenda) || 0,
+    };
+  }
 
 
 
@@ -355,22 +395,29 @@ export default function App() {
     try {
       const dataProduto = await fetchProdutoPorCodigo(code, fornecedorSelecionado);
 
-      // Se o produto já foi lido, só avisa
-      if (produtos.find(p => p.codbarras === dataProduto.codbarras)) {
-        setAlerta({ tipo: 'erro', mensagem: 'Produto já lido.' });
+      const produtoNormalizado = {
+        ...normalizarProdutoDaBD(dataProduto),
+        __uid: crypto.randomUUID(),
+      };
+
+
+
+      const chave = getChaveProduto(produtoNormalizado);
+      if (chave && produtos.some(p => getChaveProduto(p) === chave)) {
+        setAlerta({ tipo: "erro", mensagem: "Produto já adicionado." });
         return;
       }
 
-      // ✅ Guarda o produto para o modal de confirmação
-      setProdutoParaConfirmar(dataProduto);
 
-      // ✅ Abre automaticamente o modal de quantidade
-      setQuantidadeStock(1); // podes mudar para 0 se quiser começar vazio
+      setProdutoParaConfirmar(produtoNormalizado);
+      setQuantidadeStock(1);
 
     } catch (err) {
       setAlerta({ tipo: 'erro', mensagem: err.message });
     }
   }
+
+
 
 
   function confirmarAdicaoComStock() {
@@ -383,19 +430,23 @@ export default function App() {
 
       // Adiciona o produto apenas se ainda não estiver na lista
       setProdutos(prev => {
-        const exists = prev.find(p => p.codbarras === produtoParaConfirmar.codbarras);
-        if (exists) return prev; // já existe, não adiciona de novo
+        const chave = getChaveProduto(produtoParaConfirmar);
+        const exists = prev.some(p => getChaveProduto(p) === chave);
+
+
+        if (exists) return prev;
         return [...prev, produtoParaConfirmar];
       });
 
-      // Atualiza apenas o stock pendente
       setAlteracoesPendentes(prev => ({
         ...prev,
         stock: {
           ...prev.stock,
-          [produtoParaConfirmar.codbarras]: (prev.stock[produtoParaConfirmar.codbarras] || 0) + quantidadeStock,
+          [produtoParaConfirmar.__uid]:
+            (prev.stock[produtoParaConfirmar.__uid] || 0) + quantidadeStock,
         }
       }));
+
 
       setProdutoParaConfirmar(null);
       setAlerta({ tipo: 'sucesso', mensagem: 'Produto adicionado com stock!' });
@@ -409,39 +460,97 @@ export default function App() {
     setProdutoParaConfirmar(null);
   }
 
-  function handleAtualizarStockLocal(codbarras, novoStock) {
+
+  function handleAtualizarStockLocal(uid, valor) {
+    const prod = produtos.find(p => p.__uid === uid);
+    if (!prod) return;
+
+    // 🆕 Produto novo → TOTAL (qtdstock)
+    if (prod.novo) {
+      const total = Math.max(0, Number(valor) || 0);
+
+      // 1️⃣ Atualizar tabela
+      setProdutos(prev =>
+        prev.map(p =>
+          p.__uid === uid
+            ? { ...p, qtdstock: total }
+            : p
+        )
+      );
+
+      // 2️⃣ Garantir que criarProdutos é SEMPRE a fonte da verdade
+      setAlteracoesPendentes(prev => {
+        const existe = prev.criarProdutos.find(p => p.__uid === uid);
+
+        if (!existe) {
+          return {
+            ...prev,
+            criarProdutos: [
+              ...prev.criarProdutos,
+              { ...prod, qtdstock: total }
+            ]
+          };
+        }
+
+        return {
+          ...prev,
+          criarProdutos: prev.criarProdutos.map(p =>
+            p.__uid === uid
+              ? { ...p, qtdstock: total }
+              : p
+          )
+        };
+      });
+
+      setProdutoParaStock(null);
+      setAlerta({ tipo: "info", mensagem: "Stock TOTAL atualizado (produto novo)" });
+      return;
+    }
+
+
+    // 📦 Produto existente → DELTA
+    const delta = Math.max(0, Number(valor) || 0);
+
     setAlteracoesPendentes(prev => ({
       ...prev,
-      stock: {
-        ...prev.stock,
-        [codbarras]: Number(novoStock), // substitui o valor antigo
-      },
+      stock: { ...prev.stock, [uid]: delta },
     }));
 
     setProdutoParaStock(null);
-    setAlerta({ tipo: 'info', mensagem: 'Alteração de stock guardada localmente' });
+    setAlerta({ tipo: "info", mensagem: "Acréscimo de stock guardado (produto existente)" });
   }
 
 
 
 
-  function handleAtualizarPrecoCompraLocal(codbarras, novoPrecoCompra) {
+  function handleAtualizarPrecoCompraLocal(uid, novoPrecoCompra) {
     setProdutos(prev =>
-      prev.map(p => {
-        if (p.codbarras === codbarras) {
-          return recalcularProduto(p, 'precocompra', novoPrecoCompra);
-        }
-        return p;
-      })
+      prev.map(p =>
+        p.__uid === uid
+          ? recalcularProduto(p, 'precocompra', novoPrecoCompra)
+          : p
+      )
     );
 
-    setAlteracoesPendentes(prev => ({
-      ...prev,
-      precoCompra: {
-        ...prev.precoCompra,
-        [codbarras]: novoPrecoCompra,
-      },
-    }));
+    setAlteracoesPendentes(prev => {
+      const produtoNovo = prev.criarProdutos.find(p => p.__uid === uid);
+
+      if (produtoNovo) {
+        return {
+          ...prev,
+          criarProdutos: prev.criarProdutos.map(p =>
+            p.__uid === uid
+              ? recalcularProduto(p, 'precocompra', novoPrecoCompra)
+              : p
+          )
+        };
+      }
+
+      return {
+        ...prev,
+        precoCompra: { ...prev.precoCompra, [uid]: novoPrecoCompra }
+      };
+    });
 
     setProdutoParaPrecoCompra(null);
     setAlerta({ tipo: 'info', mensagem: 'Preço de compra atualizado' });
@@ -449,23 +558,35 @@ export default function App() {
 
 
 
-  function handleAtualizarMargemLocal(codbarras, novaMargem) {
+
+  function handleAtualizarMargemLocal(uid, novaMargem) {
     setProdutos(prev =>
-      prev.map(p => {
-        if (p.codbarras === codbarras) {
-          return recalcularProduto(p, 'margembruta', novaMargem);
-        }
-        return p;
-      })
+      prev.map(p =>
+        p.__uid === uid
+          ? recalcularProduto(p, 'margembruta', novaMargem)
+          : p
+      )
     );
 
-    setAlteracoesPendentes(prev => ({
-      ...prev,
-      margem: {
-        ...prev.margem,
-        [codbarras]: novaMargem,
-      },
-    }));
+    setAlteracoesPendentes(prev => {
+      const produtoNovo = prev.criarProdutos.find(p => p.__uid === uid);
+
+      if (produtoNovo) {
+        return {
+          ...prev,
+          criarProdutos: prev.criarProdutos.map(p =>
+            p.__uid === uid
+              ? recalcularProduto(p, 'margembruta', novaMargem)
+              : p
+          )
+        };
+      }
+
+      return {
+        ...prev,
+        margem: { ...prev.margem, [uid]: novaMargem }
+      };
+    });
 
     setProdutoParaMargem(null);
     setAlerta({ tipo: 'info', mensagem: 'Margem atualizada' });
@@ -474,48 +595,78 @@ export default function App() {
 
 
 
-  function handleAtualizarPrecoVendaLocal(codbarras, novoPrecoVenda) {
+  function handleAtualizarPrecoVendaLocal(uid, novoPrecoVenda) {
     setProdutos(prev =>
-      prev.map(p => {
-        if (p.codbarras === codbarras) {
-          return recalcularProduto(p, 'precovenda', novoPrecoVenda);
-        }
-        return p;
-      })
+      prev.map(p =>
+        p.__uid === uid
+          ? recalcularProduto(p, 'precovenda', novoPrecoVenda)
+          : p
+      )
     );
 
-    setAlteracoesPendentes(prev => ({
-      ...prev,
-      precoVenda: {
-        ...prev.precoVenda,
-        [codbarras]: novoPrecoVenda,
-      },
-    }));
+    setAlteracoesPendentes(prev => {
+      const produtoNovo = prev.criarProdutos.find(p => p.__uid === uid);
 
+      if (produtoNovo) {
+        return {
+          ...prev,
+          criarProdutos: prev.criarProdutos.map(p =>
+            p.__uid === uid
+              ? recalcularProduto(p, 'precovenda', novoPrecoVenda)
+              : p
+          )
+        };
+      }
+
+      return {
+        ...prev,
+        precoVenda: { ...prev.precoVenda, [uid]: novoPrecoVenda }
+      };
+    });
+
+    setProdutoParaPrecoVenda(null);
+    setAlerta({ tipo: 'info', mensagem: 'Preço de venda atualizado' });
   }
 
 
 
+
+
   function handleCriarProdutoLocal(produto) {
-    // Respeita o fornecedor do modal se existir
-    const fornecedorFinal = fornecedorSelecionado;
+    const precocompra = Number(produto.precocompra) || 0;
+    const margembruta = Number(produto.margembruta) || 0;
+    const iva = Number(produto.iva) || 0;
+
+    const pvp1siva = precocompra > 0
+      ? precocompra * (1 + margembruta / 100)
+      : 0;
+
+    const precovenda = pvp1siva > 0
+      ? pvp1siva * (1 + iva / 100)
+      : 0;
 
     const produtoComCampos = {
-      codigo: produto.codigo || Date.now(),
+      codigo: null,
       descricao: produto.descricao?.trim() || "Sem descrição",
-      codbarras: produto.codbarras?.trim() || String(Date.now()),
-      fornecedor: Number(fornecedorFinal),
+      codbarras: produto.codbarras?.trim() || null,
+      __uid: crypto.randomUUID(),
+
+      // ❌ SEM fornecedor aqui
+
       familia: produto.familia?.value || produto.familia || null,
       subfam: produto.subfamilia?.value || produto.subfam || null,
-      precocompra: Number(produto.precocompra) || 0,
-      margembruta: Number(produto.margembruta) || 0,
-      iva: Number(produto.iva) || 0,
+
+      precocompra: Number(precocompra.toFixed(2)),
+      margembruta: Number(margembruta),
+      iva,
+
+      pvp1siva: Number(pvp1siva.toFixed(2)),
+      precovenda: Number(precovenda.toFixed(2)),
+
       plu: produto.plu || null,
       qtdstock: Number(produto.qtdstock) || 1,
+      novo: true
     };
-
-    console.log("🆕 Produto criado (fornecedor selecionado):", fornecedorSelecionado);
-
 
     setProdutos(prev => [...prev, produtoComCampos]);
     setAlteracoesPendentes(prev => ({
@@ -530,24 +681,20 @@ export default function App() {
 
 
 
-  function handleApagarProduto(codbarras) {
-    setProdutos(prev => prev.filter(p => p.codbarras !== codbarras));
+  function handleApagarProduto(uid) {
+    setProdutos(prev => prev.filter(p => p.__uid !== uid));
 
     setAlteracoesPendentes(prev => ({
-      stock: Object.fromEntries(
-        Object.entries(prev.stock).filter(([key]) => key !== codbarras)
-      ),
-      precoCompra: Object.fromEntries(
-        Object.entries(prev.precoCompra).filter(([key]) => key !== codbarras)
-      ),
-      margem: Object.fromEntries(
-        Object.entries(prev.margem).filter(([key]) => key !== codbarras)
-      ),
-      criarProdutos: prev.criarProdutos.filter(p => p.codbarras !== codbarras),
+      stock: Object.fromEntries(Object.entries(prev.stock).filter(([k]) => k !== uid)),
+      precoCompra: Object.fromEntries(Object.entries(prev.precoCompra).filter(([k]) => k !== uid)),
+      margem: Object.fromEntries(Object.entries(prev.margem).filter(([k]) => k !== uid)),
+      precoVenda: Object.fromEntries(Object.entries(prev.precoVenda || {}).filter(([k]) => k !== uid)),
+      criarProdutos: prev.criarProdutos.filter(p => p.__uid !== uid),
     }));
 
     setAlerta({ tipo: 'info', mensagem: 'Produto apagado localmente' });
   }
+
 
   function pedirConfirmacaoApagar(produto) {
     setProdutoParaApagar(produto);
@@ -589,17 +736,26 @@ export default function App() {
     }
 
     try {
-      const produtosFormatados = produtos.map(p => ({
-        codigo: p.codigo,
-        codbarras: p.codbarras,
-        descricao: p.descricao,
-        qtd: alteracoesPendentes.stock[p.codbarras] || p.qtd || 1,
-        precoCompra: p.precocompra || 0,
-        iva: p.iva || 0,
-        margembruta: p.margembruta || 0,
-        familia: p.familia,
-        subfam: p.subfam
-      }));
+      const produtosFormatados = produtos
+        .map(p => ({
+          codigo: p.codigo,
+          codbarras: p.codbarras,
+          descricao: p.descricao,
+          qtd: p.novo
+            ? Number(
+              alteracoesPendentes.criarProdutos.find(cp => cp.__uid === p.__uid)?.qtdstock
+              ?? p.qtdstock
+              ?? 0
+            )
+            : Number(alteracoesPendentes.stock[p.__uid] || 0),
+          precoCompra: p.precocompra || 0,
+          iva: p.iva || 0,
+          margembruta: p.margembruta || 0,
+          familia: p.familia,
+          subfam: p.subfam
+        }))
+        .filter(p => Number(p.qtd) > 0);
+
 
       const fornecedorNome =
         fornecedores.find(f => f.codigo === fornecedorSelecionado)?.nome || "Fornecedor";
@@ -634,37 +790,180 @@ export default function App() {
     }
   }
 
+  function getChaveProduto(p) {
+    // 1️⃣ código de barras válido
+    if (p?.codbarras && String(p.codbarras).trim() !== "") {
+      return `CB:${String(p.codbarras).trim()}`;
+    }
+
+    // 2️⃣ produto já existente na BD
+    if (Number.isInteger(p?.codigo) && p.codigo > 0) {
+      return `COD:${p.codigo}`;
+    }
+
+    // ❌ NÃO usar descrição para deduplicar
+    return null;
+  }
+
+
+
+  function getIdentificadorProduto(prod) {
+    if (Number.isInteger(prod.codigo) && prod.codigo > 0) {
+      return prod.codigo;
+    }
+
+    throw new Error(
+      `Produto sem código interno para atualização: ${prod.descricao}`
+    );
+  }
+
+
 
 
   async function enviarTodasAlteracoes(criarDocumento = false) {
     setEnviando(true);
     setMostrarModalConfirmarEnvio(false);
+
     try {
       console.log("📤 ENVIANDO TODAS AS ALTERAÇÕES:", alteracoesPendentes);
 
+      // =========================
+      // 1️⃣ CRIAR PRODUTOS NOVOS
+      // =========================
+      const novosCriados = [];
+
       for (const novoProd of alteracoesPendentes.criarProdutos) {
-        await criarProduto({
+
+        console.log("🧪 DEBUG PRODUTO NOVO (ANTES DO POST):", {
+          descricao: novoProd.descricao,
+          fornecedorNoProduto: novoProd.fornecedor,
+          fornecedorSelecionado,
+          produtoCompleto: novoProd
+        });
+        const criado = await criarProduto({
           ...novoProd,
-          fornecedor: fornecedorSelecionado,
+          fornecedor: Number(fornecedorSelecionado)
+        });
+
+
+
+
+        novosCriados.push({
+          ...criado,
+          __uid: novoProd.__uid, // mantém identidade na UI
+          novo: false
         });
       }
 
-
-      for (const [codbarras, qtd] of Object.entries(alteracoesPendentes.stock)) {
-        await atualizarStock(codbarras, qtd);
+      if (novosCriados.length > 0) {
+        setProdutos(prev =>
+          prev.map(p => {
+            const match = novosCriados.find(n => n.__uid === p.__uid);
+            return match ? match : p;
+          })
+        );
       }
 
-      for (const [codbarras, preco] of Object.entries(alteracoesPendentes.precoCompra)) {
-        await atualizarPrecoCompra(codbarras, preco);
+      const produtosAtuais = [
+        ...produtos.filter(p => !p.novo),
+        ...novosCriados
+      ];
+
+
+      // =========================
+      // 2️⃣ ATUALIZAR FORNECEDOR (GLOBAL - vindo da label)
+      // =========================
+      if (!fornecedorSelecionado || Number(fornecedorSelecionado) <= 0) {
+        throw new Error("Seleciona um fornecedor antes de enviar.");
       }
 
-      for (const [codbarras, margem] of Object.entries(alteracoesPendentes.margem)) {
-        await atualizarMargemBruta(codbarras, margem);
+      for (const p of produtosAtuais) {
+        if (!Number.isInteger(p.codigo) || p.codigo <= 0) {
+          console.warn("⏭ Produto ainda sem código, a saltar:", p.descricao);
+          continue;
+        }
+
+        const id = p.codigo;
+
+        await atualizarFornecedor(id, Number(fornecedorSelecionado));
       }
 
-      for (const [codbarras, preco] of Object.entries(alteracoesPendentes.precoVenda || {})) {
-        await atualizarPrecoVenda(codbarras, preco);
+
+
+
+      // =========================
+      // 3️⃣ PREÇO DE COMPRA
+      // =========================
+      for (const [uid, preco] of Object.entries(alteracoesPendentes.precoCompra)) {
+        const prod = produtos.find(p => p.__uid === uid);
+        if (!prod) continue;
+
+
+        await atualizarPrecoCompra(
+          getIdentificadorProduto(prod),
+          preco
+        );
       }
+
+
+      // =========================
+      // 4️⃣ MARGEM
+      // =========================
+      for (const [uid, margem] of Object.entries(alteracoesPendentes.margem)) {
+        const prod = produtos.find(p => p.__uid === uid);
+        if (!prod || prod.novo) continue;
+
+        await atualizarMargemBruta(
+          getIdentificadorProduto(prod),
+          margem
+        );
+      }
+
+
+      // =========================
+      // 5️⃣ PREÇO DE VENDA
+      // =========================
+      for (const [uid, preco] of Object.entries(alteracoesPendentes.precoVenda || {})) {
+        const prod = produtos.find(p => p.__uid === uid);
+        if (!prod || prod.novo) continue;
+
+        await atualizarPrecoVenda(
+          getIdentificadorProduto(prod),
+          preco
+        );
+      }
+
+      // =========================
+      // 6️⃣ STOCK
+      // =========================
+      if (!criarDocumento) {
+
+        // 🆕 PRODUTOS NOVOS → STOCK TOTAL (USAR novosCriados)
+        for (const criado of novosCriados) {
+          const origem = alteracoesPendentes.criarProdutos
+            .find(p => p.__uid === criado.__uid);
+
+          const qtdTotal = Number(origem?.qtdstock || 0);
+
+          if (qtdTotal > 0) {
+            await atualizarStock(criado.codigo, qtdTotal);
+          }
+        }
+
+        // 📦 PRODUTOS EXISTENTES → DELTA
+        for (const [uid, qtd] of Object.entries(alteracoesPendentes.stock)) {
+          const prod = produtos.find(p => p.__uid === uid);
+          if (!prod || prod.novo) continue;
+
+          await atualizarStock(
+            getIdentificadorProduto(prod),
+            Number(qtd)
+          );
+        }
+      }
+
+
+
 
       // Criar documento só se o utilizador escolheu essa opção
       if (criarDocumento) {
@@ -672,7 +971,14 @@ export default function App() {
       }
 
       // ✅ Limpar dados locais
-      setAlteracoesPendentes({ stock: {}, precoCompra: {}, margem: {}, criarProdutos: [] });
+      setAlteracoesPendentes({
+        stock: {},
+        precoCompra: {},
+        margem: {},
+        precoVenda: {},
+        criarProdutos: []
+      });
+
       setProdutos([]);
       window.localStorage.removeItem('produtos');
       window.localStorage.removeItem('alteracoesPendentes');
@@ -705,25 +1011,26 @@ export default function App() {
     let pvp1siva = Number(produto.pvp1siva) || 0;
 
     switch (campoAlterado) {
-      case 'precocompra':
+      case "precocompra":
         precocompra = Number(novoValor);
-        precovenda = precocompra * (1 + margembruta / 100) * (1 + iva / 100);
         pvp1siva = precocompra * (1 + margembruta / 100);
+        precovenda = pvp1siva * (1 + iva / 100);
         break;
 
-      case 'margembruta':
+      case "margembruta":
         margembruta = Number(novoValor);
-        precovenda = precocompra * (1 + margembruta / 100) * (1 + iva / 100);
         pvp1siva = precocompra * (1 + margembruta / 100);
+        precovenda = pvp1siva * (1 + iva / 100);
         break;
 
-      case 'precovenda':
+      case "precovenda":
         precovenda = Number(novoValor);
-        margembruta = ((precovenda / (1 + iva / 100)) / precocompra - 1) * 100;
-        pvp1siva = precocompra * (1 + margembruta / 100);
+        pvp1siva = precovenda / (1 + iva / 100);
+        // ❗ NÃO recalcular margem aqui
         break;
 
-      case 'iva':
+
+      case "iva":
         iva = Number(novoValor);
         precovenda = precocompra * (1 + margembruta / 100) * (1 + iva / 100);
         break;
@@ -731,10 +1038,14 @@ export default function App() {
 
     return {
       ...produto,
+
+      // 🔹 preços arredondam
       precocompra: Number(precocompra.toFixed(2)),
-      margembruta: Number(margembruta.toFixed(2)),
       precovenda: Number(precovenda.toFixed(2)),
       pvp1siva: Number(pvp1siva.toFixed(2)),
+
+      // ❗ margem NUNCA arredonda
+      margembruta: Number(margembruta),
     };
   }
 
@@ -940,11 +1251,24 @@ export default function App() {
                 fornecedores={fornecedores}
                 fornecedorSelecionado={fornecedorSelecionado}
                 setFornecedorSelecionado={(value) => {
-                  setFornecedorSelecionado(value);
+                  const fornecedorNum = Number(value);
+
+                  setFornecedorSelecionado(fornecedorNum);
+
+                  // 🔑 REGRA ABSOLUTA:
+                  // fornecedor da label = fornecedor de TODOS os produtos na tabela
+                  setProdutos(prev =>
+                    prev.map(p => ({
+                      ...p,
+                      fornecedor: fornecedorNum
+                    }))
+                  );
+
                   setAlerta(null);
                 }}
                 disabled={enviando}
               />
+
             </div>
 
             {/* Tipo de Documento */}
@@ -980,36 +1304,31 @@ export default function App() {
             show={mostrarPesquisaNome}
             onClose={() => setMostrarPesquisaNome(false)}
             apiUrl={apiUrl}
-            onSelecionarProduto={async (codbarras) => {
-              try {
-                setAlerta(null);
+            onSelecionarProduto={(produto) => {
+              setAlerta(null);
 
-                // 🔥 USAR O MESMO CAMINHO DO SCAN
-                const dataProduto = await fetchProdutoPorCodigo(
-                  codbarras,
-                  fornecedorSelecionado
-                );
+              // 🔑 garantir identidade frontend
+              const produtoNormalizado = {
+                ...normalizarProdutoDaBD(produto),
+                codbarras: produto.codbarras || null,
+                __uid: crypto.randomUUID(),
+              };
 
-                // impedir duplicados
-                if (produtos.find(p => p.codbarras === dataProduto.codbarras)) {
-                  setAlerta({
-                    tipo: "erro",
-                    mensagem: "Produto já lido."
-                  });
-                  return;
-                }
 
-                setProdutoParaConfirmar(dataProduto);
-                setQuantidadeStock(1);
 
-              } catch (err) {
-                setAlerta({
-                  tipo: "erro",
-                  mensagem: err.message
-                });
+              // ❌ impedir duplicados pelo codigo BD
+              const chave = getChaveProduto(produtoNormalizado);
+              if (chave && produtos.some(p => getChaveProduto(p) === chave)) {
+                setAlerta({ tipo: "erro", mensagem: "Produto já adicionado." });
+                return;
               }
+
+
+              setProdutoParaConfirmar(produtoNormalizado);
+              setQuantidadeStock(1);
             }}
           />
+
 
 
 
@@ -1020,11 +1339,20 @@ export default function App() {
                 <ProdutoTable
                   produtos={produtos}
                   alteracoesPendentesStock={alteracoesPendentes.stock}
-                  onAbrirStock={setProdutoParaStock}
+                  onAbrirStock={(produto) => {
+                    setProdutoParaStock({
+                      ...produto,
+                      __modoStock: produto.novo ? "TOTAL" : "DELTA"
+                    });
+                  }}
+
                   onAbrirPrecoCompra={setProdutoParaPrecoCompra}
                   onAbrirMargem={setProdutoParaMargem}
                   onAbrirPrecoVenda={(produto) => {
-                    const produtoAtualizado = produtos.find((p) => p.codbarras === produto.codbarras);
+                    const produtoAtualizado = produtos.find(
+                      (p) => p.__uid === produto.__uid
+                    );
+
                     setProdutoParaPrecoVenda(produtoAtualizado || produto);
                   }}
                   onPedirConfirmacaoApagar={pedirConfirmacaoApagar}
@@ -1052,11 +1380,19 @@ export default function App() {
           {produtoParaStock && (
             <StockModal
               produto={produtoParaStock}
+              quantidadeInicial={
+                produtoParaStock.__modoStock === "TOTAL"
+                  ? Number(produtoParaStock.qtdstock || 0)
+                  : Number(alteracoesPendentes.stock[produtoParaStock.__uid] || 0)
+              }
+
               onFechar={() => setProdutoParaStock(null)}
               onConfirmar={handleAtualizarStockLocal}
               disabled={enviando}
             />
           )}
+
+
 
           {produtoParaPrecoCompra && (
             <PrecoCompraModal
@@ -1091,6 +1427,7 @@ export default function App() {
               onConfirmar={handleCriarProdutoLocal}
               familias={familias}
               subfamilias={subfamilias}
+              produtosExistentes={produtos}
               disabled={enviando}
               apiUrl={apiUrl}
             />
@@ -1101,8 +1438,8 @@ export default function App() {
               show={mostrarModalConfirmarApagar}
               produto={produtoParaApagar}
               onClose={() => setMostrarModalConfirmarApagar(false)}
-              onConfirmar={(codbarras) => {
-                handleApagarProduto(codbarras);
+              onConfirmar={(uid) => {
+                handleApagarProduto(uid);
                 setMostrarModalConfirmarApagar(false);
                 setProdutoParaApagar(null);
               }}
@@ -1120,7 +1457,8 @@ export default function App() {
                   </div>
                   <div className="modal-body">
                     <p><strong>Descrição:</strong> {produtoParaConfirmar.descricao}</p>
-                    <p><strong>Código de Barras:</strong> {produtoParaConfirmar.codbarras}</p>
+                    <p><strong>Código de Barras:</strong> {produtoParaConfirmar.codbarras || "Sem código"}</p>
+
                     <label htmlFor="quantidadeInput" className="form-label mt-3"><strong>Quantidade de Stock:</strong></label>
                     <div className="d-flex align-items-center gap-2">
                       <button className="btn btn-outline-danger" onClick={() => setQuantidadeStock((q) => (q > 0 ? q - 1 : 0))} disabled={quantidadeStock <= 0}>-</button>

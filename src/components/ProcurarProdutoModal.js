@@ -12,7 +12,7 @@ export default function ProcurarProdutoModal({
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
-        if (!termo || termo.length < 2) {
+        if (!termo) {
             setResultados([]);
             return;
         }
@@ -65,17 +65,22 @@ export default function ProcurarProdutoModal({
 
                         return (
                             <button
-                                key={p.codbarras}
+                                key={p.codbarras || p.codigo}
                                 className="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
                                 onClick={() => {
-                                    onSelecionarProduto(p.codbarras);
+                                    onSelecionarProduto(p);
                                     onClose();
                                 }}
+
+
                             >
                                 {/* 🔹 Nome + código */}
                                 <div className="text-start">
                                     <div className="fw-semibold">{p.descricao}</div>
-                                    <small className="text-muted">{p.codbarras}</small>
+                                    <small className="text-muted">
+                                        {p.codbarras || "Sem código"}
+                                    </small>
+
                                 </div>
 
                                 {/* 💰 Preço */}

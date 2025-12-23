@@ -31,7 +31,8 @@ export default function ProdutoTable({
         <tbody>
           {produtos.map(produto => (
             <ProdutoRow
-              key={produto.codbarras}
+              key={produto.__uid}
+
               produto={produto}
               alteracoesPendentesStock={alteracoesPendentesStock}
               onAbrirStock={onAbrirStock}
