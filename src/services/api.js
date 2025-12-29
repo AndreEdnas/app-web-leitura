@@ -23,7 +23,6 @@ async function logResponse(res) {
   // Só loga erros, não loga mais JSON gigante
   if (!res.ok) {
     const text = await res.clone().text();
-    console.log("📥 RAW RESPONSE:", text);
 
   }
 

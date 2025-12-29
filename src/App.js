@@ -768,7 +768,7 @@ export default function App() {
         produtos: produtosFormatados
       };
 
-      console.log("📦 ENVIANDO DOCUMENTO PARA O BACKEND:", body);
+ 
 
       const resp = await fetch(`${apiUrl}/criarDocumentoCompra`, {
         method: "POST",
@@ -825,7 +825,7 @@ export default function App() {
     setMostrarModalConfirmarEnvio(false);
 
     try {
-      console.log("📤 ENVIANDO TODAS AS ALTERAÇÕES:", alteracoesPendentes);
+     
 
       // =========================
       // 1️⃣ CRIAR PRODUTOS NOVOS
