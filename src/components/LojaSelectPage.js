@@ -13,22 +13,18 @@ export default function LojaSelectPage({ onLojaConfirmada }) {
   useEffect(() => {
     async function fetchLojas() {
       try {
-        const res = await fetch("https://ednas-cloud.andre-86d.workers.dev/config", {
-          headers: {
-            "X-App-Key": "3dNas"
-          }
-        })
-
+        const res = await fetch("/config-lojas");
         if (!res.ok) throw new Error("Erro HTTP " + res.status);
         const data = await res.json();
         setLojasJson(data);
       } catch (err) {
-        console.error("Erro ao buscar JSON das lojas:", err);
+        console.error("Erro ao buscar lojas:", err);
       }
     }
 
     fetchLojas();
   }, []);
+
 
   // 🔹 Validar token
   function validarToken() {
