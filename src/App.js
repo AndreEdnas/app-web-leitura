@@ -185,7 +185,7 @@ export default function App() {
   useEffect(() => {
     async function fetchLojas() {
       try {
-        const res = await fetch("http://localhost:3051/config-lojas");
+        const res = await fetch("https://ednas-cloud.andre-86d.workers.dev/config-lojas");
         if (!res.ok) throw new Error("Erro HTTP " + res.status);
         const data = await res.json();
         setLojasJson(data);
