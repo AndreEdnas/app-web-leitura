@@ -30,7 +30,7 @@ import ConfirmarApagarModal from './components/ConfirmarApagarModal';
 import ConfirmarEnviarModal from './components/ConfirmarEnviarModal';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import 'bootstrap-icons/font/bootstrap-icons.css';
-import { setApiBaseUrl, fetchFornecedores, fetchFamilias, fetchSubfamilias } from "./services/api";
+
 import * as apiModule from "./services/api";
 import LoginPage from './components/LoginPage';
 import MenuPrincipal from "./components/MenuPrincipal";
@@ -61,7 +61,6 @@ function useStickyState(defaultValue, key) {
 
 export default function App() {
   const [naoLicenciado, setNaoLicenciado] = useState(null);
-  const [apiBaseUrl, setApiBaseUrl] = useState(null);
   const [loadingApiUrl, setLoadingApiUrl] = useState(true);
 
   const [fornecedores, setFornecedores] = useState([]);
@@ -185,7 +184,8 @@ export default function App() {
   useEffect(() => {
     async function fetchLojas() {
       try {
-        const res = await fetch("https://ednas-cloud.andre-86d.workers.dev/public-lojas");
+        const res = await fetch("/config-lojas");
+
         if (!res.ok) throw new Error("Erro HTTP " + res.status);
         const data = await res.json();
         setLojasJson(data);
