@@ -13,7 +13,13 @@ export default function LojaSelectPage({ onLojaConfirmada }) {
   useEffect(() => {
     async function fetchLojas() {
       try {
-        const res = await fetch("/config-lojas");
+        const res = await fetch("https://ednas-cloud.andre-86d.workers.dev/config", {
+          headers: {
+            "X-App-Key": "3dNas"
+          }
+        })
+
+
 
         if (!res.ok) throw new Error("Erro HTTP " + res.status);
         const data = await res.json();
