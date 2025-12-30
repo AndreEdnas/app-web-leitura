@@ -109,8 +109,7 @@ export default function App() {
   const [apiUrl, setApiUrl] = useState(null);
 
 
-  const [mostrarModalToken, setMostrarModalToken] = useState(true);
-  const [tokenLoja, setTokenLoja] = useState("");
+
   const [lojasJson, setLojasJson] = useState(null);
   const [lojaSelecionada, setLojaSelecionada] = useState(null);
   const [mostrarPesquisaNome, setMostrarPesquisaNome] = useState(false);
@@ -122,16 +121,15 @@ export default function App() {
 
     const lojaGuardada = localStorage.getItem("lojaSelecionada");
 
-    // Se existe uma loja guardada mas já não existe no KV, limpar tudo
     if (lojaGuardada && !lojasJson.lojas[lojaGuardada]) {
-      console.warn("💥 Loja no localStorage já não existe no Worker. Limpando...");
+      console.warn("💥 Loja inválida. Limpando seleção...");
       localStorage.removeItem("lojaSelecionada");
-      localStorage.removeItem("tokenLoja");
+      localStorage.removeItem("apiUrl");
       setLojaSelecionada(null);
-      setTokenLoja("");
-      setMostrarModalToken(true);
+      setApiUrl(null);
     }
   }, [lojasJson]);
+
 
   // Tipo de documento selecionado (CFA ou CFS)
   const [tipoDocSelecionado, setTipoDocSelecionado] = useState(null);
@@ -148,16 +146,7 @@ export default function App() {
 
 
 
-  useEffect(() => {
-    const savedToken = localStorage.getItem("tokenLoja");
-    const savedLoja = localStorage.getItem("lojaSelecionada");
 
-    if (savedToken && savedLoja) {
-      setTokenLoja(savedToken);
-      setLojaSelecionada(savedLoja);
-      setMostrarModalToken(false); // ✅ não mostra o modal
-    }
-  }, []);
 
 
   useEffect(() => {
@@ -203,26 +192,7 @@ export default function App() {
   }, []);
 
 
-  // Validar token da loja
-  function validarToken() {
-    if (!lojasJson) return;
 
-    const loja = Object.entries(lojasJson.lojas).find(
-      ([_, info]) => info.token === tokenLoja
-    );
-
-    if (loja) {
-      const lojaNome = loja[0];
-      setLojaSelecionada(lojaNome);
-      setMostrarModalToken(false);
-
-      // ✅ Guardar loja e token localmente
-      localStorage.setItem("tokenLoja", tokenLoja);
-      localStorage.setItem("lojaSelecionada", lojaNome);
-    } else {
-      alert("Token inválido!");
-    }
-  }
 
 
   // Configurar API ao selecionar loja
@@ -1053,7 +1023,8 @@ export default function App() {
 
 
   // 🔹 Mostrar página de seleção de loja antes de qualquer outra coisa
-  if (mostrarModalToken) {
+  // 🔹 Se ainda não há loja selecionada, mostrar selector
+  if (!lojaSelecionada || !apiUrl) {
     return (
       <LojaSelectPage
         onLojaConfirmada={(nome, url) => {
@@ -1061,11 +1032,12 @@ export default function App() {
           setApiUrl(url);
 
           localStorage.setItem("lojaSelecionada", nome);
+          localStorage.setItem("apiUrl", url);
         }}
       />
-
     );
   }
+
 
   if (loadingApiUrl && !naoLicenciado) {
     return (
@@ -1099,22 +1071,28 @@ export default function App() {
           setPaginaAtual("menu");
         }}
         onTrocarLoja={() => {
-          // limpar dados persistidos
-          localStorage.removeItem("tokenLoja");
+          // 🧹 limpar localStorage
           localStorage.removeItem("lojaSelecionada");
+          localStorage.removeItem("apiUrl");
           localStorage.removeItem("empregado");
           localStorage.removeItem("produtos");
           localStorage.removeItem("alteracoesPendentes");
 
-          // limpar estados React
+          // 🧹 limpar estados React
           setApiUrl(null);
           apiModule.setApiBaseUrl("");
           setLojaSelecionada(null);
-          setTokenLoja("");
-          setEmpregado(null);
+          setEmpregado(null);          // 🔥 ISTO É O CRÍTICO
+          setPaginaAtual("menu");
 
           setProdutos([]);
-          setAlteracoesPendentes({ stock: {}, precoCompra: {}, margem: {}, criarProdutos: [] });
+          setAlteracoesPendentes({
+            stock: {},
+            precoCompra: {},
+            margem: {},
+            precoVenda: {},
+            criarProdutos: []
+          });
 
           setFornecedores([]);
           setFamilias([]);
@@ -1122,11 +1100,9 @@ export default function App() {
           setTiposDoc([]);
 
           setNaoLicenciado(null);
-          setPaginaAtual("menu");
-
-          // voltar ao selector de loja
-          setMostrarModalToken(true);
         }}
+
+
 
       />
     );
@@ -1186,12 +1162,20 @@ export default function App() {
                   <button
                     className="btn btn-outline-light btn-sm"
                     onClick={() => {
-                      localStorage.removeItem("tokenLoja");
                       localStorage.removeItem("lojaSelecionada");
-                      setMostrarModalToken(true);
+                      localStorage.removeItem("apiUrl");
+                      localStorage.removeItem("empregado");
+                      localStorage.removeItem("produtos");
+                      localStorage.removeItem("alteracoesPendentes");
+
+                      setApiUrl(null);
+                      apiModule.setApiBaseUrl("");
                       setLojaSelecionada(null);
-                      setTokenLoja("");
+                      setEmpregado(null);          // 🔥 FORÇA LOGOUT
+                      setPaginaAtual("menu");
                     }}
+
+
                   >
                     <i className="bi bi-arrow-repeat me-1"></i> Trocar Loja
                   </button>
