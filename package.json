@@ -61,8 +61,5 @@
   "main": "backend/server.js",
   "keywords": [],
   "author": "",
-  "license": "ISC",
-  "proxy": "http://localhost:3051"
-
-
+  "license": "ISC"
 }
