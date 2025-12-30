@@ -5,12 +5,13 @@ export default function MenuPrincipal({
   empregado,
   lojaSelecionada,
   onIrScanner,
-  onIrRelatorios,
+  onIrInventario,
   onIrGestaoCaixa,
   onIrConfiguracoes,
   onLogout,
   onTrocarLoja,
 }) {
+
   return (
     <div className="min-vh-100 bg-light d-flex flex-column justify-content-center align-items-center text-center">
       <div className="mb-5">
@@ -26,9 +27,10 @@ export default function MenuPrincipal({
           📦 Picagem / Scanner de Produtos
         </button>
 
-        <button className="btn btn-outline-primary btn-lg" onClick={onIrRelatorios}>
-          📊 Relatórios / Estatísticas
+        <button className="btn btn-outline-primary btn-lg" onClick={onIrInventario}>
+          📦 Inventário
         </button>
+
 
         <button className="btn btn-outline-success btn-lg" onClick={onIrGestaoCaixa}>
           💰 Gestão de Caixa

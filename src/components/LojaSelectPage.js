@@ -9,35 +9,32 @@ export default function LojaSelectPage({ onLojaConfirmada }) {
   const [tokenLoja, setTokenLoja] = useState("");
   const [erro, setErro] = useState("");
 
-  // 🔹 Buscar lojas do JSONBin
+  // 🔹 Buscar lojas (ENDPOINT FIXO)
   useEffect(() => {
     async function fetchLojas() {
       try {
-        const res = await fetch("https://ednas-cloud.andre-86d.workers.dev/config", {
-          headers: { "X-App-Key": "3dNas" }
-        })
-
-
+        const res = await fetch("http://localhost:3051/config-lojas");
+        if (!res.ok) throw new Error("Erro HTTP " + res.status);
         const data = await res.json();
-        setLojasJson(data); // NÃO é data.record
-
+        setLojasJson(data);
       } catch (err) {
         console.error("Erro ao buscar JSON das lojas:", err);
       }
     }
+
     fetchLojas();
   }, []);
 
-  // 🔹 Validar token da loja
+  // 🔹 Validar token
   function validarToken() {
     if (!lojasJson || !lojaSelecionada) return;
 
     const lojaData = lojasJson.lojas[lojaSelecionada];
     if (lojaData && lojaData.token === tokenLoja) {
-      // Guarda dados localmente
       localStorage.setItem("tokenLoja", tokenLoja);
       localStorage.setItem("lojaSelecionada", lojaSelecionada);
 
+      // 🔥 devolve decisão final ao App
       onLojaConfirmada(lojaSelecionada, lojaData.url);
     } else {
       setErro("❌ Token inválido. Tente novamente.");
@@ -50,11 +47,10 @@ export default function LojaSelectPage({ onLojaConfirmada }) {
       <div className="bg-white rounded-4 shadow p-4 text-center" style={{ width: 360 }}>
         <h4 className="fw-bold text-primary mb-3">Seleção de Loja</h4>
 
-        {/* 🔹 Etapa 1 - Escolher loja */}
         {!lojaSelecionada ? (
           <>
             <p className="mb-3">Escolha a sua loja:</p>
-            {lojasJson && lojasJson.lojas ? (
+            {lojasJson?.lojas ? (
               <div className="list-group">
                 {Object.keys(lojasJson.lojas).map((nome) => (
                   <button
@@ -75,9 +71,7 @@ export default function LojaSelectPage({ onLojaConfirmada }) {
           </>
         ) : (
           <>
-            {/* 🔹 Etapa 2 - Inserir token */}
             <h5 className="fw-semibold text-primary mb-2">{lojaSelecionada}</h5>
-            <p className="text-muted small mb-3">Introduza o token para continuar:</p>
 
             <input
               type="text"
@@ -89,19 +83,19 @@ export default function LojaSelectPage({ onLojaConfirmada }) {
 
             {erro && <p className="text-danger small mb-2">{erro}</p>}
 
-            <div className="d-flex justify-content-between">
+            <div className="d-flex gap-2">
               <button
-                className="btn btn-outline-secondary w-50 me-2"
+                className="btn btn-outline-secondary w-50"
                 onClick={() => {
                   setLojaSelecionada(null);
                   setTokenLoja("");
                   setErro("");
                 }}
               >
-                <i className="bi bi-arrow-left"></i> Voltar
+                Voltar
               </button>
               <button className="btn btn-success w-50" onClick={validarToken}>
-                <i className="bi bi-check-lg"></i> Confirmar
+                Confirmar
               </button>
             </div>
           </>

@@ -7,6 +7,8 @@ import ProdutoTable from './components/ProdutoTable';
 import useFornecedores from './hooks/useFornecedores';
 import useSubfamilias from './hooks/useSubfamilias';
 import useFamilias from './hooks/useFamilias';
+import InventarioPage from "./components/InventarioPage";
+
 import ProcurarProdutoModal from "./components/ProcurarProdutoModal";
 import {
   fetchProdutoPorCodigo,
@@ -181,25 +183,19 @@ export default function App() {
 
 
   useEffect(() => {
-    const fetchLojas = async () => {
+    async function fetchLojas() {
       try {
-        const res = await fetch("https://ednas-cloud.andre-86d.workers.dev/config", {
-          headers: { "X-App-Key": "3dNas" }
-        })
-
-
-
-
+        const res = await fetch("http://localhost:3051/config-lojas");
+        if (!res.ok) throw new Error("Erro HTTP " + res.status);
         const data = await res.json();
         setLojasJson(data);
-
-
       } catch (err) {
         console.error("Erro ao buscar JSON das lojas:", err);
       }
-    };
+    }
     fetchLojas();
   }, []);
+
 
   // Validar token da loja
   function validarToken() {
@@ -768,7 +764,7 @@ export default function App() {
         produtos: produtosFormatados
       };
 
- 
+
 
       const resp = await fetch(`${apiUrl}/criarDocumentoCompra`, {
         method: "POST",
@@ -825,7 +821,7 @@ export default function App() {
     setMostrarModalConfirmarEnvio(false);
 
     try {
-     
+
 
       // =========================
       // 1️⃣ CRIAR PRODUTOS NOVOS
@@ -1056,11 +1052,12 @@ export default function App() {
       <LojaSelectPage
         onLojaConfirmada={(nome, url) => {
           setLojaSelecionada(nome);
-          setTokenLoja(localStorage.getItem("tokenLoja"));
-          setMostrarModalToken(false);
           setApiUrl(url);
+
+          localStorage.setItem("lojaSelecionada", nome);
         }}
       />
+
     );
   }
 
@@ -1087,7 +1084,7 @@ export default function App() {
         empregado={empregado}
         lojaSelecionada={lojaSelecionada}
         onIrScanner={() => setPaginaAtual("scanner")}
-        onIrRelatorios={() => setPaginaAtual("relatorios")}
+        onIrInventario={() => setPaginaAtual("inventario")}
         onIrGestaoCaixa={() => setPaginaAtual("caixa")}
         onIrConfiguracoes={() => setPaginaAtual("config")}
         onLogout={() => {
@@ -1125,6 +1122,17 @@ export default function App() {
           setMostrarModalToken(true);
         }}
 
+      />
+    );
+  }
+
+
+  if (paginaAtual === "inventario") {
+    return (
+      <InventarioPage
+        lojaSelecionada={lojaSelecionada}
+        empregado={empregado}
+        onVoltar={() => setPaginaAtual("menu")}
       />
     );
   }
