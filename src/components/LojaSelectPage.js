@@ -9,17 +9,26 @@ export default function LojaSelectPage({ onLojaConfirmada }) {
   const [tokenLoja, setTokenLoja] = useState("");
   const [erro, setErro] = useState("");
 
-  // 🔹 Buscar lojas (ENDPOINT FIXO)
+  const CF_BASE = process.env.REACT_APP_CF_BASE;
+  const CF_APP_KEY = process.env.REACT_APP_CF_APP_KEY;
+
+  // 🔹 Buscar lojas
   useEffect(() => {
     async function fetchLojas() {
       try {
-        const res = await fetch("https://ednas-cloud.andre-86d.workers.dev/config", {
+        if (!CF_BASE || !CF_APP_KEY) {
+          console.error("❌ Variáveis de ambiente não definidas");
+          return;
+        }
+
+        const res = await fetch(`${CF_BASE}/config`, {
           headers: {
-            "X-App-Key": "3dNas"
-          }
-        })
+            "X-App-Key": CF_APP_KEY,
+          },
+        });
 
         if (!res.ok) throw new Error("Erro HTTP " + res.status);
+
         const data = await res.json();
         setLojasJson(data);
       } catch (err) {
@@ -28,7 +37,7 @@ export default function LojaSelectPage({ onLojaConfirmada }) {
     }
 
     fetchLojas();
-  }, []);
+  }, [CF_BASE, CF_APP_KEY]);
 
   // 🔹 Validar token
   function validarToken() {
@@ -49,7 +58,10 @@ export default function LojaSelectPage({ onLojaConfirmada }) {
 
   return (
     <div className="d-flex flex-column align-items-center justify-content-center vh-100 bg-warning bg-gradient">
-      <div className="bg-white rounded-4 shadow p-4 text-center" style={{ width: 360 }}>
+      <div
+        className="bg-white rounded-4 shadow p-4 text-center"
+        style={{ width: 360 }}
+      >
         <h4 className="fw-bold text-primary mb-3">Seleção de Loja</h4>
 
         {!lojaSelecionada ? (
@@ -71,12 +83,16 @@ export default function LojaSelectPage({ onLojaConfirmada }) {
                 ))}
               </div>
             ) : (
-              <p className="text-muted fst-italic">A carregar lista de lojas...</p>
+              <p className="text-muted fst-italic">
+                A carregar lista de lojas...
+              </p>
             )}
           </>
         ) : (
           <>
-            <h5 className="fw-semibold text-primary mb-2">{lojaSelecionada}</h5>
+            <h5 className="fw-semibold text-primary mb-2">
+              {lojaSelecionada}
+            </h5>
 
             <input
               type="text"
@@ -99,7 +115,10 @@ export default function LojaSelectPage({ onLojaConfirmada }) {
               >
                 Voltar
               </button>
-              <button className="btn btn-success w-50" onClick={validarToken}>
+              <button
+                className="btn btn-success w-50"
+                onClick={validarToken}
+              >
                 Confirmar
               </button>
             </div>
