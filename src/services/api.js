@@ -106,18 +106,19 @@ Se não existir, erro com vigor,
 Se JSON chegar, é puro amor. */
 
 
-export async function fetchProdutoPorCodigo(codigo, fornecedorId = null) {
+export async function fetchProdutoPorCodigo(codigo) {
   const baseUrl = getApiBaseUrl();
   if (!baseUrl) throw new Error("API_BASE ainda não foi definido!");
 
-  const qs = fornecedorId ? `?fornecedor=${encodeURIComponent(fornecedorId)}` : "";
-  const res = await fetch(`${baseUrl}/produto/${encodeURIComponent(codigo)}${qs}`, {
-    headers: { "Accept": "application/json" },
-  });
+  const res = await fetch(
+    `${baseUrl}/produto/${encodeURIComponent(codigo)}`,
+    { headers: { "Accept": "application/json" } }
+  );
 
-  if (!res.ok) throw new Error("Erro ao buscar produto");
+  if (!res.ok) throw new Error("Produto não encontrado");
   return res.json();
 }
+
 
 
 
