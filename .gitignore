@@ -28,3 +28,6 @@ yarn-error.log*
 
 /Credenciais-apagar_dps
 /bats/
+/dist/
+.vercel
+/cloudflare-worker/.wrangler/

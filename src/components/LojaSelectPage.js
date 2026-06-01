@@ -1,45 +1,14 @@
 // src/components/LojaSelectPage.js
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap-icons/font/bootstrap-icons.css";
 
-export default function LojaSelectPage({ onLojaConfirmada }) {
-  const [lojasJson, setLojasJson] = useState(null);
+export default function LojaSelectPage({ lojasJson, onLojaConfirmada }) {
   const [lojaSelecionada, setLojaSelecionada] = useState(null);
   const [tokenLoja, setTokenLoja] = useState("");
   const [erro, setErro] = useState("");
 
-  const CF_BASE = process.env.REACT_APP_CF_BASE;
-  const CF_APP_KEY = process.env.REACT_APP_CF_APP_KEY;
-
-  // 🔹 Buscar lojas
-  useEffect(() => {
-    async function fetchLojas() {
-      try {
-        if (!CF_BASE || !CF_APP_KEY) {
-          console.error("❌ Variáveis de ambiente não definidas");
-          return;
-        }
-
-        const res = await fetch(`${CF_BASE}/config`, {
-          headers: {
-            "X-App-Key": CF_APP_KEY,
-          },
-        });
-
-        if (!res.ok) throw new Error("Erro HTTP " + res.status);
-
-        const data = await res.json();
-        setLojasJson(data);
-      } catch (err) {
-        console.error("Erro ao buscar JSON das lojas:", err);
-      }
-    }
-
-    fetchLojas();
-  }, [CF_BASE, CF_APP_KEY]);
-
-  // 🔹 Validar token
+  // Validar token da loja selecionada
   function validarToken() {
     if (!lojasJson || !lojaSelecionada) return;
 
@@ -48,7 +17,7 @@ export default function LojaSelectPage({ onLojaConfirmada }) {
       localStorage.setItem("tokenLoja", tokenLoja);
       localStorage.setItem("lojaSelecionada", lojaSelecionada);
 
-      // 🔥 devolve decisão final ao App
+      // Devolve decisao final ao App
       onLojaConfirmada(lojaSelecionada, lojaData.url);
     } else {
       setErro("❌ Token inválido. Tente novamente.");

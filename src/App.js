@@ -36,6 +36,7 @@ import LoginPage from './components/LoginPage';
 import MenuPrincipal from "./components/MenuPrincipal";
 import LojaSelectPage from "./components/LojaSelectPage";
 import PCNaoAtivado from "./components/PCNaoAtivado";
+import { getLojasConfigUrl } from "./services/backendConfig";
 
 function useStickyState(defaultValue, key) {
   const [value, setValue] = useState(() => {
@@ -73,8 +74,7 @@ export default function App() {
   const [fornecedorSelecionado, setFornecedorSelecionado] = useState('');
   const [scanning, setScanning] = useState(false);
   const [produtos, setProdutos] = useStickyState([], 'produtos');
-  const CF_BASE = process.env.REACT_APP_CF_BASE;
-  const CF_APP_KEY = process.env.REACT_APP_CF_APP_KEY;
+  const lojasConfigUrl = getLojasConfigUrl();
 
   useEffect(() => {
     setProdutos(prev =>
@@ -175,16 +175,7 @@ export default function App() {
   useEffect(() => {
     async function fetchLojas() {
       try {
-        if (!CF_BASE || !CF_APP_KEY) {
-          console.error("❌ Variáveis de ambiente CF não definidas");
-          return;
-        }
-
-        const res = await fetch(`${CF_BASE}/config`, {
-          headers: {
-            "X-App-Key": CF_APP_KEY
-          }
-        });
+        const res = await fetch(lojasConfigUrl);
 
         if (!res.ok) throw new Error("Erro HTTP " + res.status);
 
@@ -196,7 +187,7 @@ export default function App() {
     }
 
     fetchLojas();
-  }, [CF_BASE, CF_APP_KEY]);
+  }, [lojasConfigUrl]);
 
 
 
@@ -1035,6 +1026,7 @@ export default function App() {
   if (!lojaSelecionada || !apiUrl) {
     return (
       <LojaSelectPage
+        lojasJson={lojasJson}
         onLojaConfirmada={(nome, url) => {
           setLojaSelecionada(nome);
           setApiUrl(url);
@@ -1500,3 +1492,4 @@ export default function App() {
   }
 
 }
+

@@ -1,0 +1,16 @@
+name = "ednas-cloud"
+main = "src/index.js"
+compatibility_date = "2026-06-01"
+
+kv_namespaces = [
+  # Produção atual usa binding "CONFIG" -> namespace "lojas-db"
+  { binding = "CONFIG", id = "1d90767efc014a89adacf8030c712bcd" }
+]
+
+[vars]
+# URL publico permitido no CORS (opcional).
+# Se vazio, o worker usa o Origin do request.
+ALLOW_ORIGIN = ""
+
+# Definir via secret:
+# wrangler secret put APP_KEY

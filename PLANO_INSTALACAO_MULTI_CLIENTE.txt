@@ -1,0 +1,174 @@
+PLANO DE INSTALACAO MULTI-CLIENTE (EDNAS)
+Data: 2026-06-01
+
+OBJETIVO
+- Ter uma instalacao rapida em varios clientes (estilo Setup.exe), com:
+  - app local
+  - backend local
+  - cloudflare tunnel
+  - licenciamento por maquina (HWID)
+  - controlo central para ativar/bloquear
+
+ESTADO ATUAL (RESUMO)
+- Frontend e backend existem e funcionam.
+- Ja existe logica de licenciamento e integracao com Cloudflare/KV.
+- Existe risco de seguranca no frontend por usar variaveis REACT_APP com dados sensiveis.
+
+PROGRESSO IMPLEMENTADO NESTA FASE
+- Frontend deixou de chamar Cloudflare diretamente.
+- Frontend agora busca lojas no backend local (/config-lojas).
+- Backend ganhou camada de compatibilidade de schema:
+  - legado: config com lojas/licencas
+  - novo: chaves por prefixo (loja:, licenca:, instalacao:, tunnel:)
+- Endpoints base criados para instalador e gestao:
+  - POST /activation/start
+  - POST /activation/finish (com fallback local se Worker ainda nao tiver endpoint)
+  - POST /license/check
+  - POST /heartbeat
+- Estrutura inicial do Worker criada no projeto:
+  - cloudflare-worker/src/index.js
+  - cloudflare-worker/wrangler.toml
+  - cloudflare-worker/README.md
+- Worker preparado com compatibilidade de rotas antigas e novas para cutover sem downtime.
+
+ARQUITETURA ALVO
+- Frontend (browser): sem segredos, fala apenas com backend local.
+- Backend local (servico Windows): fala com SQL local e com Worker central.
+- Worker central + KV: fonte de verdade de lojas, instalacoes, licencas e tuneis.
+- Cloudflared (servico Windows): tunel da instalacao para dominio publico.
+
+REGRAS BASE
+- 1 licenca por maquina (HWID).
+- 1 tunnel por instalacao (ou por loja, se decidido).
+- Segredos Cloudflare apenas no backend/worker, nunca no frontend.
+- Revalidacao periodica da licenca.
+
+MODELO KV RECOMENDADO
+- loja:<loja_id>
+- instalacao:<instalacao_id>
+- licenca:<hwid>
+- tunnel:<instalacao_id>
+- backup:<yyyymmdd_hhmm>
+
+EXEMPLO DE CONTEUDO KV (IDEIA)
+- loja:<loja_id>:
+  { "loja_id":"loja_001", "nome":"Loja Teste", "token":"99", "url_api_local":"http://127.0.0.1:3051" }
+
+- instalacao:<instalacao_id>:
+  { "instalacao_id":"inst_abc", "cliente_id":"cli_1", "loja_id":"loja_001", "hwid":"...", "estado":"ativo", "created_at":"..." }
+
+- licenca:<hwid>:
+  { "hwid":"...", "estado":"ativa", "loja_id":"loja_001", "instalacao_id":"inst_abc", "expira_em":null, "updated_at":"..." }
+
+- tunnel:<instalacao_id>:
+  { "instalacao_id":"inst_abc", "tunnel_id":"...", "hostname":"loja001.ednas.pt", "token_ref":"...", "estado":"ativo" }
+
+ENDPOINTS CENTRAIS (WORKER)
+- POST /activation/start
+  - input: codigo_ativacao, hwid, hostname_local
+  - output: desafio/estado inicial
+
+- POST /activation/finish
+  - input: codigo_ativacao, hwid, metadados instalacao
+  - output: estado licenca, dados loja, dados tunnel necessarios
+
+- POST /license/check
+  - input: hwid, versao_app
+  - output: ativa/bloqueada + motivo
+
+- POST /heartbeat
+  - input: hwid, versao_app, status_servicos
+  - output: ok + comandos simples (ex: rotate_tunnel_token)
+
+FLUXO DE INSTALACAO DO CLIENTE
+1) Tecnico corre Setup.exe.
+2) Setup instala app em Program Files.
+3) Setup instala servico EdnasBackend.
+4) Setup instala servico EdnasTunnel (cloudflared).
+5) Primeiro arranque pede:
+   - codigo de ativacao
+   - credenciais SQL
+6) Backend faz activation com Worker.
+7) Backend valida licenca e grava config local.
+8) Tunnel arranca e publica hostname.
+9) App fica operacional e valida licenca periodicamente.
+
+PLANO DE EXECUCAO (FASES)
+FASE 1 - SEGURANCA E BASE
+- Remover chamadas Cloudflare do frontend.
+- Frontend passa a usar apenas backend local para config/lojas.
+- Manter CF_APP_KEY e CF_BASE apenas no backend/.env.
+- Rodar chave antiga se ja esteve exposta no frontend.
+
+FASE 2 - WORKER/KV ORGANIZADO
+- Migrar de "config unico" para chaves por entidade.
+- Implementar endpoints activation/check/heartbeat.
+- Criar rotina de backup de KV.
+
+FASE 3 - SERVICOS WINDOWS
+- Empacotar backend para producao.
+- Registrar EdnasBackend como servico auto-start.
+- Registrar cloudflared como servico auto-start.
+- Definir restart automatico em caso de falha.
+
+FASE 4 - SETUP.EXE
+- Criar instalador (Inno Setup ou NSIS).
+- Copiar ficheiros, criar atalhos, registrar servicos.
+- Correr wizard de first-run no final da instalacao.
+
+FASE 5 - PILOTO E ROLLOUT
+- Testar em 2-3 clientes reais.
+- Validar logs, reconexao, licenca, tunnel, SQL.
+- Ajustar e so depois escalar.
+
+CHECKLIST TECNICA
+- [ ] Frontend sem segredos.
+- [ ] Backend com endpoints locais de configuracao.
+- [ ] Worker com activation/check/heartbeat.
+- [ ] KV com chaves normalizadas.
+- [ ] Licenca por HWID funcional.
+- [ ] cloudflared como servico.
+- [ ] Setup.exe funcional em maquina limpa.
+- [ ] Script de diagnostico (servicos, rede, licenca, SQL).
+- [ ] Processo de update documentado.
+
+RISCO PRINCIPAL E MITIGACAO
+- Risco: segredos expostos no frontend.
+  Mitigacao: mover tudo para backend/worker + rotacao de chaves.
+
+- Risco: estado inconsistente no KV.
+  Mitigacao: modelagem por chave, validacoes e versionamento simples.
+
+- Risco: falha de servico apos reboot.
+  Mitigacao: auto-start + restart policy + health-check.
+
+- Risco: suporte dificil em campo.
+  Mitigacao: logs padronizados + ferramenta de diagnostico.
+
+DEFINICAO DE PRONTO (MVP)
+- Instalacao em maquina limpa em menos de 10 minutos.
+- Backend e tunnel sobem automatico no boot.
+- Ativacao por codigo funciona.
+- Licenca bloqueia/desbloqueia remotamente por HWID.
+- App opera scanner/inventario sem tocar em configuracao manual.
+
+ATUALIZACAO IMPLEMENTADA (2026-06-01)
+- Backend preparado para instalacao:
+  - fallback de credenciais SQL por .env (DB_USER/DB_PASSWORD)
+  - endpoint local de health-check: GET /health
+  - suporte para servir frontend build local (FRONTEND_BUILD_PATH)
+- Nova pasta installer/ criada com:
+  - prepare-package.ps1
+  - install-client.ps1
+  - uninstall-client.ps1
+  - EDNAS_SETUP.iss (base Inno Setup)
+  - README_INSTALADOR.md
+- Modo Vercel preparado:
+  - frontend passa a carregar lojas pelo endpoint publico do Worker
+  - instalador cria atalho para site publico (nao localhost)
+
+PROXIMO PASSO IMEDIATO
+- Testar pacote em maquina limpa:
+  - correr prepare-package.ps1
+  - instalar via install-client.ps1 com PromptValues
+  - validar servicos EdnasBackend/EdnasTunnel apos reboot
