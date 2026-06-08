@@ -1,57 +1,30 @@
-// components/AlertaMensagem.jsx
-import React from 'react';
+import React from "react";
+import { normalizarTextoPt } from "../services/texto";
 
-export default function AlertaMensagem({ tipo = 'info', mensagem, onFechar }) {
-  const cores = {
-    info: '#2f86eb',       // azul suave
-    erro: '#d9534f',       // vermelho bootstrap
-    sucesso: '#5cb85c',    // verde bootstrap
-    aviso: '#f0ad4e',      // laranja bootstrap
-  };
+const config = {
+  info: { className: "alert-primary", icon: "bi-info-circle" },
+  erro: { className: "alert-danger", icon: "bi-exclamation-triangle" },
+  sucesso: { className: "alert-success", icon: "bi-check-circle" },
+  aviso: { className: "alert-warning", icon: "bi-exclamation-circle" }
+};
 
-  const corFundo = cores[tipo] || '#6c757d'; // cinza fallback
+export default function AlertaMensagem({ tipo = "info", mensagem, onFechar }) {
+  const alertConfig = config[tipo] || config.info;
+  const mensagemNormalizada = normalizarTextoPt(mensagem);
 
   return (
-    <div style={{
-      padding: '15px 20px',
-      margin: '15px 0',
-      borderRadius: 8,
-      color: 'white',
-      backgroundColor: corFundo,
-      position: 'relative',
-      fontWeight: '500',
-      fontSize: '1rem',
-      maxWidth: '600px',
-      marginLeft: 'auto',
-      marginRight: 'auto',
-      userSelect: 'none',
-      cursor: 'default',
-      // sombra removida
-    }}>
-      {mensagem}
+    <div
+      className={`alert ${alertConfig.className} alert-dismissible d-flex align-items-start gap-2 mx-auto app-alert-message`}
+      role="alert"
+    >
+      <i className={`bi ${alertConfig.icon} mt-1`} aria-hidden="true"></i>
+      <div className="flex-grow-1 text-start">{mensagemNormalizada}</div>
       <button
-        onClick={onFechar}
+        type="button"
+        className="btn-close"
         aria-label="Fechar alerta"
-        style={{
-          position: 'absolute',
-          right: 15,
-          top: 15,
-          background: 'transparent',
-          border: 'none',
-          color: 'white',
-          fontWeight: 'bold',
-          fontSize: 20,
-          lineHeight: '20px',
-          cursor: 'pointer',
-          transition: 'color 0.2s ease',
-          padding: 0,
-          userSelect: 'none',
-        }}
-        onMouseEnter={e => (e.currentTarget.style.color = '#ddd')}
-        onMouseLeave={e => (e.currentTarget.style.color = 'white')}
-      >
-        ×
-      </button>
+        onClick={onFechar}
+      ></button>
     </div>
   );
 }

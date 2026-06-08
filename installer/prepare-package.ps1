@@ -36,6 +36,68 @@ function Invoke-RobocopySafe(
   }
 }
 
+function Add-NssmTool([string]$PackageRoot) {
+  $toolsDir = Join-Path $PackageRoot "tools"
+  $nssmExe = Join-Path $toolsDir "nssm.exe"
+  if (Test-Path -LiteralPath $nssmExe) {
+    return
+  }
+
+  New-Item -ItemType Directory -Path $toolsDir -Force | Out-Null
+
+  $localCandidates = @(
+    (Join-Path $PSScriptRoot "..\tools\nssm.exe"),
+    "C:\EDNAS\nssm-2.24-101-g897c7ad\win64\nssm.exe"
+  )
+
+  foreach ($candidate in $localCandidates) {
+    $candidatePath = [System.IO.Path]::GetFullPath($candidate)
+    if (Test-Path -LiteralPath $candidatePath) {
+      Copy-Item -LiteralPath $candidatePath -Destination $nssmExe -Force
+      return
+    }
+  }
+
+  $tempRoot = Join-Path $env:TEMP ("ednas-package-nssm-" + [guid]::NewGuid().ToString("N"))
+  $zipPath = Join-Path $tempRoot "nssm.zip"
+  New-Item -ItemType Directory -Path $tempRoot -Force | Out-Null
+
+  try {
+    $downloadUrls = @(
+      "https://nssm.cc/release/nssm-2.24.zip",
+      "https://nssm.cc/ci/nssm-2.24-101-g897c7ad.zip"
+    )
+    $downloaded = $false
+    foreach ($downloadUrl in $downloadUrls) {
+      try {
+        Invoke-WebRequest -Uri $downloadUrl -OutFile $zipPath
+        $downloaded = $true
+        break
+      } catch {
+        Write-Host "Aviso: falhou download NSSM em $downloadUrl" -ForegroundColor Yellow
+      }
+    }
+
+    if (-not $downloaded) {
+      throw "Nao foi possivel descarregar NSSM."
+    }
+
+    Expand-Archive -Path $zipPath -DestinationPath $tempRoot -Force
+    $sourceExe = Get-ChildItem -Path $tempRoot -Recurse -Filter "nssm.exe" |
+      Where-Object { $_.FullName -match "\\win64\\nssm\.exe$" } |
+      Select-Object -First 1
+    if ($null -eq $sourceExe) {
+      throw "nssm.exe nao encontrado no pacote descarregado."
+    }
+
+    Copy-Item -LiteralPath $sourceExe.FullName -Destination $nssmExe -Force
+  } finally {
+    if (Test-Path -LiteralPath $tempRoot) {
+      Remove-Item -LiteralPath $tempRoot -Recurse -Force
+    }
+  }
+}
+
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $packageRoot = if ([System.IO.Path]::IsPathRooted($OutputDir)) {
   [System.IO.Path]::GetFullPath($OutputDir)
@@ -67,16 +129,6 @@ if (-not $SkipFrontendBuild) {
   }
 }
 
-if (-not $SkipBackendDeps) {
-  Write-Step "Instalar dependencias backend (npm ci --omit=dev)"
-  Push-Location (Join-Path $repoRoot "backend")
-  try {
-    npm ci --omit=dev
-  } finally {
-    Pop-Location
-  }
-}
-
 Write-Step "Copiar build frontend"
 $buildDir = Join-Path $repoRoot "build"
 $buildIndex = Join-Path $buildDir "index.html"
@@ -92,13 +144,26 @@ Write-Step "Copiar backend"
 Invoke-RobocopySafe `
   -From (Join-Path $repoRoot "backend") `
   -To (Join-Path $packageRoot "backend") `
-  -ExtraArgs @("/XD", ".git")
+  -ExtraArgs @("/XD", ".git", "node_modules", "/XF", ".env", ".env.*", "*.pem")
+
+if (-not $SkipBackendDeps) {
+  Write-Step "Instalar dependencias backend no pacote (npm ci --omit=dev)"
+  Push-Location (Join-Path $packageRoot "backend")
+  try {
+    npm ci --omit=dev
+  } finally {
+    Pop-Location
+  }
+}
 
 Write-Step "Copiar scripts de instalacao"
 Invoke-RobocopySafe `
   -From (Join-Path $repoRoot "installer") `
   -To (Join-Path $packageRoot "installer") `
   -ExtraArgs @("/XF", "prepare-package.ps1")
+
+Write-Step "Incluir gestor de servicos Windows"
+Add-NssmTool -PackageRoot $packageRoot
 
 $versionFile = Join-Path $packageRoot "PACKAGE_INFO.txt"
 @(

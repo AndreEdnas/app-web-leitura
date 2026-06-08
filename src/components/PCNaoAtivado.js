@@ -6,13 +6,13 @@ export default function PCNaoAtivado({ dados, onRevalidar }) {
 
   function copiar() {
     const tudo =
-      `Chave de Ativação: ${dados.chave}\n` +
+      `Chave de ativação: ${dados.chave}\n` +
       `Loja: ${dados.loja}\n` +
       `Token: ${dados.token}\n` +
       `Servidor SQL: ${dados.server}\n` +
-      `Base de Dados: ${dados.database}\n` +
+      `Base de dados: ${dados.database}\n` +
       `Porta SQL: ${dados.port}\n` +
-      `URL / Túnel: ${dados.url || window.location.origin}`;
+      `URL / túnel: ${dados.url || window.location.origin}`;
 
     navigator.clipboard.writeText(tudo);
     setCopiado(true);
@@ -20,16 +20,16 @@ export default function PCNaoAtivado({ dados, onRevalidar }) {
   }
 
   function enviarEmail() {
-    const subject = `Ativação de Licença - Loja ${dados.loja}`;
+    const subject = `Ativação de licença - loja ${dados.loja}`;
     const body =
-      `Olá,\n\nSegue os dados desta máquina para ativação:\n\n` +
+      `Olá,\n\nSeguem os dados desta máquina para ativação:\n\n` +
       `Loja: ${dados.loja}\n` +
       `Token: ${dados.token}\n` +
-      `Chave de Ativação: ${dados.chave}\n\n` +
+      `Chave de ativação: ${dados.chave}\n\n` +
       `Servidor SQL: ${dados.server}\n` +
-      `Base de Dados: ${dados.database}\n` +
+      `Base de dados: ${dados.database}\n` +
       `Porta SQL: ${dados.port}\n` +
-      `URL / Túnel: ${dados.url || window.location.origin}\n\n` +
+      `URL / túnel: ${dados.url || window.location.origin}\n\n` +
       `Obrigado.`;
 
     window.location.href = `mailto:suporte@ednas.pt?subject=${encodeURIComponent(
@@ -38,61 +38,50 @@ export default function PCNaoAtivado({ dados, onRevalidar }) {
   }
 
   return (
-    <div className="d-flex vh-100 justify-content-center align-items-center bg-warning bg-gradient">
-      <div
-        className="bg-white shadow rounded-4 p-4 text-center"
-        style={{ width: 380 }}
-      >
-        <h3 className="text-danger fw-bold mb-2">❌ Máquina Não Ativada</h3>
-
-        <p className="text-muted mb-3">
-          Esta máquina ainda não tem licença ativa.
-          <br />
-          Envie os dados abaixo para o suporte Ednas.
-        </p>
-
-        <div className="text-start bg-light p-3 rounded-3 mb-3 small">
-          <p>
-            <strong>Loja:</strong> {dados.loja}
+    <main className="app-auth-page">
+      <section className="app-auth-card">
+        <div className="app-auth-header">
+          <div className="app-brand-badge text-danger">
+            <i className="bi bi-shield-exclamation" aria-hidden="true"></i>
+          </div>
+          <h1 className="app-auth-title">Máquina não ativada</h1>
+          <p className="app-auth-subtitle">
+            Envie estes dados para o suporte EDNAS para ativar a licença.
           </p>
+        </div>
+
+        <div className="bg-light p-3 rounded mb-3 small">
+          <p><strong>Loja:</strong> {dados.loja}</p>
+          <p><strong>Token:</strong> {dados.token}</p>
           <p>
-            <strong>Token:</strong> {dados.token}
-          </p>
-          <p>
-            <strong>Chave de Ativação:</strong>
+            <strong>Chave de ativação:</strong>
             <br />
             <code>{dados.chave}</code>
           </p>
           <hr />
-          <p>
-            <strong>Servidor SQL:</strong> {dados.server}
-          </p>
-          <p>
-            <strong>Base de Dados:</strong> {dados.database}
-          </p>
-          <p>
-            <strong>Porta SQL:</strong> {dados.port}
-          </p>
-          <p>
-            <strong>URL / Túnel:</strong>{" "}
-            {dados.url || window.location.origin}
-          </p>
+          <p><strong>Servidor SQL:</strong> {dados.server}</p>
+          <p><strong>Base de dados:</strong> {dados.database}</p>
+          <p><strong>Porta SQL:</strong> {dados.port}</p>
+          <p><strong>URL / túnel:</strong> {dados.url || window.location.origin}</p>
         </div>
 
         <div className="d-grid gap-2">
-          <button className="btn btn-primary" onClick={copiar}>
-            {copiado ? "✔ Copiado!" : "📋 Copiar Dados"}
+          <button type="button" className="btn btn-primary" onClick={copiar}>
+            <i className="bi bi-clipboard me-1" aria-hidden="true"></i>
+            {copiado ? "Copiado" : "Copiar dados"}
           </button>
 
-          <button className="btn btn-secondary" onClick={enviarEmail}>
-            ✉ Enviar para Suporte
+          <button type="button" className="btn btn-outline-secondary" onClick={enviarEmail}>
+            <i className="bi bi-envelope me-1" aria-hidden="true"></i>
+            Enviar para suporte
           </button>
 
-          <button className="btn btn-success" onClick={onRevalidar}>
-            🔄 Tentar Novamente
+          <button type="button" className="btn btn-success" onClick={onRevalidar}>
+            <i className="bi bi-arrow-repeat me-1" aria-hidden="true"></i>
+            Tentar novamente
           </button>
         </div>
-      </div>
-    </div>
+      </section>
+    </main>
   );
 }

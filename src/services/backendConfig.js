@@ -1,5 +1,6 @@
-const DEFAULT_PUBLIC_LOJAS_URL =
-  "https://ednas-cloud.andre-86d.workers.dev/config-lojas";
+const DEFAULT_PUBLIC_WORKER_BASE =
+  "https://ednas-cloud.andre-86d.workers.dev";
+const DEFAULT_PUBLIC_LOJAS_URL = `${DEFAULT_PUBLIC_WORKER_BASE}/config-lojas`;
 
 function trimTrailingSlash(url) {
   return String(url || "").replace(/\/+$/, "");
@@ -9,21 +10,74 @@ function isLocalHostName(hostname) {
   return hostname === "localhost" || hostname === "127.0.0.1";
 }
 
-export function getLojasConfigUrl() {
-  const envConfigUrl = process.env.REACT_APP_LOJAS_CONFIG_URL?.trim();
-  if (envConfigUrl) {
-    return trimTrailingSlash(envConfigUrl);
-  }
+function joinUrl(baseUrl, path) {
+  return `${trimTrailingSlash(baseUrl)}${path}`;
+}
 
+export function getLojasConfigUrl() {
   if (typeof window !== "undefined") {
     if (isLocalHostName(window.location.hostname)) {
-      return "http://localhost:3051/config-lojas";
+      const useRemoteOnLocal =
+        process.env.REACT_APP_USE_REMOTE_LOJAS_CONFIG === "true";
+
+      if (!useRemoteOnLocal) {
+        const localConfigUrl =
+          process.env.REACT_APP_LOCAL_LOJAS_CONFIG_URL?.trim() ||
+          "http://localhost:3051/config-lojas";
+
+        return trimTrailingSlash(localConfigUrl);
+      }
+    }
+
+    const envConfigUrl = process.env.REACT_APP_LOJAS_CONFIG_URL?.trim();
+    if (envConfigUrl) {
+      return trimTrailingSlash(envConfigUrl);
     }
 
     return DEFAULT_PUBLIC_LOJAS_URL;
   }
 
+  const envConfigUrl = process.env.REACT_APP_LOJAS_CONFIG_URL?.trim();
+  if (envConfigUrl) {
+    return trimTrailingSlash(envConfigUrl);
+  }
+
   return DEFAULT_PUBLIC_LOJAS_URL;
+}
+
+export function getResolverLojaUrl() {
+  if (typeof window !== "undefined") {
+    if (isLocalHostName(window.location.hostname)) {
+      const useRemoteOnLocal =
+        process.env.REACT_APP_USE_REMOTE_LOJAS_CONFIG === "true";
+
+      if (!useRemoteOnLocal) {
+        return joinUrl(getBackendBaseUrl(), "/resolver-loja");
+      }
+    }
+
+    const envResolverUrl = process.env.REACT_APP_RESOLVER_LOJA_URL?.trim();
+    if (envResolverUrl) {
+      return trimTrailingSlash(envResolverUrl);
+    }
+
+    const envWorkerBase = process.env.REACT_APP_WORKER_BASE_URL?.trim();
+    if (envWorkerBase) {
+      return joinUrl(envWorkerBase, "/resolver-loja");
+    }
+  }
+
+  const envResolverUrl = process.env.REACT_APP_RESOLVER_LOJA_URL?.trim();
+  if (envResolverUrl) {
+    return trimTrailingSlash(envResolverUrl);
+  }
+
+  const envWorkerBase = process.env.REACT_APP_WORKER_BASE_URL?.trim();
+  if (envWorkerBase) {
+    return joinUrl(envWorkerBase, "/resolver-loja");
+  }
+
+  return joinUrl(DEFAULT_PUBLIC_WORKER_BASE, "/resolver-loja");
 }
 
 export function getBackendBaseUrl() {

@@ -1,99 +1,96 @@
-// src/components/LojaSelectPage.js
 import React, { useState } from "react";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap-icons/font/bootstrap-icons.css";
 
-export default function LojaSelectPage({ lojasJson, onLojaConfirmada }) {
-  const [lojaSelecionada, setLojaSelecionada] = useState(null);
+export default function LojaSelectPage({ resolverUrl, onLojaConfirmada }) {
   const [tokenLoja, setTokenLoja] = useState("");
   const [erro, setErro] = useState("");
+  const [aValidar, setAValidar] = useState(false);
 
-  // Validar token da loja selecionada
-  function validarToken() {
-    if (!lojasJson || !lojaSelecionada) return;
+  async function validarToken(event) {
+    event?.preventDefault();
 
-    const lojaData = lojasJson.lojas[lojaSelecionada];
-    if (lojaData && lojaData.token === tokenLoja) {
-      localStorage.setItem("tokenLoja", tokenLoja);
-      localStorage.setItem("lojaSelecionada", lojaSelecionada);
+    const token = tokenLoja.trim();
+    if (!token) {
+      setErro("Introduza o token de entrada.");
+      return;
+    }
 
-      // Devolve decisao final ao App
-      onLojaConfirmada(lojaSelecionada, lojaData.url);
-    } else {
-      setErro("❌ Token inválido. Tente novamente.");
+    setAValidar(true);
+    setErro("");
+
+    try {
+      const res = await fetch(resolverUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ token }),
+      });
+
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.success) {
+        throw new Error(data?.error || "Token invalido. Tente novamente.");
+      }
+
+      const loja = data.loja || {};
+      const lojaId = String(loja.id || loja.nome || "").trim();
+      const lojaNome = String(loja.nome || lojaId).trim();
+      const apiUrl = String(loja.url || "").trim();
+      if (!lojaId || !apiUrl) {
+        throw new Error("Loja sem URL publica configurada.");
+      }
+
+      localStorage.setItem("tokenLoja", token);
+      localStorage.setItem("lojaSelecionada", lojaId);
+      localStorage.setItem("apiUrl", apiUrl);
+      onLojaConfirmada(lojaNome || lojaId, apiUrl, loja);
+    } catch (err) {
+      setErro(err?.message || "Token invalido. Tente novamente.");
       setTokenLoja("");
+    } finally {
+      setAValidar(false);
     }
   }
 
   return (
-    <div className="d-flex flex-column align-items-center justify-content-center vh-100 bg-warning bg-gradient">
-      <div
-        className="bg-white rounded-4 shadow p-4 text-center"
-        style={{ width: 360 }}
-      >
-        <h4 className="fw-bold text-primary mb-3">Seleção de Loja</h4>
+    <main className="app-auth-page">
+      <section className="app-auth-card">
+        <div className="app-auth-header">
+          <div className="app-brand-badge">
+            <i className="bi bi-shop" aria-hidden="true"></i>
+          </div>
+          <h1 className="app-auth-title">Entrada da loja</h1>
+          <p className="app-auth-subtitle">
+            Introduza o token de acesso da loja.
+          </p>
+        </div>
 
-        {!lojaSelecionada ? (
-          <>
-            <p className="mb-3">Escolha a sua loja:</p>
-            {lojasJson?.lojas ? (
-              <div className="list-group">
-                {Object.keys(lojasJson.lojas).map((nome) => (
-                  <button
-                    key={nome}
-                    className="list-group-item list-group-item-action fw-bold"
-                    onClick={() => {
-                      setLojaSelecionada(nome);
-                      setErro("");
-                    }}
-                  >
-                    🏪 {nome}
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <p className="text-muted fst-italic">
-                A carregar lista de lojas...
-              </p>
-            )}
-          </>
-        ) : (
-          <>
-            <h5 className="fw-semibold text-primary mb-2">
-              {lojaSelecionada}
-            </h5>
+        <form onSubmit={validarToken}>
+          <input
+            type="text"
+            className="form-control text-center mb-3"
+            placeholder="Token de entrada"
+            value={tokenLoja}
+            onChange={(e) => {
+              setTokenLoja(e.target.value);
+              setErro("");
+            }}
+            autoFocus
+            disabled={aValidar}
+          />
 
-            <input
-              type="text"
-              className="form-control text-center mb-3"
-              placeholder="Token da loja"
-              value={tokenLoja}
-              onChange={(e) => setTokenLoja(e.target.value)}
-            />
+          {erro && <p className="text-danger small mb-3 text-center">{erro}</p>}
 
-            {erro && <p className="text-danger small mb-2">{erro}</p>}
-
-            <div className="d-flex gap-2">
-              <button
-                className="btn btn-outline-secondary w-50"
-                onClick={() => {
-                  setLojaSelecionada(null);
-                  setTokenLoja("");
-                  setErro("");
-                }}
-              >
-                Voltar
-              </button>
-              <button
-                className="btn btn-success w-50"
-                onClick={validarToken}
-              >
-                Confirmar
-              </button>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
+          <button
+            type="submit"
+            className="btn btn-success w-100"
+            disabled={aValidar}
+          >
+            {aValidar ? "A validar..." : "Entrar"}
+          </button>
+        </form>
+      </section>
+    </main>
   );
 }

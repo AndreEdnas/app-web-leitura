@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import Select from "react-select";
 import 'bootstrap/dist/js/bootstrap.bundle.min.js';
 import FornecedorSelect from './components/FornecedorSelect';
 import Scanner from './components/Scanner';
@@ -18,6 +19,7 @@ import {
   atualizarMargemBruta,
   atualizarPrecoVenda,
   atualizarFornecedor,
+  criarFornecedor,
 } from './services/api';
 import StockModal from './components/StockModal';
 import PrecoCompraModal from './components/PrecoCompraModal';
@@ -26,17 +28,19 @@ import PrecoVendaModal from './components/PrecoVendaModal';
 import MargemModal from './components/MargemModal';
 import AlertaMensagem from './components/AlertaMensagem';
 import NovoProdutoModal from './components/NovoProdutoModal';
+import NovoFornecedorModal from './components/NovoFornecedorModal';
 import ConfirmarApagarModal from './components/ConfirmarApagarModal';
 import ConfirmarEnviarModal from './components/ConfirmarEnviarModal';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import 'bootstrap-icons/font/bootstrap-icons.css';
+import './App.css';
 
 import * as apiModule from "./services/api";
 import LoginPage from './components/LoginPage';
 import MenuPrincipal from "./components/MenuPrincipal";
 import LojaSelectPage from "./components/LojaSelectPage";
 import PCNaoAtivado from "./components/PCNaoAtivado";
-import { getLojasConfigUrl } from "./services/backendConfig";
+import { getResolverLojaUrl } from "./services/backendConfig";
 
 function useStickyState(defaultValue, key) {
   const [value, setValue] = useState(() => {
@@ -71,10 +75,12 @@ export default function App() {
   const [produtoParaPrecoVenda, setProdutoParaPrecoVenda] = React.useState(null);
 
   const [mostrarModalNovoProduto, setMostrarModalNovoProduto] = useState(false);
+  const [mostrarModalNovoFornecedor, setMostrarModalNovoFornecedor] = useState(false);
+  const [criandoFornecedor, setCriandoFornecedor] = useState(false);
   const [fornecedorSelecionado, setFornecedorSelecionado] = useState('');
   const [scanning, setScanning] = useState(false);
   const [produtos, setProdutos] = useStickyState([], 'produtos');
-  const lojasConfigUrl = getLojasConfigUrl();
+  const resolverLojaUrl = getResolverLojaUrl();
 
   useEffect(() => {
     setProdutos(prev =>
@@ -108,29 +114,9 @@ export default function App() {
   const [alerta, setAlerta] = useState(null);
   const [enviando, setEnviando] = useState(false);
 
-  const [apiUrl, setApiUrl] = useState(null);
-
-
-
-  const [lojasJson, setLojasJson] = useState(null);
-  const [lojaSelecionada, setLojaSelecionada] = useState(null);
+  const [apiUrl, setApiUrl] = useState(() => localStorage.getItem("apiUrl") || null);
+  const [lojaSelecionada, setLojaSelecionada] = useState(() => localStorage.getItem("lojaSelecionada") || null);
   const [mostrarPesquisaNome, setMostrarPesquisaNome] = useState(false);
-
-
-  // 🧹 LIMPAR loja inválida guardada no localStorage
-  useEffect(() => {
-    if (!lojasJson) return;
-
-    const lojaGuardada = localStorage.getItem("lojaSelecionada");
-
-    if (lojaGuardada && !lojasJson.lojas[lojaGuardada]) {
-      console.warn("💥 Loja inválida. Limpando seleção...");
-      localStorage.removeItem("lojaSelecionada");
-      localStorage.removeItem("apiUrl");
-      setLojaSelecionada(null);
-      setApiUrl(null);
-    }
-  }, [lojasJson]);
 
 
   // Tipo de documento selecionado (CFA ou CFS)
@@ -159,7 +145,7 @@ export default function App() {
 
 
         const data = await res.json();
-        if (data.length > 0) {
+        if (Array.isArray(data)) {
           setTiposDoc(data);
           // não define automaticamente o tipo selecionado
         }
@@ -173,46 +159,15 @@ export default function App() {
 
 
   useEffect(() => {
-    async function fetchLojas() {
-      try {
-        const res = await fetch(lojasConfigUrl);
-
-        if (!res.ok) throw new Error("Erro HTTP " + res.status);
-
-        const data = await res.json();
-        setLojasJson(data);
-      } catch (err) {
-        console.error("Erro ao buscar JSON das lojas:", err);
-      }
+    if (apiUrl) {
+      apiModule.setApiBaseUrl(apiUrl);
     }
-
-    fetchLojas();
-  }, [lojasConfigUrl]);
+  }, [apiUrl]);
 
 
 
 
 
-
-  // Configurar API ao selecionar loja
-  useEffect(() => {
-    if (!lojaSelecionada || !lojasJson) return;
-
-    const lojaData = lojasJson.lojas[lojaSelecionada];
-    if (lojaData && lojaData.url) {
-
-      setApiUrl(lojaData.url);
-      apiModule.setApiBaseUrl(lojaData.url);
-
-
-      //console.log(
-      //`API URL definida para a loja '${lojaSelecionada}':`,
-      //lojaData.url
-      //);
-    } else {
-      console.warn(`URL da loja '${lojaSelecionada}' não encontrada.`);
-    }
-  }, [lojaSelecionada, lojasJson]);
 
   // 🔥 Assim que tivermos a loja selecionada E a URL do túnel, validar licença
   useEffect(() => {
@@ -393,7 +348,7 @@ export default function App() {
 
   function confirmarAdicaoComStock() {
     if (quantidadeStock <= 0) {
-      setAlerta({ tipo: 'erro', mensagem: 'Insira uma quantidade de stock maior que zero.' });
+      setAlerta({ tipo: 'erro', mensagem: 'Introduza uma quantidade de stock superior a zero.' });
       return;
     }
 
@@ -420,7 +375,7 @@ export default function App() {
 
 
       setProdutoParaConfirmar(null);
-      setAlerta({ tipo: 'sucesso', mensagem: 'Produto adicionado com stock!' });
+      setAlerta({ tipo: 'sucesso', mensagem: 'Produto adicionado com stock.' });
       setQuantidadeStock(0);
     }
   }
@@ -474,7 +429,7 @@ export default function App() {
       });
 
       setProdutoParaStock(null);
-      setAlerta({ tipo: "info", mensagem: "Stock TOTAL atualizado (produto novo)" });
+      setAlerta({ tipo: "info", mensagem: "Stock total atualizado (produto novo)." });
       return;
     }
 
@@ -488,7 +443,7 @@ export default function App() {
     }));
 
     setProdutoParaStock(null);
-    setAlerta({ tipo: "info", mensagem: "Acréscimo de stock guardado (produto existente)" });
+    setAlerta({ tipo: "info", mensagem: "Acréscimo de stock guardado (produto existente)." });
   }
 
 
@@ -649,6 +604,80 @@ export default function App() {
     setAlerta({ tipo: 'info', mensagem: 'Produto novo guardado localmente' });
   }
 
+  async function handleCriarFornecedor(fornecedor) {
+    setCriandoFornecedor(true);
+
+    try {
+      const tentarCriarFornecedor = async () => {
+        try {
+          return await criarFornecedor(fornecedor);
+        } catch (err) {
+          const precisaLicenca =
+            err?.status === 403 &&
+            String(err?.body || err?.message || "").includes("precisaLicenca");
+
+          if (!precisaLicenca || !apiUrl) {
+            throw err;
+          }
+
+          const licencaRes = await fetch(`${apiUrl}/pedir-licenca`);
+          const licencaData = await licencaRes.json().catch(() => null);
+
+          if (!licencaRes.ok || licencaData?.success === false) {
+            throw err;
+          }
+
+          return criarFornecedor(fornecedor);
+        }
+      };
+
+      const criado = await tentarCriarFornecedor();
+      const codigoCriado = Number(criado.codigo);
+      if (!Number.isFinite(codigoCriado) || codigoCriado <= 0) {
+        throw new Error("Fornecedor criado, mas a API não devolveu um código válido.");
+      }
+
+      const fornecedorCriado = {
+        codigo: codigoCriado,
+        nome: criado.nome || fornecedor.nome
+      };
+
+      setFornecedores((prev) => {
+        const semDuplicado = prev.filter(
+          (item) => String(item.codigo) !== String(fornecedorCriado.codigo)
+        );
+
+        return [...semDuplicado, fornecedorCriado].sort((a, b) =>
+          String(a.nome || "").localeCompare(String(b.nome || ""), "pt")
+        );
+      });
+
+      if (fornecedorCriado.codigo) {
+        setFornecedorSelecionado(fornecedorCriado.codigo);
+        setProdutos((prev) =>
+          prev.map((p) => ({
+            ...p,
+            fornecedor: fornecedorCriado.codigo
+          }))
+        );
+      }
+
+      setMostrarModalNovoFornecedor(false);
+      setAlerta({
+        tipo: "sucesso",
+        mensagem: `Fornecedor ${fornecedorCriado.nome} criado com sucesso.`
+      });
+    } catch (err) {
+      console.error("Erro ao criar fornecedor:", err);
+      setAlerta({
+        tipo: "erro",
+        mensagem: err.message || "Erro ao criar fornecedor."
+      });
+    } finally {
+      setCriandoFornecedor(false);
+    }
+  }
+
 
 
 
@@ -685,7 +714,7 @@ export default function App() {
     if (!tipoDocSelecionado) {
       setAlerta({
         tipo: "erro",
-        mensagem: "Escolhe um tipo de documento antes de criar o documento de compra."
+        mensagem: "Escolha um tipo de documento antes de criar o documento de compra."
       });
       return;
     }
@@ -693,7 +722,7 @@ export default function App() {
     if (!fornecedorSelecionado) {
       setAlerta({
         tipo: "erro",
-        mensagem: "Seleciona um fornecedor antes de criar o documento de compra."
+        mensagem: "Selecione um fornecedor antes de criar o documento de compra."
       });
       return;
     }
@@ -708,23 +737,34 @@ export default function App() {
 
     try {
       const produtosFormatados = produtos
-        .map(p => ({
-          codigo: p.codigo,
-          codbarras: p.codbarras,
-          descricao: p.descricao,
-          qtd: p.novo
-            ? Number(
-              alteracoesPendentes.criarProdutos.find(cp => cp.__uid === p.__uid)?.qtdstock
-              ?? p.qtdstock
+        .map(p => {
+          const produtoPendente = alteracoesPendentes.criarProdutos
+            .find(cp => cp.__uid === p.__uid);
+
+          return {
+            codigo: p.codigo,
+            codbarras: produtoPendente?.codbarras ?? p.codbarras,
+            descricao: produtoPendente?.descricao ?? p.descricao,
+            qtd: p.novo
+              ? Number(produtoPendente?.qtdstock ?? p.qtdstock ?? 0)
+              : Number(alteracoesPendentes.stock[p.__uid] || 0),
+            precoCompra: Number(
+              alteracoesPendentes.precoCompra[p.__uid]
+              ?? produtoPendente?.precocompra
+              ?? p.precocompra
               ?? 0
-            )
-            : Number(alteracoesPendentes.stock[p.__uid] || 0),
-          precoCompra: p.precocompra || 0,
-          iva: p.iva || 0,
-          margembruta: p.margembruta || 0,
-          familia: p.familia,
-          subfam: p.subfam
-        }))
+            ),
+            iva: Number(produtoPendente?.iva ?? p.iva ?? 0),
+            margembruta: Number(
+              alteracoesPendentes.margem[p.__uid]
+              ?? produtoPendente?.margembruta
+              ?? p.margembruta
+              ?? 0
+            ),
+            familia: produtoPendente?.familia ?? p.familia,
+            subfam: produtoPendente?.subfam ?? p.subfam
+          };
+        })
         .filter(p => Number(p.qtd) > 0);
 
 
@@ -753,7 +793,7 @@ export default function App() {
       console.log("✅ Documento de compra criado:", data);
       setAlerta({
         tipo: "sucesso",
-        mensagem: `Documento ${tipoDocSelecionado.doc}/${data.serie} nº ${data.numero} criado com sucesso!`
+        mensagem: `Documento ${tipoDocSelecionado.doc}/${data.serie} n.º ${data.numero} criado com sucesso.`
       });
     } catch (err) {
       console.error("Erro ao criar documento:", err);
@@ -788,6 +828,16 @@ export default function App() {
     );
   }
 
+  function temEntradasStockPendentes() {
+    const stockExistente = Object.values(alteracoesPendentes.stock || {})
+      .some(qtd => Number(qtd) !== 0);
+
+    const stockNovosProdutos = (alteracoesPendentes.criarProdutos || [])
+      .some(produto => Number(produto.qtdstock || 0) > 0);
+
+    return stockExistente || stockNovosProdutos;
+  }
+
 
 
 
@@ -796,14 +846,18 @@ export default function App() {
     setMostrarModalConfirmarEnvio(false);
 
     try {
-
+      if (temEntradasStockPendentes() && !criarDocumento) {
+        throw new Error("As entradas de stock só podem ser enviadas criando um documento com uma série real da ZoneSoft.");
+      }
 
       // =========================
       // 1️⃣ CRIAR PRODUTOS NOVOS
       // =========================
       const novosCriados = [];
 
-      for (const novoProd of alteracoesPendentes.criarProdutos) {
+      const produtosParaCriarAgora = criarDocumento ? [] : alteracoesPendentes.criarProdutos;
+
+      for (const novoProd of produtosParaCriarAgora) {
 
         console.log("🧪 DEBUG PRODUTO NOVO (ANTES DO POST):", {
           descricao: novoProd.descricao,
@@ -835,17 +889,19 @@ export default function App() {
         );
       }
 
-      const produtosAtuais = [
-        ...produtos.filter(p => !p.novo),
-        ...novosCriados
-      ];
+      const produtosAtuais = criarDocumento
+        ? produtos.filter(p => !p.novo)
+        : [
+          ...produtos.filter(p => !p.novo),
+          ...novosCriados
+        ];
 
 
       // =========================
       // 2️⃣ ATUALIZAR FORNECEDOR (GLOBAL - vindo da label)
       // =========================
       if (!fornecedorSelecionado || Number(fornecedorSelecionado) <= 0) {
-        throw new Error("Seleciona um fornecedor antes de enviar.");
+        throw new Error("Selecione um fornecedor antes de enviar.");
       }
 
       for (const p of produtosAtuais) {
@@ -867,7 +923,7 @@ export default function App() {
       // =========================
       for (const [uid, preco] of Object.entries(alteracoesPendentes.precoCompra)) {
         const prod = produtos.find(p => p.__uid === uid);
-        if (!prod) continue;
+        if (!prod || prod.novo) continue;
 
 
         await atualizarPrecoCompra(
@@ -962,8 +1018,8 @@ export default function App() {
       setAlerta({
         tipo: "sucesso",
         mensagem: criarDocumento
-          ? "Alterações enviadas e documento criado com sucesso!"
-          : "Alterações de produto enviadas com sucesso!"
+          ? "Alterações enviadas e documento criado com sucesso."
+          : "Alterações dos produtos enviadas com sucesso."
       });
     } catch (err) {
       setAlerta({ tipo: "erro", mensagem: "Erro ao enviar alterações: " + err.message });
@@ -973,6 +1029,14 @@ export default function App() {
   }
 
 
+
+  function calcularMargemPorPrecos(precocompra, pvp1siva, fallback = 0) {
+    if (precocompra > 0 && pvp1siva > 0) {
+      return ((pvp1siva / precocompra) - 1) * 100;
+    }
+
+    return Number(fallback) || 0;
+  }
 
   function recalcularProduto(produto, campoAlterado, novoValor) {
     let precocompra = Number(produto.precocompra) || 0;
@@ -997,13 +1061,14 @@ export default function App() {
       case "precovenda":
         precovenda = Number(novoValor);
         pvp1siva = precovenda / (1 + iva / 100);
-        // ❗ NÃO recalcular margem aqui
+        margembruta = calcularMargemPorPrecos(precocompra, pvp1siva, margembruta);
         break;
 
 
       case "iva":
         iva = Number(novoValor);
-        precovenda = precocompra * (1 + margembruta / 100) * (1 + iva / 100);
+        pvp1siva = precocompra * (1 + margembruta / 100);
+        precovenda = pvp1siva * (1 + iva / 100);
         break;
     }
 
@@ -1016,7 +1081,7 @@ export default function App() {
       pvp1siva: Number(pvp1siva.toFixed(2)),
 
       // ❗ margem NUNCA arredonda
-      margembruta: Number(margembruta),
+      margembruta: Number(margembruta.toFixed(2)),
     };
   }
 
@@ -1026,12 +1091,13 @@ export default function App() {
   if (!lojaSelecionada || !apiUrl) {
     return (
       <LojaSelectPage
-        lojasJson={lojasJson}
-        onLojaConfirmada={(nome, url) => {
-          setLojaSelecionada(nome);
+        resolverUrl={resolverLojaUrl}
+        onLojaConfirmada={(nome, url, loja) => {
+          const lojaId = loja?.id || nome;
+          setLojaSelecionada(lojaId);
           setApiUrl(url);
 
-          localStorage.setItem("lojaSelecionada", nome);
+          localStorage.setItem("lojaSelecionada", lojaId);
           localStorage.setItem("apiUrl", url);
         }}
       />
@@ -1121,87 +1187,96 @@ export default function App() {
 
 
   if (paginaAtual === "scanner") {
+    const tipoDocumentoOptions = tiposDoc.map((t) => ({
+      value: `${t.doc}::${t.serie}`,
+      label: `${t.descricao ? `${t.doc} - ${t.descricao}` : t.doc} - Série ${t.serie}`,
+      tipo: t
+    }));
+    const tipoDocumentoValue = tipoDocSelecionado
+      ? tipoDocumentoOptions.find((option) => option.value === `${tipoDocSelecionado.doc}::${tipoDocSelecionado.serie}`) || null
+      : null;
+
     return (
-      <div className="bg-light min-vh-100 d-flex flex-column">
-        {/* 🔹 Barra superior */}
-        <nav className="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
-          <div className="container-fluid">
-            {/* 🔹 Nome da loja e utilizador */}
-            <div className="d-flex flex-column text-white">
-              <h5 className="fw-bold mb-0">{lojaSelecionada?.toUpperCase() || "Loja não definida"}</h5>
-              <small>{empregado?.nome || "Empregado"}</small>
+      <main className="app-work-page">
+        <section className="app-work-shell">
+          <header className="app-work-header">
+            <div>
+              <p className="app-menu-kicker">
+                {lojaSelecionada?.toUpperCase() || "LOJA"}
+              </p>
+              <h1 className="app-menu-title">Picagem de Mercadoria</h1>
+              <p className="app-work-subtitle">
+                Produtos, stock, preços e documentos
+              </p>
             </div>
 
-            {/* 🔹 Botão hamburguer (só aparece em ecrãs pequenos) */}
+            <div className="app-work-session">
+              <span>Sessão ativa</span>
+              <strong>{empregado?.nome || "Empregado"}</strong>
+            </div>
+          </header>
+
+          <div className="app-work-top-actions">
             <button
-              className="navbar-toggler"
               type="button"
-              data-bs-toggle="collapse"
-              data-bs-target="#navbarConteudo"
-              aria-controls="navbarConteudo"
-              aria-expanded="false"
-              aria-label="Alternar navegação"
+              className="app-menu-button"
+              onClick={() => setMostrarScannerHardware(true)}
+              disabled={enviando}
             >
-              <span className="navbar-toggler-icon"></span>
+              <span className="app-menu-icon">
+                <i className="bi bi-upc-scan" aria-hidden="true"></i>
+              </span>
+              <span>
+                <span className="app-menu-label">Ler Produto</span>
+                <span className="app-menu-help">Usar scanner de código de barras</span>
+              </span>
             </button>
 
-            {/* 🔹 Área colapsável (hamburguer) */}
-            <div className="collapse navbar-collapse justify-content-end" id="navbarConteudo">
-              <ul className="navbar-nav mb-2 mb-lg-0 d-flex align-items-center gap-2">
+            <button
+              type="button"
+              className="app-menu-button"
+              onClick={() => setMostrarPesquisaNome(true)}
+              disabled={enviando}
+            >
+              <span className="app-menu-icon">
+                <i className="bi bi-search" aria-hidden="true"></i>
+              </span>
+              <span>
+                <span className="app-menu-label">Procurar Produto</span>
+                <span className="app-menu-help">Pesquisar por nome ou código</span>
+              </span>
+            </button>
 
-                <li className="nav-item">
-                  <button
-                    className="btn btn-outline-light btn-sm"
-                    onClick={() => setPaginaAtual("menu")}
-                  >
-                    <i className="bi bi-house-door me-1"></i> Menu
-                  </button>
-                </li>
+            <button
+              type="button"
+              className="app-menu-button"
+              onClick={() => setMostrarModalNovoProduto(true)}
+              disabled={enviando}
+            >
+              <span className="app-menu-icon">
+                <i className="bi bi-plus-circle" aria-hidden="true"></i>
+              </span>
+              <span>
+                <span className="app-menu-label">Novo Produto</span>
+                <span className="app-menu-help">Criar novo artigo</span>
+              </span>
+            </button>
 
-                <li className="nav-item">
-                  <button
-                    className="btn btn-outline-light btn-sm"
-                    onClick={() => {
-                      localStorage.removeItem("lojaSelecionada");
-                      localStorage.removeItem("apiUrl");
-                      localStorage.removeItem("empregado");
-                      localStorage.removeItem("produtos");
-                      localStorage.removeItem("alteracoesPendentes");
-
-                      setApiUrl(null);
-                      apiModule.setApiBaseUrl("");
-                      setLojaSelecionada(null);
-                      setEmpregado(null);          // 🔥 FORÇA LOGOUT
-                      setPaginaAtual("menu");
-                    }}
-
-
-                  >
-                    <i className="bi bi-arrow-repeat me-1"></i> Trocar Loja
-                  </button>
-                </li>
-
-                <li className="nav-item">
-                  <button
-                    className="btn btn-danger btn-sm"
-                    onClick={() => {
-                      localStorage.removeItem("empregado");
-                      setEmpregado(null);
-                    }}
-                  >
-                    <i className="bi bi-box-arrow-right me-1"></i> Terminar
-                  </button>
-                </li>
-
-              </ul>
-            </div>
+            <button
+              type="button"
+              className="app-menu-button"
+              onClick={() => setMostrarModalNovoFornecedor(true)}
+              disabled={enviando || criandoFornecedor}
+            >
+              <span className="app-menu-icon">
+                <i className="bi bi-person-plus" aria-hidden="true"></i>
+              </span>
+              <span>
+                <span className="app-menu-label">Novo Fornecedor</span>
+                <span className="app-menu-help">Criar fornecedor</span>
+              </span>
+            </button>
           </div>
-        </nav>
-
-
-        {/* 🔸 Conteúdo principal */}
-        <div className="container my-4 p-4 bg-white rounded shadow text-center flex-grow-1">
-          <h2 className="fw-bold text-primary mb-4">📦 Scanner Código de Barras</h2>
 
           {alerta && (
             <AlertaMensagem
@@ -1211,92 +1286,63 @@ export default function App() {
             />
           )}
 
-          {/* 🔹 Botões principais */}
-          <div className="mb-4 d-flex justify-content-center gap-3 flex-wrap">
-            <button className="btn btn-success" onClick={() => setMostrarModalNovoProduto(true)} disabled={enviando}>
-              <i className="bi bi-plus-circle me-1"></i> Adicionar Produto
-            </button>
+          <div className="app-work-panel">
+            <h2 className="app-work-panel-title">Dados de entrada</h2>
 
-            <button
-              className="btn btn-outline-primary"
-              onClick={() => setMostrarScannerHardware(true)}
-              disabled={enviando}
-            >
-              <i className="bi bi-upc-scan me-1"></i> Fazer Scan
-            </button>
+            <div className="app-work-form-grid">
+              <div className="app-work-field">
+                <label htmlFor="fornecedorSelect" className="app-work-field-label">
+                  <i className="bi bi-truck" aria-hidden="true"></i>
+                  <span>Fornecedor</span>
+                </label>
+                <FornecedorSelect
+                  fornecedores={fornecedores}
+                  fornecedorSelecionado={fornecedorSelecionado}
+                  setFornecedorSelecionado={(value) => {
+                    const fornecedorNum = Number(value);
+                    setFornecedorSelecionado(fornecedorNum);
 
-            <button
-              className="btn btn-outline-secondary"
-              onClick={() => setMostrarPesquisaNome(true)}
-              disabled={enviando}
-            >
-              <i className="bi bi-search me-1"></i> Procurar por Nome
-            </button>
+                    setProdutos(prev =>
+                      prev.map(p => ({
+                        ...p,
+                        fornecedor: fornecedorNum
+                      }))
+                    );
 
+                    setAlerta(null);
+                  }}
+                  disabled={enviando}
+                />
+              </div>
 
-
-
-          </div>
-
-          {/* 🔹 Seletores centrados (mobile: empilhados) */}
-          <div className="d-flex flex-column align-items-center gap-3 mb-4">
-            {/* Fornecedor */}
-            <div className="w-100" style={{ maxWidth: 480 }}>
-              <label htmlFor="fornecedorSelect" className="form-label fw-bold d-block mb-1">
-                Seleciona o Fornecedor:
-              </label>
-              <FornecedorSelect
-                fornecedores={fornecedores}
-                fornecedorSelecionado={fornecedorSelecionado}
-                setFornecedorSelecionado={(value) => {
-                  const fornecedorNum = Number(value);
-
-                  setFornecedorSelecionado(fornecedorNum);
-
-                  // 🔑 REGRA ABSOLUTA:
-                  // fornecedor da label = fornecedor de TODOS os produtos na tabela
-                  setProdutos(prev =>
-                    prev.map(p => ({
-                      ...p,
-                      fornecedor: fornecedorNum
-                    }))
-                  );
-
-                  setAlerta(null);
-                }}
-                disabled={enviando}
-              />
-
-            </div>
-
-            {/* Tipo de Documento */}
-            <div className="w-100" style={{ maxWidth: 480 }}>
-              <label className="form-label fw-bold d-block mb-1">Tipo de Documento:</label>
-              <select
-                className="form-select text-center"
-                value={tipoDocSelecionado?.doc || ""}
-                onChange={(e) => {
-                  const tipo = tiposDoc.find((t) => t.doc === e.target.value);
-                  setTipoDocSelecionado(tipo || null);
-                }}
-              >
-                <option value="">-- Escolher tipo de documento --</option>
-                {tiposDoc.map((t) => (
-                  <option key={t.doc} value={t.doc}>
-                    {t.doc} - Série {t.serie}
-                  </option>
-                ))}
-              </select>
+              <div className="app-work-field">
+                <label htmlFor="tipoDocumentoSelect" className="app-work-field-label">
+                  <i className="bi bi-file-earmark-text" aria-hidden="true"></i>
+                  <span>Tipo de Documento</span>
+                </label>
+                <Select
+                  inputId="tipoDocumentoSelect"
+                  className="app-work-react-select"
+                  classNamePrefix="app-select"
+                  value={tipoDocumentoValue}
+                  options={tipoDocumentoOptions}
+                  placeholder={tiposDoc.length ? "Escolher tipo de documento" : "Nenhuma série configurada na ZoneSoft"}
+                  noOptionsMessage={() => "Nenhum tipo de documento encontrado"}
+                  onChange={(selected) => setTipoDocSelecionado(selected?.tipo || null)}
+                  isDisabled={!tiposDoc.length || enviando}
+                  isClearable
+                  isSearchable
+                  menuPortalTarget={typeof document !== "undefined" ? document.body : null}
+                />
+              </div>
             </div>
           </div>
 
-          {/* 🔹 Scanner (mantém funcionalidade) */}
           <ScannerHardware
             show={mostrarScannerHardware}
             onClose={() => setMostrarScannerHardware(false)}
             onDetected={onDetected}
           />
-
 
           <ProcurarProdutoModal
             show={mostrarPesquisaNome}
@@ -1305,35 +1351,26 @@ export default function App() {
             onSelecionarProduto={(produto) => {
               setAlerta(null);
 
-              // 🔑 garantir identidade frontend
               const produtoNormalizado = {
                 ...normalizarProdutoDaBD(produto),
                 codbarras: produto.codbarras || null,
                 __uid: crypto.randomUUID(),
               };
 
-
-
-              // ❌ impedir duplicados pelo codigo BD
               const chave = getChaveProduto(produtoNormalizado);
               if (chave && produtos.some(p => getChaveProduto(p) === chave)) {
                 setAlerta({ tipo: "erro", mensagem: "Produto já adicionado." });
                 return;
               }
 
-
               setProdutoParaConfirmar(produtoNormalizado);
               setQuantidadeStock(1);
             }}
           />
 
-
-
-
-          {/* 🔹 Tabela de produtos */}
           {produtos.length > 0 ? (
             <>
-              <div className="table-responsive">
+              <div className="app-work-table-card table-responsive">
                 <ProdutoTable
                   produtos={produtos}
                   alteracoesPendentesStock={alteracoesPendentes.stock}
@@ -1343,7 +1380,6 @@ export default function App() {
                       __modoStock: produto.novo ? "TOTAL" : "DELTA"
                     });
                   }}
-
                   onAbrirPrecoCompra={setProdutoParaPrecoCompra}
                   onAbrirMargem={setProdutoParaMargem}
                   onAbrirPrecoVenda={(produto) => {
@@ -1371,10 +1407,9 @@ export default function App() {
                 )}
             </>
           ) : (
-            <p className="text-muted fst-italic mt-4">Nenhum produto lido ainda.</p>
+            <div className="app-work-empty">Nenhum produto lido ainda.</div>
           )}
 
-          {/* 🔹 Modais */}
           {produtoParaStock && (
             <StockModal
               produto={produtoParaStock}
@@ -1383,14 +1418,11 @@ export default function App() {
                   ? Number(produtoParaStock.qtdstock || 0)
                   : Number(alteracoesPendentes.stock[produtoParaStock.__uid] || 0)
               }
-
               onFechar={() => setProdutoParaStock(null)}
               onConfirmar={handleAtualizarStockLocal}
               disabled={enviando}
             />
           )}
-
-
 
           {produtoParaPrecoCompra && (
             <PrecoCompraModal
@@ -1428,6 +1460,14 @@ export default function App() {
               produtosExistentes={produtos}
               disabled={enviando}
               apiUrl={apiUrl}
+            />
+          )}
+
+          {mostrarModalNovoFornecedor && (
+            <NovoFornecedorModal
+              onFechar={() => setMostrarModalNovoFornecedor(false)}
+              onConfirmar={handleCriarFornecedor}
+              disabled={enviando || criandoFornecedor}
             />
           )}
 
@@ -1485,11 +1525,48 @@ export default function App() {
             disabled={enviando}
             fornecedorSelecionado={fornecedorSelecionado}
             tipoDocSelecionado={tipoDocSelecionado}
+            temStockPendente={temEntradasStockPendentes()}
           />
-        </div>
-      </div>
+
+          <div className="app-work-footer-actions">
+            <button type="button" className="btn btn-outline-secondary" onClick={() => setPaginaAtual("menu")}>
+              <i className="bi bi-house-door me-1" aria-hidden="true"></i>
+              Menu
+            </button>
+            <button
+              type="button"
+              className="btn btn-outline-secondary"
+              onClick={() => {
+                localStorage.removeItem("lojaSelecionada");
+                localStorage.removeItem("apiUrl");
+                localStorage.removeItem("empregado");
+                localStorage.removeItem("produtos");
+                localStorage.removeItem("alteracoesPendentes");
+
+                setApiUrl(null);
+                apiModule.setApiBaseUrl("");
+                setLojaSelecionada(null);
+                setEmpregado(null);
+                setPaginaAtual("menu");
+              }}
+            >
+              <i className="bi bi-arrow-repeat me-1" aria-hidden="true"></i>
+              Trocar loja
+            </button>
+            <button
+              type="button"
+              className="btn btn-outline-danger"
+              onClick={() => {
+                localStorage.removeItem("empregado");
+                setEmpregado(null);
+              }}
+            >
+              <i className="bi bi-box-arrow-right me-1" aria-hidden="true"></i>
+              Terminar sessão
+            </button>
+          </div>
+        </section>
+      </main>
     );
   }
-
 }
-

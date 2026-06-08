@@ -1,3 +1,5 @@
+import { normalizarTextoPt } from "./texto";
+
 let API_BASE = "";
 
 // setter
@@ -14,6 +16,60 @@ const DEFAULT_HEADERS = {
   "Accept": "application/json"
 };
 
+function withDefaultHeaders(options = {}) {
+  return {
+    ...options,
+    headers: {
+      ...DEFAULT_HEADERS,
+      ...(options.headers || {})
+    }
+  };
+}
+
+function parseJsonSafe(text) {
+  if (!text || text.trim() === "") return null;
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+function isLicensePayload(payload) {
+  return Boolean(payload?.precisaLicenca || payload?.precisaAtivacao);
+}
+
+function getApiErrorMessage(res, text, payload) {
+  if (isLicensePayload(payload)) {
+    return normalizarTextoPt("Máquina não licenciada. A aguardar ativação.");
+  }
+
+  const mensagem =
+    payload?.erro ||
+    payload?.error ||
+    payload?.mensagem ||
+    payload?.message;
+
+  if (mensagem) return normalizarTextoPt(mensagem);
+
+  return normalizarTextoPt(`Erro HTTP: ${res.status} - ${String(text || "").slice(0, 100)}`);
+}
+
+async function pedirLicencaSilencioso() {
+  if (!API_BASE) return false;
+
+  try {
+    const res = await fetch(`${API_BASE}/pedir-licenca`, withDefaultHeaders());
+    const text = await res.text();
+    const data = parseJsonSafe(text);
+
+    return res.ok && data?.success !== false;
+  } catch {
+    return false;
+  }
+}
+
 
 // Escuto a resposta, seu som no ar,
 // Clono o texto para poder guardar.
@@ -21,11 +77,6 @@ const DEFAULT_HEADERS = {
 // Se o JSON vier, eu vou celebrar.
 async function logResponse(res) {
   // Só loga erros, não loga mais JSON gigante
-  if (!res.ok) {
-    const text = await res.clone().text();
-
-  }
-
   return {
     res,
     text: await res.clone().text(),
@@ -40,9 +91,15 @@ async function logResponse(res) {
 // Caso contrário, retorno a conversação.
 async function checkJsonResponse(resObj) {
   const { res, text, contentType } = resObj;
+  const payload = parseJsonSafe(text);
 
   if (!res.ok) {
-    throw new Error(`Erro HTTP: ${res.status} - ${text.slice(0, 100)}`);
+    const error = new Error(getApiErrorMessage(res, text, payload));
+    error.status = res.status;
+    error.body = text;
+    error.data = payload;
+    error.precisaLicenca = isLicensePayload(payload);
+    throw error;
   }
 
   if (!text || text.trim() === "") {
@@ -51,10 +108,31 @@ async function checkJsonResponse(resObj) {
   }
 
   if (!contentType.includes('application/json')) {
-    throw new Error(`Resposta inesperada da API (não é JSON): ${text.slice(0, 100)}`);
+    throw new Error(normalizarTextoPt(`Resposta inesperada da API (não é JSON): ${text.slice(0, 100)}`));
   }
 
-  return JSON.parse(text);
+  return payload ?? JSON.parse(text);
+}
+
+async function fetchJson(url, options = {}, { retryLicenca = true } = {}) {
+  const requestOptions = withDefaultHeaders(options);
+
+  try {
+    const resObj = await logResponse(await fetch(url, requestOptions));
+    return await checkJsonResponse(resObj);
+  } catch (err) {
+    if (!retryLicenca || !err?.precisaLicenca) {
+      throw err;
+    }
+
+    const licencaOk = await pedirLicencaSilencioso();
+    if (!licencaOk) {
+      throw err;
+    }
+
+    const resObj = await logResponse(await fetch(url, requestOptions));
+    return checkJsonResponse(resObj);
+  }
 }
 
 
@@ -64,12 +142,18 @@ Busco-os com dedicação,
 Para a app ganhar direção. */
 export async function fetchFornecedores() {
   const url = `${API_BASE}/fornecedores`;
-  //console.log('Fetching:', url);
-  const resObj = await logResponse(await fetch(url, {
-    headers: DEFAULT_HEADERS
+  return fetchJson(url);
+}
 
-  }));
-  return checkJsonResponse(resObj);
+export async function criarFornecedor(fornecedor) {
+  const url = `${API_BASE}/fornecedores`;
+  return fetchJson(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(fornecedor)
+  });
 }
 
 /* Famílias vêm em sequência,
@@ -78,12 +162,7 @@ Busco-as com paciência,
 Pra dar ao código presença. */
 export async function fetchFamilias() {
   const url = `${API_BASE}/familias`;
-  //console.log('Fetching:', url);
-  const resObj = await logResponse(await fetch(url, {
-    headers: DEFAULT_HEADERS
-
-  }));
-  return checkJsonResponse(resObj);
+  return fetchJson(url);
 }
 
 /* Subfamílias a detalhar,
@@ -92,12 +171,7 @@ Busco dados para mostrar,
 E o sistema aprimorar. */
 export async function fetchSubfamilias() {
   const url = `${API_BASE}/subfamilias`;
-  //console.log('Fetching:', url);
-  const resObj = await logResponse(await fetch(url, {
-    headers: DEFAULT_HEADERS
-
-  }));
-  return checkJsonResponse(resObj);
+  return fetchJson(url);
 }
 
 /* Produto busco pelo código e fornecedor,
@@ -110,13 +184,7 @@ export async function fetchProdutoPorCodigo(codigo) {
   const baseUrl = getApiBaseUrl();
   if (!baseUrl) throw new Error("API_BASE ainda não foi definido!");
 
-  const res = await fetch(
-    `${baseUrl}/produto/${encodeURIComponent(codigo)}`,
-    { headers: { "Accept": "application/json" } }
-  );
-
-  if (!res.ok) throw new Error("Produto não encontrado");
-  return res.json();
+  return fetchJson(`${baseUrl}/produto/${encodeURIComponent(codigo)}`);
 }
 
 
@@ -130,33 +198,66 @@ PATCH no coração,
 Pra manter a informação. */
 export async function atualizarStock(codbarras, quantidadeAdd) {
   const url = `${API_BASE}/produto/${codbarras}/stock`;
-  //console.log('PATCH:', url, 'Body:', { quantidade: Number(quantidadeAdd) });
-  const resObj = await logResponse(await fetch(url, {
+  return fetchJson(url, {
     method: 'PATCH',
     headers: {
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({ quantidade: Number(quantidadeAdd) }),
-  }));
-  return checkJsonResponse(resObj);
+  });
 }
 
 /* Preço novo a definir,
 Valor para atribuir,
 PATCH para transmitir,
 Dados que vão fluir. */
+export async function fetchTiposDocumentoInventario() {
+  const url = `${API_BASE}/tiposdocumento/inventario`;
+  return fetchJson(url);
+}
+
+export async function criarDocumentoInventario({ tipoDoc = "IN", serie, produtos, empregadoId }) {
+  const url = `${API_BASE}/criarDocumentoInventario`;
+  return fetchJson(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ tipoDoc, serie, produtos, empregadoId })
+  });
+}
+
+export async function fetchInventariosAbertos() {
+  const url = `${API_BASE}/inventarios/abertos`;
+  return fetchJson(url);
+}
+
+export async function fetchLinhasInventario(serie, numero) {
+  const url = `${API_BASE}/inventarios/${encodeURIComponent(serie)}/${encodeURIComponent(numero)}/linhas`;
+  return fetchJson(url);
+}
+
+export async function gravarLinhasInventario({ serie, numero, produtos, empregadoId }) {
+  const url = `${API_BASE}/inventarios/${encodeURIComponent(serie)}/${encodeURIComponent(numero)}/linhas`;
+  return fetchJson(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ produtos, empregadoId })
+  });
+}
+
 export async function atualizarPreco(codbarras, novoPreco) {
   const url = `${API_BASE}/produto/${codbarras}/preco`;
-  //console.log('PATCH:', url, 'Body:', { preco: parseFloat(novoPreco) });
-  const resObj = await logResponse(await fetch(url, {
+  return fetchJson(url, {
     method: 'PATCH',
     headers: {
       'Content-Type': 'application/json'
     }
     ,
     body: JSON.stringify({ preco: parseFloat(novoPreco) }),
-  }));
-  return checkJsonResponse(resObj);
+  });
 }
 
 /* Preço de compra a atualizar,
@@ -165,16 +266,14 @@ PATCH para enviar,
 O sistema vai ajustar. */
 export async function atualizarPrecoCompra(codbarras, novoPrecoCompra) {
   const url = `${API_BASE}/produto/${codbarras}/precocompra`;
-  //console.log('PATCH:', url, 'Body:', { preco: parseFloat(novoPrecoCompra) });
-  const resObj = await logResponse(await fetch(url, {
+  return fetchJson(url, {
     method: 'PATCH',
     headers: {
       'Content-Type': 'application/json'
     }
     ,
     body: JSON.stringify({ preco: parseFloat(novoPrecoCompra) }),
-  }));
-  return checkJsonResponse(resObj);
+  });
 }
 
 /* Margem bruta a alterar,
@@ -183,15 +282,13 @@ PATCH para enviar,
 Dados para atualizar. */
 export async function atualizarMargemBruta(codbarras, novaMargem) {
   const url = `${API_BASE}/produto/${codbarras}/margembruta`;
-  //console.log('PATCH:', url, 'Body:', { margembruta: parseFloat(novaMargem) });
-  const resObj = await logResponse(await fetch(url, {
+  return fetchJson(url, {
     method: 'PATCH',
     headers: {
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({ margembruta: parseFloat(novaMargem) }),
-  }));
-  return checkJsonResponse(resObj);
+  });
 }
 
 /* Produto novo a criar,
@@ -200,30 +297,24 @@ POST para gravar,
 Novo item a brilhar. */
 export async function criarProduto(produto) {
   const url = `${API_BASE}/produto`;
-  //console.log('POST:', url, 'Body:', produto);
-  const resObj = await logResponse(await fetch(url, {
+  return fetchJson(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
     }
     ,
     body: JSON.stringify(produto),
-  }));
-  return checkJsonResponse(resObj);
+  });
 }
 
 export async function atualizarFornecedor(codigo, fornecedor) {
   const url = `${API_BASE}/produto/${codigo}/fornecedor`;
 
-  const res = await fetch(url, {
+  return fetchJson(url, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ fornecedor })
   });
-
-  if (!res.ok) {
-    throw new Error("Erro ao atualizar fornecedor");
-  }
 }
 
 
@@ -234,13 +325,12 @@ PATCH para atualizar,
 Lucro a confirmar. */
 export async function atualizarPrecoVenda(codbarras, novoPrecoVenda) {
   const url = `${API_BASE}/produto/${codbarras}/preco`;
-  const resObj = await logResponse(await fetch(url, {
+  return fetchJson(url, {
     method: 'PATCH',
     headers: {
       'Content-Type': 'application/json'
     }
     ,
     body: JSON.stringify({ preco: parseFloat(novoPrecoVenda) }),
-  }));
-  return checkJsonResponse(resObj);
+  });
 }

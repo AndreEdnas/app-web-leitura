@@ -6,26 +6,20 @@ export default function MargemModal({ produto, onFechar, onConfirmar }) {
   useEffect(() => {
     if (!produto) return;
 
-    // 👉 margem vem SEMPRE do produto (fonte da verdade)
     if (produto.margembruta != null) {
-      setNovaMargem(
-        String(produto.margembruta).replace(".", ",")
-      );
+      setNovaMargem(String(produto.margembruta).replace(".", ","));
     }
   }, [produto]);
 
   function handleSubmit(e) {
     e.preventDefault();
 
-    // normalizar vírgula → ponto
     const valor = Number(novaMargem.replace(",", "."));
-
     if (!Number.isFinite(valor) || valor < 0) {
-      alert("Insere uma margem válida.");
+      alert("Introduza uma margem válida.");
       return;
     }
 
-    // 👉 enviar o valor REAL, sem arredondar
     onConfirmar(produto.__uid, valor);
   }
 
@@ -35,28 +29,29 @@ export default function MargemModal({ produto, onFechar, onConfirmar }) {
       tabIndex="-1"
       role="dialog"
       aria-modal="true"
-      style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
+      style={{ backgroundColor: "rgba(15, 23, 42, 0.48)" }}
     >
       <div className="modal-dialog modal-dialog-centered" role="document">
         <div className="modal-content text-start">
           <form onSubmit={handleSubmit}>
-            <div className="modal-header">
-              <h5 className="modal-title">Editar Margem Bruta</h5>
-              <button type="button" className="btn-close" onClick={onFechar}></button>
+            <div className="modal-header bg-primary text-white">
+              <h5 className="modal-title">
+                <i className="bi bi-percent me-2" aria-hidden="true"></i>
+                Margem Bruta
+              </h5>
+              <button type="button" className="btn-close btn-close-white" aria-label="Fechar" onClick={onFechar}></button>
             </div>
 
             <div className="modal-body">
-              <p><strong>{produto.descricao}</strong></p>
-
-              <label className="form-label">Nova Margem (%)</label>
+              <p className="fw-bold mb-3">{produto.descricao}</p>
+              <label className="form-label fw-semibold">Nova margem (%)</label>
               <input
                 type="text"
                 inputMode="decimal"
                 className="form-control"
                 value={novaMargem}
-                onChange={(e) =>
-                  setNovaMargem(e.target.value.replace(".", ","))
-                }
+                onChange={(e) => setNovaMargem(e.target.value.replace(".", ","))}
+                autoFocus
               />
             </div>
 

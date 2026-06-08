@@ -1,4 +1,17 @@
-import React from 'react';
+import React from "react";
+
+function formatMoney(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? `${number.toFixed(2)} EUR` : "N/D";
+}
+
+function formatPercent(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "N/D";
+
+  const rounded = Number(number.toFixed(2));
+  return `${String(rounded).replace(".", ",")}%`;
+}
 
 export default function ProdutoRow({
   produto,
@@ -10,27 +23,16 @@ export default function ProdutoRow({
   onPedirConfirmacaoApagar,
   setAlerta
 }) {
-
-  // ------------------------
-  // STOCK
-  // ------------------------
   const pendente = alteracoesPendentesStock[produto.__uid] ?? 0;
   const stockTotal = (Number(produto.qtdstock) || 0) + Number(pendente);
-
-
-  // ------------------------
-  // DADOS BASE
-  // ------------------------
   const precoCompra = Number(produto.precocompra) || 0;
   const iva = Number(produto.iva) || 0;
 
-  // ✅ ZoneSoft usa o preço s/IVA já guardado (pvp1siva) quando existe
   const pvp1sivaNum =
     produto.pvp1siva != null && produto.pvp1siva !== ""
       ? Number(produto.pvp1siva)
       : NaN;
 
-  // fallback: calcula s/IVA a partir do c/IVA
   const precovendaNum =
     produto.precovenda != null && produto.precovenda !== ""
       ? Number(produto.precovenda)
@@ -39,111 +41,80 @@ export default function ProdutoRow({
   const precoVendaSemIvaNum =
     Number.isFinite(pvp1sivaNum) && pvp1sivaNum > 0
       ? pvp1sivaNum
-      : (precovendaNum / (1 + iva / 100));
+      : precovendaNum / (1 + iva / 100);
 
   const precoVendaComIvaNum =
     precovendaNum > 0
       ? precovendaNum
-      : (precoVendaSemIvaNum * (1 + iva / 100));
+      : precoVendaSemIvaNum * (1 + iva / 100);
 
-  // ✅ Margem estilo ZoneSoft (markup sobre preço compra)
-  const margem =
-    produto.margembruta != null
-      ? produto.margembruta
-      : null;
+  const margem = produto.margembruta != null ? produto.margembruta : null;
 
-
-  const precoVendaSemIva =
-    Number.isFinite(precoVendaSemIvaNum) && precoVendaSemIvaNum > 0
-      ? precoVendaSemIvaNum.toFixed(2)
-      : null;
-
-
-  const precoVendaComIva = Number.isFinite(precoVendaComIvaNum)
-    ? precoVendaComIvaNum.toFixed(2)
-    : "0.00";
-
-
-  // ------------------------
-  // RENDER
-  // ------------------------
   return (
-    <tr>
-      <td>{produto.descricao}</td>
-      <td>{produto.codbarras || "—"}</td>
+    <tr className={produto.novo ? "app-product-row app-product-row-new" : "app-product-row"}>
+      <td className="app-product-name">{produto.descricao}</td>
+      <td className="app-product-code">{produto.codbarras || "-"}</td>
 
-
-      {/* Margem */}
       <td
-        className="text-primary fw-bold"
-        style={{ cursor: precoCompra ? 'pointer' : 'default' }}
+        className="app-product-value app-product-value-clickable text-center"
+        style={{ cursor: precoCompra ? "pointer" : "default" }}
+        title="Editar margem"
         onClick={() => {
           if (!precoCompra) {
             setAlerta({
-              tipo: 'aviso',
-              mensagem: '⚠️ Defina primeiro o preço de compra para calcular a margem.'
+              tipo: "aviso",
+              mensagem: "Defina primeiro o preço de compra para calcular a margem."
             });
             return;
           }
           onAbrirMargem(produto);
         }}
       >
-        {precoCompra && margem != null
-          ? `${String(margem).replace(".", ",")}%`
-          : 'N/D'}
-
-
-
+        {precoCompra && margem != null ? formatPercent(margem) : "N/D"}
       </td>
 
-      {/* Stock */}
       <td
-        className="text-primary fw-bold"
-        style={{ cursor: 'pointer', textAlign: 'center' }}
-        title="Clique para alterar stock"
-        onClick={() => {
-          onAbrirStock({ ...produto, stockTotal });
-        }}
+        className="app-product-value app-product-value-clickable text-center"
+        style={{ cursor: "pointer" }}
+        title="Editar stock"
+        onClick={() => onAbrirStock({ ...produto, stockTotal })}
       >
         {Number(produto.qtdstock) || 0}
-        {Number(pendente) > 0 && <span className="text-success"> +{Number(pendente)}</span>}
-
+        {Number(pendente) > 0 && <span className="app-stock-delta"> +{Number(pendente)}</span>}
       </td>
 
-
-      {/* Preço Compra */}
       <td
-        className="text-primary fw-bold"
-        style={{ cursor: 'pointer' }}
+        className="app-product-value app-product-value-clickable text-center"
+        style={{ cursor: "pointer" }}
+        title="Editar preço de compra"
         onClick={() => onAbrirPrecoCompra(produto)}
       >
-        {precoCompra ? `${precoCompra.toFixed(2)}€` : 'N/D'}
+        {precoCompra ? formatMoney(precoCompra) : "N/D"}
       </td>
 
-      {/* Preço s/ IVA */}
-      <td className="text-primary fw-bold text-center">
-        {precoVendaSemIva ? `${precoVendaSemIva}€` : 'N/D'}
-
+      <td className="app-product-value text-center">
+        {Number.isFinite(precoVendaSemIvaNum) && precoVendaSemIvaNum > 0
+          ? formatMoney(precoVendaSemIvaNum)
+          : "N/D"}
       </td>
 
-      {/* Preço c/ IVA */}
       <td
-        className="text-primary fw-bold text-center"
-        style={{ cursor: 'pointer' }}
+        className="app-product-value app-product-value-clickable text-center"
+        style={{ cursor: "pointer" }}
+        title="Editar preço de venda"
         onClick={() => onAbrirPrecoVenda(produto)}
       >
-        {precoVendaComIva ? `${precoVendaComIva}€` : 'N/D'}
+        {Number.isFinite(precoVendaComIvaNum) ? formatMoney(precoVendaComIvaNum) : "N/D"}
       </td>
 
-      {/* Apagar */}
-      <td style={{ textAlign: 'center' }}>
+      <td className="text-center">
         <button
           type="button"
-          className="btn btn-sm btn-outline-danger"
+          className="btn btn-sm btn-outline-danger app-delete-button"
           title="Apagar produto"
           onClick={() => onPedirConfirmacaoApagar(produto)}
         >
-          <i className="bi bi-trash"></i>
+          <i className="bi bi-trash" aria-hidden="true"></i>
         </button>
       </td>
     </tr>

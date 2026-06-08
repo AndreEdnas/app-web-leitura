@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from "react";
 
 export default function StockModal({
   produto,
@@ -12,65 +12,65 @@ export default function StockModal({
     setQuantidade(Number(quantidadeInicial) || 0);
   }, [quantidadeInicial]);
 
-
-
-
-
-
   function aumentar() {
-    setQuantidade(q => q + 1);
+    setQuantidade((q) => q + 1);
   }
 
   function diminuir() {
-    setQuantidade(q => (q > 0 ? q - 1 : 0));
+    setQuantidade((q) => (q > 0 ? q - 1 : 0));
   }
 
   function confirmar() {
     if (quantidade < 0) {
-      alert('Insira uma quantidade válida.');
+      alert("Introduza uma quantidade válida.");
       return;
     }
-    // Passa a QUANTIDADE A ADICIONAR ao stock atual
+
     onConfirmar(produto.__uid, quantidade);
-
   }
-
-
 
   return (
     <div
       className="modal show d-block"
       tabIndex="-1"
       role="dialog"
-      style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
+      aria-modal="true"
+      style={{ backgroundColor: "rgba(15, 23, 42, 0.48)" }}
     >
       <div className="modal-dialog modal-dialog-centered" role="document">
         <div className="modal-content text-start">
-          <div className="modal-header">
-            <h5 className="modal-title">Atualizar Stock</h5>
-            <button type="button" className="btn-close" aria-label="Close" onClick={onFechar}></button>
+          <div className="modal-header bg-primary text-white">
+            <h5 className="modal-title">
+              <i className="bi bi-box-seam me-2" aria-hidden="true"></i>
+              Atualizar Stock
+            </h5>
+            <button type="button" className="btn-close btn-close-white" aria-label="Fechar" onClick={onFechar}></button>
           </div>
           <div className="modal-body">
-            <p><strong>{produto.descricao}</strong></p>
+            <p className="fw-bold mb-3">{produto.descricao}</p>
+            <label className="form-label fw-semibold">Quantidade</label>
             <div className="d-flex align-items-center gap-2">
-              <button className="btn btn-outline-danger" onClick={diminuir} disabled={quantidade <= 0}>-</button>
+              <button type="button" className="btn btn-outline-danger px-3" onClick={diminuir} disabled={quantidade <= 0}>
+                -
+              </button>
               <input
                 type="number"
                 className="form-control text-center"
                 value={quantidade}
-                onChange={e => {
+                onChange={(e) => {
                   const val = Number(e.target.value);
                   if (!isNaN(val) && val >= 0) setQuantidade(val);
                 }}
-
                 min={0}
               />
-              <button className="btn btn-outline-success" onClick={aumentar}>+</button>
+              <button type="button" className="btn btn-outline-success px-3" onClick={aumentar}>
+                +
+              </button>
             </div>
           </div>
           <div className="modal-footer">
-            <button className="btn btn-secondary" onClick={onFechar}>Cancelar</button>
-            <button className="btn btn-primary" onClick={confirmar}>Confirmar</button>
+            <button type="button" className="btn btn-secondary" onClick={onFechar}>Cancelar</button>
+            <button type="button" className="btn btn-primary" onClick={confirmar}>Confirmar</button>
           </div>
         </div>
       </div>

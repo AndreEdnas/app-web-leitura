@@ -1,9 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from "react";
 
 export default function PrecoVendaModal({ produto, onFechar, onConfirmar }) {
   const [precoVenda, setPrecoVenda] = useState(produto.precovenda ?? 0);
 
-  // Atualiza o campo sempre que o produto mudar
   useEffect(() => {
     setPrecoVenda(produto.precovenda ?? 0);
   }, [produto]);
@@ -11,12 +10,13 @@ export default function PrecoVendaModal({ produto, onFechar, onConfirmar }) {
   function handleSubmit(e) {
     e.preventDefault();
     const novoPreco = Number(precoVenda);
+
     if (isNaN(novoPreco) || novoPreco <= 0) {
-      alert('Insere um preço válido (> 0).');
+      alert("Introduza um preço válido.");
       return;
     }
-    onConfirmar(produto.__uid, novoPreco);
 
+    onConfirmar(produto.__uid, novoPreco);
     onFechar();
   }
 
@@ -26,18 +26,21 @@ export default function PrecoVendaModal({ produto, onFechar, onConfirmar }) {
       tabIndex="-1"
       role="dialog"
       aria-modal="true"
-      style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
+      style={{ backgroundColor: "rgba(15, 23, 42, 0.48)" }}
     >
       <div className="modal-dialog modal-dialog-centered" role="document">
         <div className="modal-content text-start">
           <form onSubmit={handleSubmit}>
-            <div className="modal-header">
-              <h5 className="modal-title">Editar Preço de Venda</h5>
-              <button type="button" className="btn-close" onClick={onFechar}></button>
+            <div className="modal-header bg-primary text-white">
+              <h5 className="modal-title">
+                <i className="bi bi-currency-euro me-2" aria-hidden="true"></i>
+                Preço de venda
+              </h5>
+              <button type="button" className="btn-close btn-close-white" aria-label="Fechar" onClick={onFechar}></button>
             </div>
             <div className="modal-body">
-              <p><strong>{produto.descricao}</strong></p>
-              <label htmlFor="precoVenda" className="form-label">Preço de Venda (€)</label>
+              <p className="fw-bold mb-3">{produto.descricao}</p>
+              <label htmlFor="precoVenda" className="form-label fw-semibold">Preço de venda com IVA</label>
               <input
                 type="number"
                 step="0.01"
@@ -45,7 +48,8 @@ export default function PrecoVendaModal({ produto, onFechar, onConfirmar }) {
                 className="form-control"
                 id="precoVenda"
                 value={precoVenda}
-                onChange={e => setPrecoVenda(e.target.value)}
+                onChange={(e) => setPrecoVenda(e.target.value)}
+                autoFocus
               />
             </div>
             <div className="modal-footer">

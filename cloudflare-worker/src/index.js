@@ -33,28 +33,56 @@ function buildCorsHeaders(request, env) {
   };
 }
 
-function toPublicStores(lojas) {
-  const result = {};
+function toPublicStore(storeId, store) {
+  if (!store || typeof store !== "object") return null;
 
-  for (const [storeId, store] of Object.entries(lojas || {})) {
-    if (!store || typeof store !== "object") continue;
-    const url = String(store.url || "").trim();
-    if (!url) continue;
+  return {
+    id: storeId,
+    nome: String(store.nome || storeId),
+    url: String(store.url || "").trim() || null,
+  };
+}
 
-    result[storeId] = {
-      id: storeId,
-      nome: String(store.nome || storeId),
-      url,
-      token: store.token || null,
-    };
+async function hashToken(value) {
+  const bytes = new TextEncoder().encode(String(value || ""));
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return new Uint8Array(digest);
+}
+
+async function tokensMatch(provided, expected) {
+  const providedToken = String(provided || "").trim();
+  const expectedToken = String(expected || "").trim();
+  if (!providedToken || !expectedToken) return false;
+
+  const [providedHash, expectedHash] = await Promise.all([
+    hashToken(providedToken),
+    hashToken(expectedToken),
+  ]);
+
+  let diff = providedHash.length ^ expectedHash.length;
+  const length = Math.max(providedHash.length, expectedHash.length);
+  for (let i = 0; i < length; i++) {
+    diff |= (providedHash[i] || 0) ^ (expectedHash[i] || 0);
   }
 
-  return result;
+  return diff === 0;
+}
+
+async function findStoreByToken(lojas, token) {
+  for (const [storeId, store] of Object.entries(lojas || {})) {
+    if (!store || typeof store !== "object") continue;
+    const expectedToken = store.token || store.store_token || store.token_loja || "";
+    if (await tokensMatch(token, expectedToken)) {
+      return { storeId, store };
+    }
+  }
+
+  return { storeId: null, store: null };
 }
 
 function isAuthorized(request, env) {
   const expected = (env.APP_KEY || "").trim();
-  if (!expected) return true;
+  if (!expected) return false;
 
   const provided = (request.headers.get("x-app-key") || "").trim();
   return provided === expected;
@@ -72,7 +100,39 @@ async function readJson(kv, key) {
 }
 
 async function writeJson(kv, key, value) {
-  await kv.put(key, JSON.stringify(value));
+  await kv.put(key, JSON.stringify(value, null, 2));
+}
+
+const CONFIG_CACHE_TTL_MS = 30 * 1000;
+let cachedLegacyConfig = null;
+let cachedLegacyConfigAt = 0;
+
+function clearLegacyConfigCache() {
+  cachedLegacyConfig = null;
+  cachedLegacyConfigAt = 0;
+}
+
+async function readLegacyConfigFromKv(kv, { bypassCache = false } = {}) {
+  const now = Date.now();
+  if (
+    !bypassCache &&
+    cachedLegacyConfig &&
+    now - cachedLegacyConfigAt < CONFIG_CACHE_TTL_MS
+  ) {
+    return cachedLegacyConfig;
+  }
+
+  const legacyConfig = (await readJson(kv, "config")) || {};
+  cachedLegacyConfig = legacyConfig;
+  cachedLegacyConfigAt = now;
+  return legacyConfig;
+}
+
+async function writeLegacyConfig(kv, legacyConfig) {
+  const value = legacyConfig || {};
+  await writeJson(kv, "config", value);
+  cachedLegacyConfig = value;
+  cachedLegacyConfigAt = Date.now();
 }
 
 async function listAllKeysByPrefix(kv, prefix) {
@@ -196,29 +256,27 @@ function toLegacyConfig(normalized, originalLegacyConfig) {
   return legacy;
 }
 
-async function loadState(env) {
+async function loadState(env, { bypassCache = false } = {}) {
   const kv = getKvNamespace(env);
   if (!kv) {
     throw new Error("KV namespace nao configurado (LOJAS_DB/CONFIG)");
   }
 
-  const legacyConfig = (await readJson(kv, "config")) || {};
+  const legacyConfig = await readLegacyConfigFromKv(kv, { bypassCache });
   const lojasV2 = await readPrefixMap(kv, "loja:");
   const licencasV2 = await readPrefixMap(kv, "licenca:");
   const instalacoesV2 = await readPrefixMap(kv, "instalacao:");
   const tunnelsV2 = await readPrefixMap(kv, "tunnel:");
 
-  const normalized = buildNormalizedState(
-    legacyConfig,
-    lojasV2,
-    licencasV2,
-    instalacoesV2,
-    tunnelsV2
-  );
-
   return {
     legacyConfig,
-    normalized,
+    normalized: buildNormalizedState(
+      legacyConfig,
+      lojasV2,
+      licencasV2,
+      instalacoesV2,
+      tunnelsV2
+    ),
   };
 }
 
@@ -254,17 +312,21 @@ async function persistLicenseAndInstallation(env, payload) {
     guessedUrl,
   } = payload;
 
-  const installationId = crypto.randomUUID();
+  const installationId = `hwid-${hwid}`;
   const activatedAt = nowIso();
+  const existingInstallation = await readJson(kv, `instalacao:${installationId}`);
 
   const installation = {
+    ...(existingInstallation && typeof existingInstallation === "object"
+      ? existingInstallation
+      : {}),
     id: installationId,
     loja_id: lojaId,
     hwid,
     host: host || null,
     guessed_url: guessedUrl || null,
     estado: "ativo",
-    created_at: activatedAt,
+    created_at: existingInstallation?.created_at || activatedAt,
     updated_at: activatedAt,
     last_seen_at: activatedAt,
   };
@@ -276,7 +338,7 @@ async function persistLicenseAndInstallation(env, payload) {
     instalacao_id: installationId,
     estado: "ativa",
     token: activationCode || null,
-    ativada_em: activatedAt,
+    ativada_em: existingInstallation?.created_at || activatedAt,
     updated_at: activatedAt,
   };
 
@@ -287,19 +349,7 @@ async function persistLicenseAndInstallation(env, payload) {
 }
 
 async function updateLegacyConfigLicense(env, oldLegacyConfig, normalizedState, license) {
-  const kv = getKvNamespace(env);
-  if (!kv) throw new Error("KV namespace nao configurado");
-
-  const merged = {
-    ...normalizedState,
-    licencasByHwid: {
-      ...normalizedState.licencasByHwid,
-      [license.hwid]: license,
-    },
-  };
-
-  const legacy = toLegacyConfig(merged, oldLegacyConfig);
-  await writeJson(kv, "config", legacy);
+  clearLegacyConfigCache();
 }
 
 function getActivationCode(rawBody) {
@@ -309,6 +359,528 @@ function getActivationCode(rawBody) {
     rawBody?.codigoAtivacao ||
     ""
   ).trim();
+}
+
+function toInstallerStore(storeId, store) {
+  if (!store || typeof store !== "object") return null;
+
+  return {
+    id: storeId,
+    nome: String(store.nome || storeId),
+    url: store.url || null,
+    server: store.server || null,
+    database: store.database || null,
+    port: Number(store.port || 1433),
+    token: store.token || null,
+  };
+}
+
+function getActivationStoreSetup(body, activationRecord, activationCode, guessedUrl) {
+  const rawName = String(
+    body?.store_name ||
+    body?.storeName ||
+    body?.loja_nome ||
+    body?.nome_loja ||
+    body?.nome ||
+    activationRecord?.loja_nome ||
+    activationRecord?.nome_loja ||
+    ""
+  ).trim();
+  const rawId = String(
+    activationRecord?.loja_id ||
+    activationRecord?.loja ||
+    activationRecord?.store_id ||
+    body?.loja_id ||
+    body?.loja ||
+    body?.store_id ||
+    rawName ||
+    activationCode ||
+    ""
+  ).trim();
+  const storeId = normalizeStoreId(rawId);
+  if (!storeId) return null;
+
+  const server = String(
+    body?.db_server ||
+    body?.dbServer ||
+    body?.sql_server ||
+    body?.server ||
+    activationRecord?.db_server ||
+    activationRecord?.server ||
+    ""
+  ).trim();
+  const database = String(
+    body?.db_database ||
+    body?.dbDatabase ||
+    body?.database ||
+    activationRecord?.db_database ||
+    activationRecord?.database ||
+    ""
+  ).trim();
+  const rawPort = body?.db_port || body?.dbPort || body?.port || activationRecord?.db_port || activationRecord?.port;
+  const port = Number(rawPort || 1433) || 1433;
+  const token = String(
+    body?.store_token ||
+    body?.token_loja ||
+    activationRecord?.store_token ||
+    activationRecord?.token ||
+    activationCode ||
+    ""
+  ).trim();
+
+  return {
+    id: storeId,
+    nome: rawName || activationRecord?.nome || storeId,
+    url: String(body?.url || activationRecord?.url || guessedUrl || "").trim() || null,
+    server: server || null,
+    database: database || null,
+    port,
+    token: token || null,
+  };
+}
+
+function getLegacyOnlyState(legacyConfig) {
+  return buildNormalizedState(legacyConfig || {}, {}, {}, {}, {});
+}
+
+async function readStoreDirect(kv, legacyConfig, storeId) {
+  const normalizedStoreId = normalizeStoreId(storeId);
+  if (!normalizedStoreId) return null;
+
+  const directStore = await readJson(kv, `loja:${normalizedStoreId}`);
+  if (directStore && typeof directStore === "object") {
+    return {
+      id: normalizedStoreId,
+      ...directStore,
+    };
+  }
+
+  return getLegacyOnlyState(legacyConfig).lojas[normalizedStoreId] || null;
+}
+
+async function readLicenseDirect(kv, legacyConfig, hwid) {
+  const normalizedHwid = String(hwid || "").trim();
+  if (!normalizedHwid) return null;
+
+  const directLicense = await readJson(kv, `licenca:${normalizedHwid}`);
+  if (directLicense && typeof directLicense === "object") {
+    return {
+      ...directLicense,
+      hwid: directLicense.hwid || normalizedHwid,
+    };
+  }
+
+  return getLegacyOnlyState(legacyConfig).licencasByHwid[normalizedHwid] || null;
+}
+
+async function readLicenseSnapshotDirect(kv, legacyConfig, hwid) {
+  const license = await readLicenseDirect(kv, legacyConfig, hwid);
+  const storeId = normalizeStoreId(license?.loja_id || license?.loja || "");
+  const store = storeId ? await readStoreDirect(kv, legacyConfig, storeId) : null;
+
+  return {
+    license,
+    storeId,
+    store,
+  };
+}
+
+async function upsertStoreFromActivationDirect(env, legacyConfig, storeSetup) {
+  if (!storeSetup?.id) return null;
+
+  const kv = getKvNamespace(env);
+  if (!kv) throw new Error("KV namespace nao configurado");
+
+  const current = (await readStoreDirect(kv, legacyConfig, storeSetup.id)) || {};
+  const now = nowIso();
+  const store = {
+    ...current,
+    ...storeSetup,
+    id: storeSetup.id,
+    nome: storeSetup.nome || current.nome || storeSetup.id,
+    url: storeSetup.url || current.url || "",
+    server: storeSetup.server || current.server || null,
+    database: storeSetup.database || current.database || null,
+    port: Number(storeSetup.port || current.port || 1433),
+    token: storeSetup.token || current.token || null,
+    created_at: current.created_at || now,
+    updated_at: now,
+  };
+
+  await writeJson(kv, `loja:${store.id}`, store);
+  return store;
+}
+
+async function updateStoreUrlFromTunnelDirect(env, legacyConfig, lojaId, activationRecord, fallbackStore = null) {
+  const tunnelUrl = getTunnelUrlFromActivation(activationRecord);
+  const kv = getKvNamespace(env);
+  if (!kv) throw new Error("KV namespace nao configurado");
+
+  const currentStore =
+    fallbackStore ||
+    (await readStoreDirect(kv, legacyConfig, lojaId)) ||
+    {};
+
+  if (!tunnelUrl) {
+    return Object.keys(currentStore).length > 0 ? currentStore : null;
+  }
+
+  const updatedStore = {
+    ...currentStore,
+    id: lojaId,
+    nome: currentStore.nome || lojaId,
+    url: tunnelUrl,
+    updated_at: nowIso(),
+  };
+
+  await writeJson(kv, `loja:${lojaId}`, updatedStore);
+  return updatedStore;
+}
+
+async function updateLegacyConfigDirect(env, legacyConfig, store = null, license = null) {
+  clearLegacyConfigCache();
+}
+
+async function upsertStoreFromActivation(env, state, storeSetup) {
+  if (!storeSetup?.id) return null;
+
+  const kv = getKvNamespace(env);
+  if (!kv) throw new Error("KV namespace nao configurado");
+
+  const current = state.normalized.lojas[storeSetup.id] || {};
+  const now = nowIso();
+  const store = {
+    ...current,
+    ...storeSetup,
+    id: storeSetup.id,
+    nome: storeSetup.nome || current.nome || storeSetup.id,
+    url: storeSetup.url || current.url || "",
+    server: storeSetup.server || current.server || null,
+    database: storeSetup.database || current.database || null,
+    port: Number(storeSetup.port || current.port || 1433),
+    token: storeSetup.token || current.token || null,
+    created_at: current.created_at || now,
+    updated_at: now,
+  };
+
+  await writeJson(kv, `loja:${store.id}`, store);
+
+  state.normalized.lojas = {
+    ...state.normalized.lojas,
+    [store.id]: store,
+  };
+
+  clearLegacyConfigCache();
+  return store;
+}
+
+function toInstallerTunnel(activationRecord, store) {
+  if (!activationRecord || typeof activationRecord !== "object") {
+    return {
+      url: store?.url || null,
+      hostname: null,
+      token: null,
+    };
+  }
+
+  return {
+    url: activationRecord.tunnel_url || activationRecord.url || store?.url || null,
+    hostname: activationRecord.tunnel_hostname || activationRecord.hostname || null,
+    token:
+      activationRecord.tunnel_token ||
+      activationRecord.tunnelToken ||
+      activationRecord.cloudflare_tunnel_token ||
+      activationRecord.token ||
+      null,
+  };
+}
+
+function getTunnelUrlFromActivation(activationRecord) {
+  const rawUrl = String(
+    activationRecord?.tunnel_url ||
+    activationRecord?.url ||
+    ""
+  ).trim();
+  if (rawUrl) return rawUrl;
+
+  const hostname = String(
+    activationRecord?.tunnel_hostname ||
+    activationRecord?.hostname ||
+    ""
+  ).trim();
+  return hostname ? `https://${hostname}` : "";
+}
+
+function getEnvValue(env, names) {
+  for (const name of names) {
+    const value = String(env[name] || "").trim();
+    if (value) return value;
+  }
+
+  return "";
+}
+
+function slugify(value, fallback = "cliente") {
+  const slug = String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  return slug || fallback;
+}
+
+function shouldAutoCreateTunnel(activationRecord, env) {
+  if (!activationRecord || typeof activationRecord !== "object") return false;
+  if (activationRecord.auto_tunnel === true || activationRecord.autoTunnel === true) return true;
+  return String(env.AUTO_CREATE_TUNNEL || "").toLowerCase() === "true" &&
+    activationRecord.auto_tunnel !== false &&
+    activationRecord.autoTunnel !== false;
+}
+
+async function cloudflareApi(env, method, path, body = null) {
+  const apiToken = getEnvValue(env, [
+    "CLOUDFLARE_API_TOKEN",
+    "CF_API_TOKEN",
+  ]);
+  if (!apiToken) {
+    throw new Error("CLOUDFLARE_API_TOKEN nao configurado no Worker.");
+  }
+
+  const init = {
+    method,
+    headers: {
+      "Authorization": `Bearer ${apiToken}`,
+      "Accept": "application/json",
+    },
+  };
+
+  if (body) {
+    init.headers["Content-Type"] = "application/json";
+    init.body = JSON.stringify(body);
+  }
+
+  const res = await fetch(`https://api.cloudflare.com/client/v4${path}`, init);
+  const text = await res.text();
+  let data = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    data = null;
+  }
+  if (!res.ok || !data?.success) {
+    const errors = Array.isArray(data?.errors)
+      ? data.errors
+          .map((err) => {
+            const code = err?.code ? `CF${err.code}: ` : "";
+            const pointer = err?.source?.pointer ? ` (${err.source.pointer})` : "";
+            return `${code}${err?.message || JSON.stringify(err)}${pointer}`;
+          })
+          .filter(Boolean)
+      : [];
+    const messages = Array.isArray(data?.messages)
+      ? data.messages
+          .map((msg) => msg?.message || JSON.stringify(msg))
+          .filter(Boolean)
+      : [];
+    const detail = [...errors, ...messages].join(" | ");
+    throw new Error(
+      detail ||
+      `Erro Cloudflare API ${method} ${path}: ${res.status} ${text || JSON.stringify(data || {})}`
+    );
+  }
+
+  return data.result;
+}
+
+function buildTunnelHostname(env, activationRecord, lojaId, hwid) {
+  const explicitHostname = String(
+    activationRecord?.tunnel_hostname ||
+    activationRecord?.hostname ||
+    ""
+  ).trim();
+  if (explicitHostname) return explicitHostname;
+
+  const domain = getEnvValue(env, [
+    "TUNNEL_DOMAIN",
+    "CF_TUNNEL_DOMAIN",
+  ]);
+  if (!domain) {
+    throw new Error("TUNNEL_DOMAIN nao configurado no Worker.");
+  }
+
+  const codeSlug = slugify(activationRecord?.code || activationRecord?.codigo || "", "");
+  const lojaSlug = slugify(lojaId, "loja");
+  const hwidSlug = slugify(String(hwid || "").slice(0, 12), "pc");
+  const prefix = codeSlug ? `${lojaSlug}-${codeSlug}` : `${lojaSlug}-${hwidSlug}`;
+
+  return `${prefix}.${domain.replace(/^\.+/, "")}`;
+}
+
+async function ensureTunnelForActivation(env, kv, activationKey, activationRecord, lojaId, hwid) {
+  const existingToken =
+    activationRecord?.tunnel_token ||
+    activationRecord?.tunnelToken ||
+    activationRecord?.cloudflare_tunnel_token ||
+    null;
+  if (existingToken) return activationRecord;
+  if (!shouldAutoCreateTunnel(activationRecord, env)) return activationRecord;
+
+  const tunnelKey = `tunnel:${hwid}`;
+  const existingTunnel = await readJson(kv, tunnelKey);
+  if (existingTunnel?.token) {
+    return {
+      ...activationRecord,
+      tunnel_id: existingTunnel.id || existingTunnel.tunnel_id || null,
+      tunnel_name: existingTunnel.name || existingTunnel.tunnel_name || null,
+      tunnel_hostname: existingTunnel.hostname || existingTunnel.tunnel_hostname || null,
+      tunnel_url: existingTunnel.url || existingTunnel.tunnel_url || null,
+      tunnel_service: existingTunnel.service || existingTunnel.tunnel_service || null,
+      tunnel_token: existingTunnel.token,
+    };
+  }
+
+  const accountId = getEnvValue(env, [
+    "CLOUDFLARE_ACCOUNT_ID",
+    "CF_ACCOUNT_ID",
+  ]);
+  const zoneId = getEnvValue(env, [
+    "CLOUDFLARE_ZONE_ID",
+    "CF_ZONE_ID",
+  ]);
+  if (!accountId) throw new Error("CLOUDFLARE_ACCOUNT_ID nao configurado no Worker.");
+  if (!zoneId) throw new Error("CLOUDFLARE_ZONE_ID nao configurado no Worker.");
+
+  const hostname = buildTunnelHostname(env, activationRecord, lojaId, hwid);
+  const service = String(
+    activationRecord?.tunnel_service ||
+    env.TUNNEL_SERVICE ||
+    "http://localhost:3051"
+  ).trim();
+  const tunnelName = String(
+    activationRecord?.tunnel_name ||
+    `ednas-${slugify(lojaId, "loja")}-${slugify(activationRecord?.code || "auto", "pc")}-${slugify(String(hwid || "").slice(0, 8), "pc")}`
+  ).trim();
+
+  const tunnel = await cloudflareApi(env, "POST", `/accounts/${accountId}/cfd_tunnel`, {
+    name: tunnelName,
+    config_src: "cloudflare",
+  });
+  const tunnelId = String(tunnel?.id || "").trim();
+  const tunnelToken = String(tunnel?.token || "").trim();
+  if (!tunnelId || !tunnelToken) {
+    throw new Error("Cloudflare criou o tunnel, mas nao devolveu id/token.");
+  }
+
+  await cloudflareApi(env, "PUT", `/accounts/${accountId}/cfd_tunnel/${tunnelId}/configurations`, {
+    config: {
+      ingress: [
+        {
+          hostname,
+          service,
+          originRequest: {},
+        },
+        {
+          service: "http_status:404",
+        },
+      ],
+    },
+  });
+
+  const encodedHostname = encodeURIComponent(hostname);
+  const existingRecords = await cloudflareApi(
+    env,
+    "GET",
+    `/zones/${zoneId}/dns_records?type=CNAME&name=${encodedHostname}`
+  );
+  const dnsBody = {
+    type: "CNAME",
+    name: hostname,
+    content: `${tunnelId}.cfargotunnel.com`,
+    proxied: true,
+    ttl: 1,
+  };
+
+  if (Array.isArray(existingRecords) && existingRecords.length > 0) {
+    await cloudflareApi(
+      env,
+      "PUT",
+      `/zones/${zoneId}/dns_records/${existingRecords[0].id}`,
+      dnsBody
+    );
+  } else {
+    await cloudflareApi(env, "POST", `/zones/${zoneId}/dns_records`, dnsBody);
+  }
+
+  const tunnelRecord = {
+    id: tunnelId,
+    name: tunnelName,
+    hostname,
+    url: `https://${hostname}`,
+    service,
+    token: tunnelToken,
+    loja_id: lojaId,
+    hwid,
+    activation_code: activationRecord?.code || null,
+    created_at: nowIso(),
+    updated_at: nowIso(),
+  };
+  await writeJson(kv, tunnelKey, tunnelRecord);
+
+  await writeJson(kv, activationKey, {
+    ...activationRecord,
+    last_tunnel_id: tunnelId,
+    last_tunnel_hostname: hostname,
+    updated_at: nowIso(),
+  });
+
+  return {
+    ...activationRecord,
+    tunnel_id: tunnelRecord.id,
+    tunnel_name: tunnelRecord.name,
+    tunnel_hostname: tunnelRecord.hostname,
+    tunnel_url: tunnelRecord.url,
+    tunnel_service: tunnelRecord.service,
+    tunnel_token: tunnelRecord.token,
+  };
+}
+
+async function updateStoreUrlFromTunnel(env, state, lojaId, activationRecord) {
+  const tunnelUrl = getTunnelUrlFromActivation(activationRecord);
+  if (!tunnelUrl) {
+    return state.normalized.lojas[lojaId] || null;
+  }
+
+  const kv = getKvNamespace(env);
+  if (!kv) throw new Error("KV namespace nao configurado");
+
+  const currentStore = state.normalized.lojas[lojaId] || {};
+  const updatedStore = {
+    ...currentStore,
+    id: lojaId,
+    nome: currentStore.nome || lojaId,
+    url: tunnelUrl,
+    updated_at: nowIso(),
+  };
+
+  await writeJson(kv, `loja:${lojaId}`, updatedStore);
+  clearLegacyConfigCache();
+
+  return updatedStore;
+}
+
+function isActivationCodeActive(activationRecord) {
+  return !activationRecord.estado || activationRecord.estado === "ativo";
+}
+
+function isActivationCodeExpired(activationRecord, now = new Date()) {
+  const rawExpiresAt = activationRecord.expires_at || activationRecord.expira_em || null;
+  if (!rawExpiresAt) return false;
+
+  const expiresAt = new Date(rawExpiresAt);
+  if (Number.isNaN(expiresAt.getTime())) return false;
+  return expiresAt < now;
 }
 
 export default {
@@ -326,6 +898,10 @@ export default {
       "/listar-licencas",
       "/ativar-licenca",
     ]);
+    const publicActivationRoutes = new Set([
+      "/activation/start",
+      "/activation/finish",
+    ]);
 
     if (pathname === "/health") {
       return jsonResponse(
@@ -336,23 +912,74 @@ export default {
     }
 
     if (pathname === "/config-lojas" && request.method === "GET") {
-      const state = await loadState(env);
       return jsonResponse(
         {
           schema: "v2-public",
-          lojas: toPublicStores(state.normalized.lojas),
+          modo: "token",
+          lojas: {},
+          resolver: "/resolver-loja",
         },
         200,
         corsHeaders
       );
     }
 
+    if (pathname === "/resolver-loja" && request.method === "POST") {
+      const body = await request.json().catch(() => null);
+      const token = String(
+        body?.token ||
+        body?.store_token ||
+        body?.token_loja ||
+        ""
+      ).trim();
+
+      if (!token) {
+        return jsonResponse(
+          { success: false, error: "Token obrigatorio" },
+          400,
+          corsHeaders
+        );
+      }
+
+      const state = await loadState(env, { bypassCache: true });
+      const { storeId, store } = await findStoreByToken(state.normalized.lojas, token);
+      if (!storeId || !store) {
+        return jsonResponse(
+          { success: false, error: "Token invalido" },
+          404,
+          corsHeaders
+        );
+      }
+
+      const publicStore = toPublicStore(storeId, store);
+      if (!publicStore?.url) {
+        return jsonResponse(
+          { success: false, error: "Loja sem URL publica configurada" },
+          409,
+          corsHeaders
+        );
+      }
+
+      return jsonResponse(
+        {
+          success: true,
+          schema: "v2-public",
+          loja: publicStore,
+        },
+        200,
+        corsHeaders
+      );
+    }
+
+    const expectedAppKey = String(env.APP_KEY || "").trim();
     const authorizedByHeader = isAuthorized(request, env);
     const authorizedByLegacyQuery =
+      Boolean(expectedAppKey) &&
       legacyAdminRoutes.has(pathname) &&
-      String(url.searchParams.get("admin_key") || "").trim() === String(env.APP_KEY || "").trim();
+      String(url.searchParams.get("admin_key") || "").trim() === expectedAppKey;
+    const authorizedByActivationCode = publicActivationRoutes.has(pathname);
 
-    if (!authorizedByHeader && !authorizedByLegacyQuery) {
+    if (!authorizedByHeader && !authorizedByLegacyQuery && !authorizedByActivationCode) {
       return jsonResponse(
         { success: false, error: "Nao autorizado" },
         401,
@@ -361,13 +988,93 @@ export default {
     }
 
     if (pathname === "/config" && request.method === "GET") {
-      const state = await loadState(env);
+      const state = await loadState(env, { bypassCache: true });
       const config = toLegacyConfig(state.normalized, state.legacyConfig);
       return jsonResponse(config, 200, corsHeaders);
     }
 
+    if (pathname === "/cloudflare/test" && request.method === "GET") {
+      const accountId = getEnvValue(env, [
+        "CLOUDFLARE_ACCOUNT_ID",
+        "CF_ACCOUNT_ID",
+      ]);
+      const zoneId = getEnvValue(env, [
+        "CLOUDFLARE_ZONE_ID",
+        "CF_ZONE_ID",
+      ]);
+      const apiToken = getEnvValue(env, [
+        "CLOUDFLARE_API_TOKEN",
+        "CF_API_TOKEN",
+      ]);
+      const result = {
+        success: true,
+        account_id_configured: Boolean(accountId),
+        account_id_length: accountId.length,
+        zone_id_configured: Boolean(zoneId),
+        zone_id_length: zoneId.length,
+        api_token_configured: Boolean(apiToken),
+        api_token_looks_like_tunnel_token: apiToken.startsWith("cfut_"),
+        api_token_verify_ok: false,
+        tunnel_api_ok: false,
+        dns_api_ok: false,
+        warnings: [],
+        errors: [],
+      };
+
+      if (apiToken.startsWith("cfut_")) {
+        result.warnings.push("CLOUDFLARE_API_TOKEN com prefixo cfut_; aceito porque validou na API da Cloudflare.");
+      }
+
+      if (apiToken) {
+        try {
+          await cloudflareApi(env, "GET", "/user/tokens/verify");
+          result.api_token_verify_ok = true;
+        } catch (err) {
+          result.success = false;
+          result.errors.push(`Token verify: ${err?.message || err}`);
+        }
+      } else {
+        result.success = false;
+        result.errors.push("CLOUDFLARE_API_TOKEN nao configurado");
+      }
+
+      if (!accountId) {
+        result.success = false;
+        result.errors.push("CLOUDFLARE_ACCOUNT_ID nao configurado");
+      } else if (accountId.length !== 32) {
+        result.success = false;
+        result.errors.push(`CLOUDFLARE_ACCOUNT_ID invalido: esperado 32 caracteres, recebido ${accountId.length}`);
+      } else {
+        try {
+          await cloudflareApi(env, "GET", `/accounts/${accountId}/cfd_tunnel`);
+          result.tunnel_api_ok = true;
+        } catch (err) {
+          result.success = false;
+          result.errors.push(`Tunnel API: ${err?.message || err}`);
+        }
+      }
+
+      if (!zoneId) {
+        result.success = false;
+        result.errors.push("CLOUDFLARE_ZONE_ID nao configurado");
+      } else if (zoneId.length !== 32) {
+        result.success = false;
+        result.errors.push(`CLOUDFLARE_ZONE_ID invalido: esperado 32 caracteres, recebido ${zoneId.length}`);
+      } else {
+        try {
+          await cloudflareApi(env, "GET", `/zones/${zoneId}/dns_records?per_page=1`);
+          result.dns_api_ok = true;
+        } catch (err) {
+          result.success = false;
+          result.errors.push(`DNS API: ${err?.message || err}`);
+        }
+      }
+
+      return jsonResponse(result, result.success ? 200 : 500, corsHeaders);
+    }
+
     if (pathname === "/listar-lojas" && request.method === "GET") {
-      const state = await loadState(env);
+      const state = await loadState(env, { bypassCache: true });
       const config = toLegacyConfig(state.normalized, state.legacyConfig);
       return jsonResponse(config.lojas || {}, 200, corsHeaders);
     }
@@ -389,7 +1096,7 @@ export default {
         return jsonResponse({ success: false, error: "Nome da loja e obrigatorio" }, 400, corsHeaders);
       }
 
-      const state = await loadState(env);
+      const state = await loadState(env, { bypassCache: true });
       if (state.normalized.lojas[nome]) {
         return jsonResponse({ success: false, error: "Loja ja existe" }, 409, corsHeaders);
       }
@@ -413,15 +1120,7 @@ export default {
 
       await writeJson(kv, `loja:${nome}`, loja);
 
-      const merged = {
-        ...state.normalized,
-        lojas: {
-          ...state.normalized.lojas,
-          [nome]: loja,
-        },
-      };
-      const legacy = toLegacyConfig(merged, state.legacyConfig);
-      await writeJson(kv, "config", legacy);
+      clearLegacyConfigCache();
 
       return jsonResponse({ success: true, loja }, 200, corsHeaders);
     }
@@ -440,7 +1139,7 @@ export default {
         return jsonResponse({ success: false, error: "Campos incompletos" }, 400, corsHeaders);
       }
 
-      const state = await loadState(env);
+      const state = await loadState(env, { bypassCache: true });
       const existing = state.normalized.lojas[id] || {};
 
       const loja = {
@@ -461,15 +1160,7 @@ export default {
 
       await writeJson(kv, `loja:${id}`, loja);
 
-      const merged = {
-        ...state.normalized,
-        lojas: {
-          ...state.normalized.lojas,
-          [id]: loja,
-        },
-      };
-      const legacy = toLegacyConfig(merged, state.legacyConfig);
-      await writeJson(kv, "config", legacy);
+      clearLegacyConfigCache();
 
       return jsonResponse({ success: true, loja }, 200, corsHeaders);
     }
@@ -486,7 +1177,7 @@ export default {
         return jsonResponse({ success: false, error: "Campos incompletos" }, 400, corsHeaders);
       }
 
-      const state = await loadState(env);
+      const state = await loadState(env, { bypassCache: true });
       const store = state.normalized.lojas[id];
       if (!store) {
         return jsonResponse({ success: false, error: "Loja nao existe" }, 404, corsHeaders);
@@ -505,15 +1196,7 @@ export default {
 
       await writeJson(kv, `loja:${id}`, updated);
 
-      const merged = {
-        ...state.normalized,
-        lojas: {
-          ...state.normalized.lojas,
-          [id]: updated,
-        },
-      };
-      const legacy = toLegacyConfig(merged, state.legacyConfig);
-      await writeJson(kv, "config", legacy);
+      clearLegacyConfigCache();
 
       return jsonResponse({ success: true, loja: updated }, 200, corsHeaders);
     }
@@ -524,8 +1207,13 @@ export default {
       const guessedUrl = String(body?.guessedUrl || "").trim();
       const host = String(body?.host || "").trim();
 
+      const kv = getKvNamespace(env);
+      if (!kv) {
+        return jsonResponse({ success: false, error: "KV namespace nao configurado" }, 500, corsHeaders);
+      }
+
       const state = await loadState(env);
-      const existingLicense = hwid ? state.normalized.licencasByHwid[hwid] || null : null;
+      const existingLicense = hwid ? await readLicenseDirect(kv, state.legacyConfig, hwid) : null;
       const storeByHost = findStoreByGuessedUrl(state.normalized.lojas, guessedUrl, host);
 
       return jsonResponse(
@@ -536,11 +1224,16 @@ export default {
           guessedUrl: guessedUrl || null,
           host: host || null,
           lojaDetetada: storeByHost.storeId
-            ? { id: storeByHost.storeId, ...storeByHost.store }
+            ? toInstallerStore(storeByHost.storeId, storeByHost.store)
             : null,
           licencaAtiva: Boolean(existingLicense),
           precisaAtivacao: !existingLicense,
-          licenca: existingLicense,
+          licenca: existingLicense
+            ? {
+                loja: existingLicense.loja_id || existingLicense.loja || null,
+                estado: existingLicense.estado || "ativa",
+              }
+            : null,
         },
         200,
         corsHeaders
@@ -548,124 +1241,297 @@ export default {
     }
 
     if (pathname === "/activation/finish" && request.method === "POST") {
-      const body = await request.json().catch(() => null);
-      if (!body || typeof body !== "object") {
-        return jsonResponse({ success: false, error: "Body invalido" }, 400, corsHeaders);
-      }
+      try {
+        const body = await request.json().catch(() => null);
+        if (!body || typeof body !== "object") {
+          return jsonResponse({ success: false, error: "Body invalido" }, 400, corsHeaders);
+        }
 
-      const hwid = String(body.hwid || "").trim();
-      if (!hwid) {
-        return jsonResponse({ success: false, error: "HWID e obrigatorio" }, 400, corsHeaders);
-      }
+        const hwid = String(body.hwid || "").trim();
+        if (!hwid) {
+          return jsonResponse({ success: false, error: "HWID e obrigatorio" }, 400, corsHeaders);
+        }
 
-      const guessedUrl = String(body.guessedUrl || "").trim();
-      const host = String(body.host || "").trim();
-      const activationCode = getActivationCode(body);
+        const guessedUrl = String(body.guessedUrl || "").trim();
+        const host = String(body.host || "").trim();
+        const activationCode = getActivationCode(body);
 
-      const state = await loadState(env);
-      const existingLicense = state.normalized.licencasByHwid[hwid] || null;
-      if (existingLicense) {
-        return jsonResponse(
-          {
-            success: true,
-            schema: "v2",
-            already_active: true,
-            license: existingLicense,
-          },
-          200,
-          corsHeaders
-        );
-      }
-
-      let lojaId = null;
-      let activationRecord = null;
-
-      const kv = getKvNamespace(env);
-      if (!kv) {
-        return jsonResponse({ success: false, error: "KV namespace nao configurado" }, 500, corsHeaders);
-      }
-
-      if (activationCode) {
-        activationRecord = await readJson(kv, `activation-code:${activationCode}`);
-        if (!activationRecord || typeof activationRecord !== "object") {
+        if (!authorizedByHeader && !activationCode) {
           return jsonResponse(
-            { success: false, error: "Codigo de ativacao invalido" },
+            { success: false, error: "Codigo de ativacao obrigatorio" },
+            400,
+            corsHeaders
+          );
+        }
+
+        let lojaId = null;
+        let activationRecord = null;
+        let activationKey = null;
+        let storeSetup = null;
+        let store = null;
+
+        const kv = getKvNamespace(env);
+        if (!kv) {
+          return jsonResponse({ success: false, error: "KV namespace nao configurado" }, 500, corsHeaders);
+        }
+
+        const currentState = await loadState(env, { bypassCache: true });
+        const legacyConfig = currentState.legacyConfig;
+        const legacyState = currentState.normalized;
+
+        if (activationCode) {
+          activationKey = `activation-code:${activationCode}`;
+          activationRecord = await readJson(kv, activationKey);
+          if (!activationRecord || typeof activationRecord !== "object") {
+            const existingLicenseForMissingCode = await readLicenseDirect(kv, legacyConfig, hwid);
+            if (existingLicenseForMissingCode) {
+              const existingStoreId = normalizeStoreId(
+                existingLicenseForMissingCode.loja_id ||
+                existingLicenseForMissingCode.loja ||
+                ""
+              );
+              const existingStore = existingStoreId
+                ? await readStoreDirect(kv, legacyConfig, existingStoreId)
+                : null;
+
+              if (existingStore) {
+                const existingTunnel = await readJson(kv, `tunnel:${hwid}`);
+                return jsonResponse(
+                  {
+                    success: true,
+                    schema: "v2",
+                    already_active: true,
+                    activation_code_deleted: true,
+                    license: existingLicenseForMissingCode,
+                    installation: existingLicenseForMissingCode.instalacao_id
+                      ? await readJson(kv, `instalacao:${existingLicenseForMissingCode.instalacao_id}`)
+                      : null,
+                    loja: toInstallerStore(existingStoreId, existingStore),
+                    tunnel: toInstallerTunnel(existingTunnel, existingStore),
+                  },
+                  200,
+                  corsHeaders
+                );
+              }
+            }
+
+            return jsonResponse(
+              { success: false, error: "Codigo de ativacao invalido" },
+              404,
+              corsHeaders
+            );
+          }
+
+          if (!isActivationCodeActive(activationRecord)) {
+            return jsonResponse(
+              { success: false, error: "Codigo de ativacao bloqueado" },
+              403,
+              corsHeaders
+            );
+          }
+
+          if (isActivationCodeExpired(activationRecord)) {
+            return jsonResponse(
+              { success: false, error: "Codigo de ativacao expirado" },
+              403,
+              corsHeaders
+            );
+          }
+
+          lojaId = normalizeStoreId(
+            activationRecord.loja_id || activationRecord.loja || activationRecord.store_id
+          );
+
+          const expectedStoreToken = String(
+            activationRecord.store_token ||
+            activationRecord.token_loja ||
+            ""
+          ).trim();
+          const providedStoreToken = String(
+            body.store_token ||
+            body.token_loja ||
+            ""
+          ).trim();
+          if (expectedStoreToken && !providedStoreToken) {
+            return jsonResponse(
+              { success: false, error: "Token de entrada da loja obrigatorio" },
+              400,
+              corsHeaders
+            );
+          }
+          if (expectedStoreToken && !(await tokensMatch(providedStoreToken, expectedStoreToken))) {
+            return jsonResponse(
+              { success: false, error: "Token de entrada da loja incorreto" },
+              403,
+              corsHeaders
+            );
+          }
+        }
+
+        storeSetup = getActivationStoreSetup(body, activationRecord, activationCode, guessedUrl);
+        if (!lojaId && storeSetup?.id) {
+          lojaId = storeSetup.id;
+        }
+
+        const existingLicense = await readLicenseDirect(kv, legacyConfig, hwid);
+        if (existingLicense) {
+          const existingStoreId = normalizeStoreId(
+            existingLicense.loja_id || existingLicense.loja || lojaId || storeSetup?.id
+          );
+          if (storeSetup && existingStoreId) {
+            storeSetup.id = existingStoreId;
+            store = await upsertStoreFromActivationDirect(env, legacyConfig, storeSetup);
+          }
+          if (activationRecord && activationKey && existingStoreId) {
+            activationRecord = await ensureTunnelForActivation(
+              env,
+              kv,
+              activationKey,
+              activationRecord,
+              existingStoreId,
+              hwid
+            );
+          }
+
+          const existingStore = activationRecord && existingStoreId
+            ? await updateStoreUrlFromTunnelDirect(
+                env,
+                legacyConfig,
+                existingStoreId,
+                activationRecord,
+                store
+              )
+            : store || (await readStoreDirect(kv, legacyConfig, existingStoreId));
+          await updateLegacyConfigDirect(env, legacyConfig, existingStore, existingLicense);
+
+          return jsonResponse(
+            {
+              success: true,
+              schema: "v2",
+              already_active: true,
+              license: existingLicense,
+              installation: existingLicense.instalacao_id
+                ? await readJson(kv, `instalacao:${existingLicense.instalacao_id}`)
+                : null,
+              loja: toInstallerStore(existingStoreId, existingStore),
+              tunnel: toInstallerTunnel(activationRecord, existingStore),
+            },
+            200,
+            corsHeaders
+          );
+        }
+
+        if (activationRecord) {
+          const maxUses = Number(activationRecord.max_uses || 1);
+          const uses = Number(activationRecord.uses || 0);
+          if (maxUses > 0 && uses >= maxUses) {
+            return jsonResponse(
+              { success: false, error: "Codigo de ativacao esgotado" },
+              409,
+              corsHeaders
+            );
+          }
+        }
+
+        if (!lojaId) {
+          const storeByHost = findStoreByGuessedUrl(legacyState.lojas, guessedUrl, host);
+          lojaId = storeByHost.storeId;
+        }
+
+        if (!lojaId && storeSetup?.id) {
+          lojaId = storeSetup.id;
+        }
+
+        if (!lojaId) {
+          return jsonResponse(
+            { success: false, error: "Loja nao encontrada para ativacao" },
             404,
             corsHeaders
           );
         }
 
-        if (activationRecord.estado && activationRecord.estado !== "ativo") {
+        if (storeSetup) {
+          storeSetup.id = lojaId;
+          store = await upsertStoreFromActivationDirect(env, legacyConfig, storeSetup);
+        }
+
+        if (!store) {
+          store = await readStoreDirect(kv, legacyConfig, lojaId);
+        }
+
+        if (!store) {
           return jsonResponse(
-            { success: false, error: "Codigo de ativacao bloqueado" },
-            403,
+            { success: false, error: "Loja nao existe e os dados da instalacao nao foram enviados" },
+            404,
             corsHeaders
           );
         }
 
-        const maxUses = Number(activationRecord.max_uses || 1);
-        const uses = Number(activationRecord.uses || 0);
-        if (maxUses > 0 && uses >= maxUses) {
-          return jsonResponse(
-            { success: false, error: "Codigo de ativacao esgotado" },
-            409,
-            corsHeaders
+        if (activationRecord && activationKey) {
+          activationRecord = await ensureTunnelForActivation(
+            env,
+            kv,
+            activationKey,
+            activationRecord,
+            lojaId,
+            hwid
           );
         }
 
-        lojaId = normalizeStoreId(
-          activationRecord.loja_id || activationRecord.loja || activationRecord.store_id
-        );
-      }
+        const persisted = await persistLicenseAndInstallation(env, {
+          hwid,
+          lojaId,
+          activationCode: activationCode || null,
+          host,
+          guessedUrl,
+        });
+        const updatedStore = activationRecord
+          ? await updateStoreUrlFromTunnelDirect(env, legacyConfig, lojaId, activationRecord, store)
+          : store;
 
-      if (!lojaId) {
-        const storeByHost = findStoreByGuessedUrl(state.normalized.lojas, guessedUrl, host);
-        lojaId = storeByHost.storeId;
-      }
+        if (activationRecord) {
+          const updatedUses = Number(activationRecord.uses || 0) + 1;
+          const maxUses = Number(activationRecord.max_uses || 1);
+          const updatedActivationRecord = {
+            ...activationRecord,
+            uses: updatedUses,
+            last_hwid: hwid,
+            updated_at: nowIso(),
+          };
 
-      if (!lojaId || !state.normalized.lojas[lojaId]) {
+          if (activationKey && maxUses > 0 && updatedUses >= maxUses) {
+            await kv.delete(activationKey);
+          } else if (activationKey) {
+            await writeJson(kv, activationKey, updatedActivationRecord);
+          }
+        }
+
+        await updateLegacyConfigDirect(env, legacyConfig, updatedStore, persisted.license);
+
         return jsonResponse(
-          { success: false, error: "Loja nao encontrada para ativacao" },
-          404,
+          {
+            success: true,
+            schema: "v2",
+            license: persisted.license,
+            installation: persisted.installation,
+            loja: toInstallerStore(lojaId, updatedStore),
+            tunnel: toInstallerTunnel(activationRecord, updatedStore),
+          },
+          200,
+          corsHeaders
+        );
+      } catch (err) {
+        return jsonResponse(
+          {
+            success: false,
+            schema: "v2",
+            error: err?.message || "Erro interno na ativacao",
+            stage: "activation_finish",
+          },
+          500,
           corsHeaders
         );
       }
-
-      const persisted = await persistLicenseAndInstallation(env, {
-        hwid,
-        lojaId,
-        activationCode: activationCode || null,
-        host,
-        guessedUrl,
-      });
-
-      if (activationRecord) {
-        const updatedActivationRecord = {
-          ...activationRecord,
-          uses: Number(activationRecord.uses || 0) + 1,
-          last_hwid: hwid,
-          updated_at: nowIso(),
-        };
-        await writeJson(kv, `activation-code:${activationCode}`, updatedActivationRecord);
-      }
-
-      await updateLegacyConfigLicense(
-        env,
-        state.legacyConfig,
-        state.normalized,
-        persisted.license
-      );
-
-      return jsonResponse(
-        {
-          success: true,
-          schema: "v2",
-          license: persisted.license,
-          installation: persisted.installation,
-        },
-        200,
-        corsHeaders
-      );
     }
 
     if (pathname === "/ativar-licenca" && request.method === "POST") {
@@ -683,7 +1549,7 @@ export default {
         return jsonResponse({ success: false, error: "Campos incompletos" }, 400, corsHeaders);
       }
 
-      const state = await loadState(env);
+      const state = await loadState(env, { bypassCache: true });
       if (!state.normalized.lojas[loja]) {
         return jsonResponse({ success: false, error: "Loja nao existe" }, 404, corsHeaders);
       }
@@ -725,13 +1591,17 @@ export default {
         return jsonResponse({ success: false, error: "Campos incompletos" }, 400, corsHeaders);
       }
 
-      const state = await loadState(env);
-      const license = state.normalized.licencasByHwid[hwid] || null;
+      const kv = getKvNamespace(env);
+      if (!kv) {
+        return jsonResponse({ success: false, error: "KV namespace nao configurado" }, 500, corsHeaders);
+      }
+
+      const legacyConfig = await readLegacyConfigFromKv(kv);
+      const { license, storeId, store } = await readLicenseSnapshotDirect(kv, legacyConfig, hwid);
       if (!license) {
         return jsonResponse({ success: false, error: "Licenca nao existe." }, 404, corsHeaders);
       }
 
-      const storeId = normalizeStoreId(license.loja_id || license.loja);
       if (storeId !== loja) {
         return jsonResponse({ success: false, error: "Loja incorreta." }, 403, corsHeaders);
       }
@@ -744,7 +1614,6 @@ export default {
         return jsonResponse({ success: false, error: "Licenca incorreta." }, 403, corsHeaders);
       }
 
-      const store = state.normalized.lojas[storeId] || null;
       return jsonResponse(
         {
           success: true,
@@ -767,8 +1636,13 @@ export default {
         return jsonResponse({ success: false, error: "Campos incompletos" }, 400, corsHeaders);
       }
 
-      const state = await loadState(env);
-      const store = state.normalized.lojas[loja];
+      const kv = getKvNamespace(env);
+      if (!kv) {
+        return jsonResponse({ success: false, error: "KV namespace nao configurado" }, 500, corsHeaders);
+      }
+
+      const legacyConfig = await readLegacyConfigFromKv(kv);
+      const store = await readStoreDirect(kv, legacyConfig, loja);
       if (!store) {
         return jsonResponse({ success: false, error: "Loja nao encontrada" }, 404, corsHeaders);
       }
@@ -796,8 +1670,13 @@ export default {
         return jsonResponse({ success: false, error: "Campos incompletos" }, 400, corsHeaders);
       }
 
-      const state = await loadState(env);
-      const store = state.normalized.lojas[loja];
+      const kv = getKvNamespace(env);
+      if (!kv) {
+        return jsonResponse({ success: false, error: "KV namespace nao configurado" }, 500, corsHeaders);
+      }
+
+      const legacyConfig = await readLegacyConfigFromKv(kv);
+      const store = await readStoreDirect(kv, legacyConfig, loja);
       if (!store) {
         return jsonResponse({ success: false, error: "Loja nao encontrada" }, 404, corsHeaders);
       }
@@ -829,10 +1708,13 @@ export default {
         );
       }
 
-      const state = await loadState(env);
-      const license = state.normalized.licencasByHwid[hwid] || null;
-      const storeId = normalizeStoreId(license?.loja_id || license?.loja || "");
-      const store = storeId ? state.normalized.lojas[storeId] || null : null;
+      const kv = getKvNamespace(env);
+      if (!kv) {
+        return jsonResponse({ success: false, error: "KV namespace nao configurado" }, 500, corsHeaders);
+      }
+
+      const legacyConfig = await readLegacyConfigFromKv(kv);
+      const { license, storeId, store } = await readLicenseSnapshotDirect(kv, legacyConfig, hwid);
       const isActive = Boolean(license && store && (license.estado || "ativa") === "ativa");
 
       return jsonResponse(
@@ -862,15 +1744,14 @@ export default {
         );
       }
 
-      const state = await loadState(env);
-      const license = state.normalized.licencasByHwid[hwid] || null;
-      const storeId = normalizeStoreId(license?.loja_id || license?.loja || "");
-      const isActive = Boolean(license && storeId && state.normalized.lojas[storeId]);
-
       const kv = getKvNamespace(env);
       if (!kv) {
         return jsonResponse({ success: false, error: "KV namespace nao configurado" }, 500, corsHeaders);
       }
+
+      const legacyConfig = await readLegacyConfigFromKv(kv);
+      const { license, storeId, store } = await readLicenseSnapshotDirect(kv, legacyConfig, hwid);
+      const isActive = Boolean(license && store && (license.estado || "ativa") === "ativa");
 
       if (license?.instalacao_id) {
         const installationKey = `instalacao:${license.instalacao_id}`;

@@ -14,3 +14,11 @@ ALLOW_ORIGIN = ""
 
 # Definir via secret:
 # wrangler secret put APP_KEY
+
+# Para criar Cloudflare Tunnel automaticamente durante a ativacao:
+# wrangler secret put CLOUDFLARE_API_TOKEN
+# wrangler secret put CLOUDFLARE_ACCOUNT_ID
+# wrangler secret put CLOUDFLARE_ZONE_ID
+# wrangler secret put TUNNEL_DOMAIN
+# Opcional:
+# wrangler secret put TUNNEL_SERVICE

@@ -24,13 +24,14 @@ powershell -ExecutionPolicy Bypass -File .\installer\install-client.ps1 -PromptV
 ```
 
 No modo `-PromptValues`, o script pede:
-- `CF_BASE`
-- `CF_APP_KEY`
-- `DB_USER` (opcional)
-- `DB_PASSWORD` (opcional)
-- `Tunnel token` (opcional)
+- codigo de ativacao
+- `DB_USER`
+- `DB_PASSWORD`
 
-Se passares o `Tunnel token`, o script instala tambem o servico `EdnasTunnel`.
+O `CF_BASE` vem predefinido para o Worker publico da EDNAS. O `CF_APP_KEY` fica opcional e e apenas para instalacoes internas/admin; nao deve ser pedido ao cliente final.
+
+Se o Worker devolver `tunnel.token` durante a ativacao, o script instala tambem o servico `EdnasTunnel` automaticamente. Para isso, o codigo de ativacao deve ter `tunnel_token` ou `auto_tunnel: true` com o Worker preparado para criar tunnels.
+Se nao devolver token, o tunnel fica por configurar.
 Por defeito o atalho criado aponta para: `https://picagem-ednas.vercel.app`.
 Se quiseres outro URL publico:
 

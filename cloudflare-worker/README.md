@@ -34,7 +34,7 @@ wrangler deploy
 - `loja:<loja_id>`
 - `licenca:<hwid>`
 - `instalacao:<instalacao_id>`
-- `tunnel:<instalacao_id>` (opcional, preparado para fase seguinte)
+- `tunnel:<hwid>` (quando o tunnel e criado automaticamente por PC)
 - `activation-code:<codigo>`
 - `config` (compatibilidade com schema legado)
 
@@ -51,6 +51,71 @@ wrangler kv key put --binding CONFIG "loja:Teste" "{\"id\":\"Teste\",\"nome\":\"
 ```bash
 wrangler kv key put --binding CONFIG "activation-code:EDN-TESTE-001" "{\"code\":\"EDN-TESTE-001\",\"loja_id\":\"Teste\",\"estado\":\"ativo\",\"max_uses\":50,\"uses\":0}"
 ```
+
+Para instalacoes comerciais, o codigo de ativacao pode tambem incluir dados de tunnel:
+
+```json
+{
+  "code": "EDN-TESTE-001",
+  "loja_id": "Teste",
+  "estado": "ativo",
+  "max_uses": 1,
+  "uses": 0,
+  "expires_at": "2026-12-31",
+  "tunnel_hostname": "teste.ednas.pt",
+  "tunnel_url": "https://teste.ednas.pt",
+  "tunnel_token": "TOKEN_UNICO_DA_INSTALACAO"
+}
+```
+
+O instalador envia este codigo para `/activation/finish`; o Worker valida o codigo, cria a licenca para o HWID do PC e devolve `loja` + `tunnel` ao backend local.
+
+Tambem podes gerar e gravar um codigo com o script incluido:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\create-activation-code.ps1 -LojaId "Teste" -MaxUses 1
+```
+
+Com tunnel ja criado manualmente:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\create-activation-code.ps1 -LojaId "Teste" -TunnelHostname "teste.ednas.pt" -TunnelUrl "https://teste.ednas.pt" -TunnelToken "TOKEN_UNICO"
+```
+
+Com tunnel criado automaticamente pela API da Cloudflare:
+
+```powershell
+$env:CLOUDFLARE_ACCOUNT_ID="ACCOUNT_ID"
+$env:CLOUDFLARE_ZONE_ID="ZONE_ID"
+$env:CLOUDFLARE_API_TOKEN="API_TOKEN"
+
+powershell -ExecutionPolicy Bypass -File .\create-activation-code.ps1 -LojaId "Teste" -AutoTunnel -TunnelHostname "teste.ednas.pt"
+```
+
+Com tunnel criado automaticamente no momento da instalacao do cliente:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\create-activation-code.ps1 -LojaId "Teste" -AutoTunnelOnInstall
+```
+
+Neste modo, o tunnel nao e criado quando geras o codigo. O codigo fica marcado com `auto_tunnel: true`; quando o tecnico instala no cliente, o Worker cria o tunnel, cria/atualiza o DNS e devolve o token ao instalador.
+
+Tambem podes deixar o script gerar o hostname:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\create-activation-code.ps1 -LojaId "Teste" -AutoTunnel -TunnelDomain "ednas.pt"
+```
+
+Para `-AutoTunnelOnInstall`, estes valores devem estar configurados como secrets/vars do Worker:
+
+```bash
+wrangler secret put CLOUDFLARE_API_TOKEN
+wrangler secret put CLOUDFLARE_ACCOUNT_ID
+wrangler secret put CLOUDFLARE_ZONE_ID
+wrangler secret put TUNNEL_DOMAIN
+```
+
+O `API_TOKEN` precisa de permissoes para criar Cloudflare Tunnel e editar DNS. O tunnel e configurado para apontar para `http://localhost:3051`, que e o backend local instalado no cliente.
 
 ## 4. Endpoints principais
 

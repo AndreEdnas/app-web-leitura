@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Modal, Button, Alert } from "react-bootstrap";
+import { Alert, Button, Modal } from "react-bootstrap";
 
 export default function ConfirmarEnviarModal({
   show,
@@ -8,17 +8,23 @@ export default function ConfirmarEnviarModal({
   disabled,
   fornecedorSelecionado,
   tipoDocSelecionado,
+  temStockPendente = false
 }) {
   const [erro, setErro] = useState(null);
 
   const validarEnvio = (criarDocumento) => {
     if (!fornecedorSelecionado) {
-      setErro("⚠️ Tem de selecionar um fornecedor antes de enviar as alterações.");
+      setErro("Tem de selecionar um fornecedor antes de enviar as alterações.");
       return;
     }
 
     if (criarDocumento && !tipoDocSelecionado) {
-      setErro("⚠️ Tem de selecionar um tipo de documento antes de criar o documento fornecedor.");
+      setErro("Tem de selecionar um tipo de documento antes de criar o documento.");
+      return;
+    }
+
+    if (!criarDocumento && temStockPendente) {
+      setErro("Existem entradas de stock pendentes. Tem de criar um documento com uma série real da ZoneSoft.");
       return;
     }
 
@@ -29,11 +35,14 @@ export default function ConfirmarEnviarModal({
   return (
     <Modal show={show} onHide={onClose} backdrop="static" centered>
       <Modal.Header closeButton className="bg-primary text-white">
-        <Modal.Title>Enviar Alterações</Modal.Title>
+        <Modal.Title>
+          <i className="bi bi-upload me-2" aria-hidden="true"></i>
+          Enviar alterações
+        </Modal.Title>
       </Modal.Header>
 
-      <Modal.Body className="text-center">
-        <p className="fw-bold mb-3">O que pretende fazer?</p>
+      <Modal.Body>
+        <p className="fw-bold mb-3 text-center">O que pretende fazer?</p>
 
         {erro && (
           <Alert
@@ -47,20 +56,22 @@ export default function ConfirmarEnviarModal({
         )}
 
         <div className="d-flex flex-column gap-2">
-          <Button
-            variant="success"
-            onClick={() => validarEnvio(false)}
-            disabled={disabled}
-          >
-            🔄 Só atualizar produtos
-          </Button>
+          {!temStockPendente && (
+            <Button
+              variant="success"
+              onClick={() => validarEnvio(false)}
+              disabled={disabled}
+            >
+              Atualizar produtos
+            </Button>
+          )}
 
           <Button
             variant="outline-primary"
             onClick={() => validarEnvio(true)}
             disabled={disabled}
           >
-            🧾 Atualizar produtos e criar documento fornecedor
+            Atualizar produtos e criar documento
           </Button>
 
           <Button
@@ -71,7 +82,7 @@ export default function ConfirmarEnviarModal({
               onClose();
             }}
           >
-            ❌ Cancelar
+            Cancelar
           </Button>
         </div>
       </Modal.Body>

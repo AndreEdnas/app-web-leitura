@@ -1,4 +1,5 @@
 import React from "react";
+import Select from "react-select";
 
 export default function FornecedorSelect({
   fornecedores,
@@ -6,20 +7,27 @@ export default function FornecedorSelect({
   setFornecedorSelecionado,
   disabled,
 }) {
+  const options = fornecedores.map((f) => ({
+    value: f.codigo,
+    label: f.nome
+  }));
+  const selectedOption =
+    options.find((option) => String(option.value) === String(fornecedorSelecionado)) || null;
+
   return (
-    <select
-      id="fornecedorSelect"
-      className="form-select text-center"
-      value={fornecedorSelecionado || ""}
-      onChange={(e) => setFornecedorSelecionado(e.target.value || "")}
-      disabled={disabled}
-    >
-      <option value="">-- Escolher um fornecedor --</option>
-      {fornecedores.map((f) => (
-        <option key={f.codigo} value={f.codigo}>
-          {f.nome}
-        </option>
-      ))}
-    </select>
+    <Select
+      inputId="fornecedorSelect"
+      className="app-work-react-select"
+      classNamePrefix="app-select"
+      value={selectedOption}
+      options={options}
+      placeholder="Escolher fornecedor"
+      noOptionsMessage={() => "Nenhum fornecedor encontrado"}
+      onChange={(selected) => setFornecedorSelecionado(selected?.value || "")}
+      isDisabled={disabled}
+      isClearable
+      isSearchable
+      menuPortalTarget={typeof document !== "undefined" ? document.body : null}
+    />
   );
 }
