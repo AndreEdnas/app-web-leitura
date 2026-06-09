@@ -44,7 +44,7 @@ function toPublicStore(storeId, store) {
 }
 
 function getProxyTokenFromPath(pathname) {
-  const match = pathname.match(/^\/api-proxy\/([^/]+)(?:\/|$)/);
+  const match = pathname.match(/^\/api[-_]proxy\/([^/]+)(?:\/|$)/);
   if (!match) return "";
   try {
     return decodeURIComponent(match[1]);
@@ -54,7 +54,7 @@ function getProxyTokenFromPath(pathname) {
 }
 
 function getProxyPath(pathname) {
-  return pathname.replace(/^\/api-proxy\/[^/]+/, "") || "/";
+  return pathname.replace(/^\/api[-_]proxy\/[^/]+/, "") || "/";
 }
 
 function buildProxyHeaders(request) {
@@ -1015,7 +1015,7 @@ export default {
       );
     }
 
-    if (pathname.startsWith("/api-proxy/")) {
+    if (pathname.startsWith("/api-proxy/") || pathname.startsWith("/api_proxy/")) {
       const token = getProxyTokenFromPath(pathname);
       if (!token) {
         return jsonResponse(

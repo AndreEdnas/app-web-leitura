@@ -25,7 +25,7 @@ function isLocalUrl(url) {
 function isApiProxyUrl(url) {
   try {
     const parsed = new URL(url);
-    return parsed.pathname.startsWith("/api-proxy/");
+    return parsed.pathname.startsWith("/api-proxy/") || parsed.pathname.startsWith("/api_proxy/");
   } catch {
     return false;
   }
@@ -132,7 +132,7 @@ export function getBrowserApiBaseUrl(apiUrl, tokenOverride = "") {
     const token = String(tokenOverride || localStorage.getItem("tokenLoja") || "").trim();
     if (!token) return normalizedApiUrl;
 
-    return joinUrl(getWorkerBaseUrl(), `/api-proxy/${encodeURIComponent(token)}`);
+    return joinUrl(getWorkerBaseUrl(), `/api_proxy/${encodeURIComponent(token)}`);
   }
 
   if (process.env.REACT_APP_USE_REMOTE_API_ON_LOCAL === "true") return normalizedApiUrl;

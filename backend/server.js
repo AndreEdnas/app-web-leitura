@@ -1581,6 +1581,21 @@ app.get("/pedir-licenca", async (req, res) => {
       });
     }
 
+    if (!snapshot.licenca && snapshot.lojaDoHost) {
+      LICENCA_OK = true;
+      lojaAtual = {
+        ...snapshot.lojaDoHost,
+        id: snapshot.lojaDoHostId
+      };
+
+      return res.json({
+        success: true,
+        chave: snapshot.hwid,
+        loja: snapshot.lojaDoHostId,
+        schema: "v2-host"
+      });
+    }
+
     // Caso 1: máquina sem licença ativa
     if (!snapshot.licenca) {
       return res.json({
@@ -1840,7 +1855,7 @@ app.post("/heartbeat", async (req, res) => {
 
 
 // ==================== MIDDLEWARE DE LICENÇA ====================
-app.use((req, res, next) => {
+app.use(async (req, res, next) => {
   const rotasLivres = [
     "/",
     "/config-lojas",
@@ -1857,6 +1872,20 @@ app.use((req, res, next) => {
   }
 
   if (!LICENCA_OK || !lojaAtual) {
+    try {
+      const snapshot = await obterSnapshotLicenca({ req });
+      if (snapshot.lojaDoHost) {
+        LICENCA_OK = true;
+        lojaAtual = {
+          ...snapshot.lojaDoHost,
+          id: snapshot.lojaDoHostId
+        };
+        return next();
+      }
+    } catch (err) {
+      console.warn("Não foi possível resolver loja pelo host:", err.message);
+    }
+
     return res.status(403).json({
       success: false,
       erro: "Máquina não licenciada",
