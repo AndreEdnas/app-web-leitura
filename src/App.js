@@ -99,6 +99,18 @@ function shouldRestoreLocalApiSession(apiUrl) {
   }
 }
 
+function limparSessaoOperador() {
+  localStorage.removeItem("empregado");
+}
+
+function limparSessaoLoja() {
+  localStorage.removeItem("lojaSelecionada");
+  localStorage.removeItem("tokenLoja");
+  localStorage.removeItem("apiUrl");
+  localStorage.removeItem("apiUrlPublic");
+  limparSessaoOperador();
+}
+
 export default function App() {
   const [naoLicenciado, setNaoLicenciado] = useState(null);
   const [loadingApiUrl, setLoadingApiUrl] = useState(true);
@@ -1197,8 +1209,10 @@ export default function App() {
         onLojaConfirmada={(nome, url, loja) => {
           const lojaId = loja?.id || nome;
           const browserApiUrl = getBrowserApiBaseUrl(url, localStorage.getItem("tokenLoja") || "");
+          limparSessaoOperador();
           setLojaSelecionada(lojaId);
           setApiUrl(browserApiUrl);
+          setEmpregado(null);
 
           localStorage.setItem("lojaSelecionada", lojaId);
           localStorage.setItem("apiUrl", browserApiUrl);
@@ -1236,15 +1250,12 @@ export default function App() {
         onIrGestaoCaixa={() => setPaginaAtual("caixa")}
         onIrConfiguracoes={() => setPaginaAtual("config")}
         onLogout={() => {
-          localStorage.removeItem("empregado");
+          limparSessaoOperador();
           setEmpregado(null);
           setPaginaAtual("menu");
         }}
         onTrocarLoja={() => {
-          // 🧹 limpar localStorage
-          localStorage.removeItem("lojaSelecionada");
-          localStorage.removeItem("apiUrl");
-          localStorage.removeItem("empregado");
+          limparSessaoLoja();
           localStorage.removeItem("produtos");
           localStorage.removeItem("alteracoesPendentes");
 
@@ -1641,9 +1652,7 @@ export default function App() {
               type="button"
               className="btn btn-outline-secondary"
               onClick={() => {
-                localStorage.removeItem("lojaSelecionada");
-                localStorage.removeItem("apiUrl");
-                localStorage.removeItem("empregado");
+                limparSessaoLoja();
                 localStorage.removeItem("produtos");
                 localStorage.removeItem("alteracoesPendentes");
 
@@ -1661,7 +1670,7 @@ export default function App() {
               type="button"
               className="btn btn-outline-danger"
               onClick={() => {
-                localStorage.removeItem("empregado");
+                limparSessaoOperador();
                 setEmpregado(null);
               }}
             >

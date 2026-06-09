@@ -43,6 +43,7 @@ export default function LojaSelectPage({ resolverUrl, onLojaConfirmada }) {
       }
 
       const browserApiUrl = getBrowserApiBaseUrl(apiUrl, token);
+      localStorage.removeItem("empregado");
       localStorage.setItem("tokenLoja", token);
       localStorage.setItem("lojaSelecionada", lojaId);
       localStorage.setItem("apiUrl", browserApiUrl);
