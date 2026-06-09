@@ -137,7 +137,7 @@ async function readJson(kv, key) {
   if (!raw) return null;
 
   try {
-    return JSON.parse(raw);
+    return JSON.parse(String(raw).replace(/^\uFEFF/, ""));
   } catch {
     return null;
   }
@@ -209,6 +209,65 @@ async function readPrefixMap(kv, prefix) {
   return map;
 }
 
+function getClienteStore(clienteId, cliente) {
+  const loja = cliente?.loja && typeof cliente.loja === "object" ?cliente.loja : {};
+  const storeId = normalizeStoreId(loja.id || loja.loja_id || cliente?.loja_id || clienteId);
+  if (!storeId) return null;
+
+  return {
+    ...loja,
+    id: storeId,
+    nome: loja.nome || cliente?.nome || storeId,
+    url: loja.url || cliente?.url || "",
+    server: loja.server || cliente?.server || null,
+    database: loja.database || cliente?.database || null,
+    port: Number(loja.port || cliente?.port || 1433),
+    token: loja.token || cliente?.token || cliente?.store_token || cliente?.activation_code || null,
+    cliente_id: clienteId,
+  };
+}
+
+function getClienteLicense(clienteId, cliente) {
+  const licenca = cliente?.licenca && typeof cliente.licenca === "object" ?cliente.licenca : null;
+  const hwid = String(licenca?.hwid || cliente?.hwid || "").trim();
+  if (!hwid) return null;
+
+  return {
+    ...licenca,
+    hwid,
+    loja_id: licenca?.loja_id || licenca?.loja || cliente?.loja_id || clienteId,
+    loja: licenca?.loja || licenca?.loja_id || cliente?.loja_id || clienteId,
+    token: licenca?.token || cliente?.activation_code || null,
+    estado: licenca?.estado || cliente?.estado || "ativa",
+    instalacao_id: licenca?.instalacao_id || cliente?.instalacao?.id || null,
+    cliente_id: clienteId,
+  };
+}
+
+function mergeClientesIntoState(lojas, licencasByHwid, clientes = {}) {
+  for (const [clienteIdRaw, cliente] of Object.entries(clientes || {})) {
+    if (!cliente || typeof cliente !== "object") continue;
+    const clienteId = normalizeStoreId(cliente.id || cliente.cliente_id || cliente.loja_id || clienteIdRaw);
+    if (!clienteId) continue;
+
+    const store = getClienteStore(clienteId, cliente);
+    if (store) {
+      lojas[store.id] = {
+        ...(lojas[store.id] || {}),
+        ...store,
+      };
+    }
+
+    const license = getClienteLicense(clienteId, cliente);
+    if (license?.hwid) {
+      licencasByHwid[license.hwid] = {
+        ...(licencasByHwid[license.hwid] || {}),
+        ...license,
+      };
+    }
+  }
+}
+
 function extractLicensesByHwidFromLegacy(legacyLicencas) {
   const byHwid = {};
   if (!legacyLicencas || typeof legacyLicencas !== "object") return byHwid;
@@ -226,7 +285,7 @@ function extractLicensesByHwidFromLegacy(legacyLicencas) {
   return byHwid;
 }
 
-function buildNormalizedState(legacyConfig, lojasV2, licencasV2, instalacoesV2, tunnelsV2) {
+function buildNormalizedState(legacyConfig, lojasV2, licencasV2, instalacoesV2, tunnelsV2, clientesV2 = {}) {
   const lojas = {};
 
   if (legacyConfig?.lojas && typeof legacyConfig.lojas === "object") {
@@ -266,11 +325,14 @@ function buildNormalizedState(legacyConfig, lojasV2, licencasV2, instalacoesV2, 
     };
   }
 
+  mergeClientesIntoState(lojas, licencasByHwid, clientesV2);
+
   return {
     lojas,
     licencasByHwid,
     instalacoesById: instalacoesV2 || {},
     tunnelsByInstalacaoId: tunnelsV2 || {},
+    clientesById: clientesV2 || {},
   };
 }
 
@@ -311,6 +373,7 @@ async function loadState(env, { bypassCache = false } = {}) {
   const licencasV2 = await readPrefixMap(kv, "licenca:");
   const instalacoesV2 = await readPrefixMap(kv, "instalacao:");
   const tunnelsV2 = await readPrefixMap(kv, "tunnel:");
+  const clientesV2 = await readPrefixMap(kv, "cliente:");
 
   return {
     legacyConfig,
@@ -319,7 +382,8 @@ async function loadState(env, { bypassCache = false } = {}) {
       lojasV2,
       licencasV2,
       instalacoesV2,
-      tunnelsV2
+      tunnelsV2,
+      clientesV2
     ),
   };
 }
@@ -405,6 +469,119 @@ function getActivationCode(rawBody) {
   ).trim();
 }
 
+function getClienteActivationCode(cliente) {
+  return String(
+    cliente?.activation_code ||
+    cliente?.codigo_ativacao ||
+    cliente?.codigoAtivacao ||
+    cliente?.code ||
+    ""
+  ).trim();
+}
+
+async function findClienteByActivationCode(kv, activationCode) {
+  const code = String(activationCode || "").trim();
+  if (!code) return { clienteId: null, cliente: null, key: null };
+
+  const compactCode = code.toLowerCase().replace(/[^a-z0-9]+/g, "");
+  const candidateIds = new Set(
+    [
+      normalizeStoreId(code),
+      normalizeStoreId(compactCode),
+      normalizeStoreId(compactCode.replace(/^edn/, "")),
+    ].filter(Boolean)
+  );
+
+  const clienteMatch = compactCode.match(/cliente0*(\d+)$/);
+  if (clienteMatch?.[1]) {
+    candidateIds.add(`cliente${clienteMatch[1].padStart(3, "0")}`);
+  }
+
+  for (const clienteId of candidateIds) {
+    const cliente = await readClienteDirect(kv, clienteId);
+    if (!cliente || typeof cliente !== "object") continue;
+    if (getClienteActivationCode(cliente) === code) {
+      return {
+        clienteId,
+        cliente,
+        key: `cliente:${clienteId}`,
+      };
+    }
+  }
+
+  const clientes = await readPrefixMap(kv, "cliente:");
+  for (const [clienteIdRaw, cliente] of Object.entries(clientes || {})) {
+    if (!cliente || typeof cliente !== "object") continue;
+    if (getClienteActivationCode(cliente) === code) {
+      const clienteId = normalizeStoreId(cliente.id || cliente.cliente_id || cliente.loja_id || clienteIdRaw);
+      return {
+        clienteId,
+        cliente,
+        key: `cliente:${clienteId}`,
+      };
+    }
+  }
+
+  return { clienteId: null, cliente: null, key: null };
+}
+
+async function readClienteDirect(kv, clienteId) {
+  const normalizedClienteId = normalizeStoreId(clienteId);
+  if (!normalizedClienteId) return null;
+  return readJson(kv, `cliente:${normalizedClienteId}`);
+}
+
+async function writeClienteInstallRecord(kv, clienteId, currentCliente, payload) {
+  const now = nowIso();
+  const loja = {
+    ...(currentCliente?.loja && typeof currentCliente.loja === "object" ?currentCliente.loja : {}),
+    ...payload.store,
+    id: payload.store.id || clienteId,
+    nome: payload.store.nome || currentCliente?.nome || payload.store.id || clienteId,
+    updated_at: now,
+  };
+
+  const installation = {
+    ...(currentCliente?.instalacao && typeof currentCliente.instalacao === "object" ?currentCliente.instalacao : {}),
+    ...payload.installation,
+    updated_at: now,
+  };
+
+  const license = {
+    ...(currentCliente?.licenca && typeof currentCliente.licenca === "object" ?currentCliente.licenca : {}),
+    ...payload.license,
+    updated_at: now,
+  };
+
+  const tunnel = payload.tunnel
+    ?{
+        ...(currentCliente?.tunnel && typeof currentCliente.tunnel === "object" ?currentCliente.tunnel : {}),
+        ...payload.tunnel,
+        updated_at: now,
+      }
+    : currentCliente?.tunnel || null;
+
+  const cliente = {
+    ...(currentCliente && typeof currentCliente === "object" ?currentCliente : {}),
+    id: clienteId,
+    nome: currentCliente?.nome || loja.nome || clienteId,
+    estado: "ativo",
+    activation_code: currentCliente?.activation_code || payload.activationCode || null,
+    loja,
+    licenca: license,
+    instalacao: installation,
+    updated_at: now,
+    created_at: currentCliente?.created_at || now,
+  };
+
+  if (tunnel) {
+    cliente.tunnel = tunnel;
+  }
+
+  await writeJson(kv, `cliente:${clienteId}`, cliente);
+  return cliente;
+}
+
 function toInstallerStore(storeId, store) {
   if (!store || typeof store !== "object") return null;
 
@@ -432,10 +609,12 @@ function getActivationStoreSetup(body, activationRecord, activationCode, guessed
   ).trim();
   const rawId = String(
     activationRecord?.loja_id ||
-    activationRecord?.loja ||
+    activationRecord?.loja?.id ||
+    (typeof activationRecord?.loja === "string" ?activationRecord.loja : "") ||
     activationRecord?.store_id ||
     body?.loja_id ||
-    body?.loja ||
+    body?.loja?.id ||
+    (typeof body?.loja === "string" ?body.loja : "") ||
     body?.store_id ||
     rawName ||
     activationCode ||
@@ -491,6 +670,10 @@ async function readStoreDirect(kv, legacyConfig, storeId) {
   const normalizedStoreId = normalizeStoreId(storeId);
   if (!normalizedStoreId) return null;
 
+  const cliente = await readClienteDirect(kv, normalizedStoreId);
+  const clienteStore = getClienteStore(normalizedStoreId, cliente);
+  if (clienteStore) return clienteStore;
+
   const directStore = await readJson(kv, `loja:${normalizedStoreId}`);
   if (directStore && typeof directStore === "object") {
     return {
@@ -505,6 +688,14 @@ async function readStoreDirect(kv, legacyConfig, storeId) {
 async function readLicenseDirect(kv, legacyConfig, hwid) {
   const normalizedHwid = String(hwid || "").trim();
   if (!normalizedHwid) return null;
+
+  const clientes = await readPrefixMap(kv, "cliente:");
+  for (const [clienteIdRaw, cliente] of Object.entries(clientes || {})) {
+    if (!cliente || typeof cliente !== "object") continue;
+    const clienteId = normalizeStoreId(cliente.id || cliente.cliente_id || cliente.loja_id || clienteIdRaw);
+    const clienteLicense = getClienteLicense(clienteId, cliente);
+    if (clienteLicense?.hwid === normalizedHwid) return clienteLicense;
+  }
 
   const directLicense = await readJson(kv, `licenca:${normalizedHwid}`);
   if (directLicense && typeof directLicense === "object") {
@@ -1350,6 +1541,9 @@ export default {
         let lojaId = null;
         let activationRecord = null;
         let activationKey = null;
+        let activationIsCliente = false;
+        let activationClienteId = null;
+        let activationClienteRecord = null;
         let storeSetup = null;
         let store = null;
 
@@ -1365,6 +1559,17 @@ export default {
         if (activationCode) {
           activationKey = `activation-code:${activationCode}`;
           activationRecord = await readJson(kv, activationKey);
+          if (!activationRecord || typeof activationRecord !== "object") {
+            const clienteMatch = await findClienteByActivationCode(kv, activationCode);
+            if (clienteMatch.cliente) {
+              activationIsCliente = true;
+              activationClienteId = clienteMatch.clienteId;
+              activationClienteRecord = clienteMatch.cliente;
+              activationKey = clienteMatch.key;
+              activationRecord = clienteMatch.cliente;
+            }
+          }
+
           if (!activationRecord || typeof activationRecord !== "object") {
             const existingLicenseForMissingCode = await readLicenseDirect(kv, legacyConfig, hwid);
             if (existingLicenseForMissingCode) {
@@ -1421,13 +1626,23 @@ export default {
             );
           }
 
-          lojaId = normalizeStoreId(
-            activationRecord.loja_id || activationRecord.loja || activationRecord.store_id
-          );
+          lojaId = activationIsCliente
+            ?activationClienteId || normalizeStoreId(
+                activationRecord.loja_id ||
+                activationRecord.loja?.id ||
+                activationRecord.store_id
+              )
+            : normalizeStoreId(
+                activationRecord.loja_id ||
+                activationRecord.loja ||
+                activationRecord.store_id
+              );
 
           const expectedStoreToken = String(
             activationRecord.store_token ||
             activationRecord.token_loja ||
+            activationRecord.loja?.store_token ||
+            activationRecord.loja?.token_loja ||
             ""
           ).trim();
           const providedStoreToken = String(
@@ -1454,6 +1669,123 @@ export default {
         storeSetup = getActivationStoreSetup(body, activationRecord, activationCode, guessedUrl);
         if (!lojaId && storeSetup?.id) {
           lojaId = storeSetup.id;
+        }
+
+        if (activationIsCliente) {
+          if (!lojaId) {
+            return jsonResponse(
+              { success: false, error: "Cliente nÃ£o encontrado para ativaÃ§Ã£o" },
+              404,
+              corsHeaders
+            );
+          }
+
+          const maxUses = Number(activationRecord.max_uses || 0);
+          const uses = Number(activationRecord.uses || 0);
+          const currentCliente = activationClienteRecord || (await readClienteDirect(kv, lojaId)) || {};
+          const currentStore = getClienteStore(lojaId, currentCliente) || {};
+          const existingLicenseForCliente = getClienteLicense(lojaId, currentCliente);
+          const isSameInstallation = existingLicenseForCliente?.hwid === hwid;
+
+          if (!isSameInstallation && maxUses > 0 && uses >= maxUses) {
+            return jsonResponse(
+              { success: false, error: "CÃ³digo de ativaÃ§Ã£o esgotado" },
+              409,
+              corsHeaders
+            );
+          }
+
+          const now = nowIso();
+          const installationId =
+            currentCliente?.instalacao?.id ||
+            existingLicenseForCliente?.instalacao_id ||
+            `hwid-${hwid}`;
+          const explicitStoreUrl = String(
+            body?.url ||
+            body?.api_url ||
+            body?.apiUrl ||
+            body?.base_url ||
+            body?.baseUrl ||
+            ""
+          ).trim();
+          const explicitPort = Number(
+            body?.port ||
+            body?.db_port ||
+            body?.dbPort ||
+            body?.sql_port ||
+            body?.sqlPort ||
+            0
+          );
+          const storePayload = {
+            ...currentStore,
+            ...(storeSetup || {}),
+            id: lojaId,
+            nome:
+              storeSetup?.nome ||
+              currentStore.nome ||
+              currentCliente.nome ||
+              lojaId,
+            url: explicitStoreUrl || currentStore.url || storeSetup?.url || guessedUrl || null,
+            server: storeSetup?.server || currentStore.server || null,
+            database: storeSetup?.database || currentStore.database || null,
+            port: Number(explicitPort || currentStore.port || storeSetup?.port || 1433),
+            token: storeSetup?.token || currentStore.token || activationCode || null,
+          };
+          const installationPayload = {
+            id: installationId,
+            loja_id: lojaId,
+            hwid,
+            host: host || null,
+            guessed_url: guessedUrl || null,
+            estado: "ativo",
+            created_at: currentCliente?.instalacao?.created_at || now,
+            last_seen_at: now,
+          };
+          const licensePayload = {
+            hwid,
+            loja_id: lojaId,
+            loja: lojaId,
+            instalacao_id: installationId,
+            estado: "ativa",
+            token: activationCode || null,
+            ativada_em: currentCliente?.licenca?.ativada_em || now,
+          };
+          const tunnelPayload = toInstallerTunnel(currentCliente?.tunnel || activationRecord, storePayload);
+          const hasTunnelPayload = Boolean(
+            tunnelPayload?.url ||
+            tunnelPayload?.hostname ||
+            tunnelPayload?.token
+          );
+
+          const updatedCliente = await writeClienteInstallRecord(kv, lojaId, currentCliente, {
+            activationCode: activationCode || null,
+            store: storePayload,
+            installation: installationPayload,
+            license: licensePayload,
+            tunnel: hasTunnelPayload ?tunnelPayload : null,
+          });
+          const updatedClienteWithUsage = {
+            ...updatedCliente,
+            uses: isSameInstallation ?uses : uses + 1,
+            last_hwid: hwid,
+            updated_at: now,
+          };
+          await writeJson(kv, `cliente:${lojaId}`, updatedClienteWithUsage);
+          clearLegacyConfigCache();
+
+          return jsonResponse(
+            {
+              success: true,
+              schema: "cliente-v1",
+              already_active: isSameInstallation,
+              license: licensePayload,
+              installation: installationPayload,
+              loja: toInstallerStore(lojaId, storePayload),
+              tunnel: hasTunnelPayload ?tunnelPayload : toInstallerTunnel(null, storePayload),
+            },
+            200,
+            corsHeaders
+          );
         }
 
         const existingLicense = await readLicenseDirect(kv, legacyConfig, hwid);
