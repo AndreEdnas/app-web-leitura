@@ -24,27 +24,27 @@ powershell -ExecutionPolicy Bypass -File .\installer\install-client.ps1 -PromptV
 ```
 
 No modo `-PromptValues`, o script pede:
-- codigo de ativacao
+- código de ativação
 - `DB_USER`
 - `DB_PASSWORD`
 
-O `CF_BASE` vem predefinido para o Worker publico da EDNAS. O `CF_APP_KEY` fica opcional e e apenas para instalacoes internas/admin; nao deve ser pedido ao cliente final.
+O `CF_BASE` vem predefinido para o Worker público da EDNAS. O `CF_APP_KEY` fica opcional e é apenas para instalações internas/admin; não deve ser pedido ao cliente final.
 
-Se o Worker devolver `tunnel.token` durante a ativacao, o script instala tambem o servico `EdnasTunnel` automaticamente. Para isso, o codigo de ativacao deve ter `tunnel_token` ou `auto_tunnel: true` com o Worker preparado para criar tunnels.
-Se nao devolver token, o tunnel fica por configurar.
+Se o Worker devolver `tunnel.token` durante a ativação, o script instala também o serviço `EdnasTunnel` automaticamente. Para isso, o código de ativação deve ter `tunnel_token` ou `auto_tunnel: true` com o Worker preparado para criar tunnels.
+Se não devolver token, o tunnel fica por configurar.
 Por defeito o atalho criado aponta para: `https://picagem-ednas.vercel.app`.
-Se quiseres outro URL publico:
+Se quiseres outro URL público:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\installer\install-client.ps1 -PromptValues -PublicWebUrl "https://teu-dominio.com"
 ```
 
-## 3) Resultado da instalacao
+## 3) Resultado da instalação
 O script configura:
 - servico Windows `EdnasBackend`
 - servico Windows `EdnasTunnel` (se tiver token)
 - `backend\.env` no destino
-- atalho para o site publico (Vercel/dominio)
+- atalho para o site público (Vercel/domínio)
 
 ## 4) Comandos uteis
 Ver servicos:

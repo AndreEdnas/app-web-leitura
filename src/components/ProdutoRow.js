@@ -2,7 +2,7 @@ import React from "react";
 
 function formatMoney(value) {
   const number = Number(value);
-  return Number.isFinite(number) ? `${number.toFixed(2)} EUR` : "N/D";
+  return Number.isFinite(number) ?`${number.toFixed(2)} EUR` : "N/D";
 }
 
 function formatPercent(value) {
@@ -30,34 +30,34 @@ export default function ProdutoRow({
 
   const pvp1sivaNum =
     produto.pvp1siva != null && produto.pvp1siva !== ""
-      ? Number(produto.pvp1siva)
+      ?Number(produto.pvp1siva)
       : NaN;
 
   const precovendaNum =
     produto.precovenda != null && produto.precovenda !== ""
-      ? Number(produto.precovenda)
+      ?Number(produto.precovenda)
       : 0;
 
   const precoVendaSemIvaNum =
     Number.isFinite(pvp1sivaNum) && pvp1sivaNum > 0
-      ? pvp1sivaNum
+      ?pvp1sivaNum
       : precovendaNum / (1 + iva / 100);
 
   const precoVendaComIvaNum =
     precovendaNum > 0
-      ? precovendaNum
+      ?precovendaNum
       : precoVendaSemIvaNum * (1 + iva / 100);
 
-  const margem = produto.margembruta != null ? produto.margembruta : null;
+  const margem = produto.margembruta != null ?produto.margembruta : null;
 
   return (
-    <tr className={produto.novo ? "app-product-row app-product-row-new" : "app-product-row"}>
+    <tr className={produto.novo ?"app-product-row app-product-row-new" : "app-product-row"}>
       <td className="app-product-name">{produto.descricao}</td>
       <td className="app-product-code">{produto.codbarras || "-"}</td>
 
       <td
         className="app-product-value app-product-value-clickable text-center"
-        style={{ cursor: precoCompra ? "pointer" : "default" }}
+        style={{ cursor: precoCompra ?"pointer" : "default" }}
         title="Editar margem"
         onClick={() => {
           if (!precoCompra) {
@@ -70,7 +70,7 @@ export default function ProdutoRow({
           onAbrirMargem(produto);
         }}
       >
-        {precoCompra && margem != null ? formatPercent(margem) : "N/D"}
+        {precoCompra && margem != null ?formatPercent(margem) : "N/D"}
       </td>
 
       <td
@@ -89,12 +89,12 @@ export default function ProdutoRow({
         title="Editar preço de compra"
         onClick={() => onAbrirPrecoCompra(produto)}
       >
-        {precoCompra ? formatMoney(precoCompra) : "N/D"}
+        {precoCompra ?formatMoney(precoCompra) : "N/D"}
       </td>
 
       <td className="app-product-value text-center">
         {Number.isFinite(precoVendaSemIvaNum) && precoVendaSemIvaNum > 0
-          ? formatMoney(precoVendaSemIvaNum)
+          ?formatMoney(precoVendaSemIvaNum)
           : "N/D"}
       </td>
 
@@ -104,7 +104,7 @@ export default function ProdutoRow({
         title="Editar preço de venda"
         onClick={() => onAbrirPrecoVenda(produto)}
       >
-        {Number.isFinite(precoVendaComIvaNum) ? formatMoney(precoVendaComIvaNum) : "N/D"}
+        {Number.isFinite(precoVendaComIvaNum) ?formatMoney(precoVendaComIvaNum) : "N/D"}
       </td>
 
       <td className="text-center">

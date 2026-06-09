@@ -19,7 +19,7 @@ function Invoke-RobocopySafe(
   [string[]]$ExtraArgs = @()
 ) {
   if (-not (Test-Path -LiteralPath $From)) {
-    throw "Pasta de origem nao encontrada: $From"
+    throw "Pasta de origem não encontrada: $From"
   }
 
   New-Item -ItemType Directory -Path $To -Force | Out-Null
@@ -79,7 +79,7 @@ function Add-NssmTool([string]$PackageRoot) {
     }
 
     if (-not $downloaded) {
-      throw "Nao foi possivel descarregar NSSM."
+      throw "Não foi possível descarregar NSSM."
     }
 
     Expand-Archive -Path $zipPath -DestinationPath $tempRoot -Force
@@ -87,7 +87,7 @@ function Add-NssmTool([string]$PackageRoot) {
       Where-Object { $_.FullName -match "\\win64\\nssm\.exe$" } |
       Select-Object -First 1
     if ($null -eq $sourceExe) {
-      throw "nssm.exe nao encontrado no pacote descarregado."
+      throw "nssm.exe não encontrado no pacote descarregado."
     }
 
     Copy-Item -LiteralPath $sourceExe.FullName -Destination $nssmExe -Force
@@ -137,7 +137,7 @@ if (Test-Path -LiteralPath $buildIndex) {
     -From $buildDir `
     -To (Join-Path $packageRoot "build")
 } else {
-  Write-Host "Aviso: build frontend nao encontrado. Pacote sera backend+tunnel (modo Vercel)." -ForegroundColor Yellow
+  Write-Host "Aviso: build frontend não encontrado. Pacote será backend+tunnel (modo Vercel)." -ForegroundColor Yellow
 }
 
 Write-Step "Copiar backend"
@@ -156,7 +156,7 @@ if (-not $SkipBackendDeps) {
   }
 }
 
-Write-Step "Copiar scripts de instalacao"
+Write-Step "Copiar scripts de instalação"
 Invoke-RobocopySafe `
   -From (Join-Path $repoRoot "installer") `
   -To (Join-Path $packageRoot "installer") `

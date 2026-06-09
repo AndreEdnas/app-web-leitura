@@ -119,7 +119,7 @@ function Get-RemoteConfig {
     $parsed = $result.Output | ConvertFrom-Json
     $config = ConvertTo-Hashtable $parsed
   } catch {
-    throw "A chave 'config' existe, mas nao contem JSON valido."
+    throw "A chave 'config' existe, mas não contém JSON válido."
   }
 
   if (-not $config) {
@@ -162,7 +162,7 @@ if ([string]::IsNullOrWhiteSpace($Url) -and -not [string]::IsNullOrWhiteSpace($T
 }
 
 if ($PrecreateStore -and [string]::IsNullOrWhiteSpace($Url) -and -not $AutoTunnelOnInstall -and -not $SkipActivationCode) {
-  throw "Url obrigatorio, exceto quando usas -AutoTunnelOnInstall."
+  throw "Url obrigatório, exceto quando usas -AutoTunnelOnInstall."
 }
 
 if ($SkipActivationCode -and -not $PrecreateStore) {
@@ -242,20 +242,20 @@ try {
   if ($PrecreateStore) {
     Write-Host "Cliente registado no KV remoto." -ForegroundColor Green
   } else {
-    Write-Host "Codigo de ativacao criado no KV remoto." -ForegroundColor Green
+    Write-Host "Código de ativação criado no KV remoto." -ForegroundColor Green
   }
   Write-Host "Loja: $($store.id)"
 
   if (-not $SkipActivationCode) {
-    Write-Host "Codigo de ativacao: $ActivationCode" -ForegroundColor Yellow
+    Write-Host "Código de ativação: $ActivationCode" -ForegroundColor Yellow
   }
 
   if (-not $PrecreateStore) {
-    Write-Host "Antes da instalacao fica so a chave activation-code no KV." -ForegroundColor Cyan
+    Write-Host "Antes da instalação fica só a chave activation-code no KV." -ForegroundColor Cyan
   } elseif ([string]::IsNullOrWhiteSpace($store.url)) {
     Write-Host "Nota: a loja so aparece no frontend depois do tunnel/url ser definido." -ForegroundColor Yellow
   } else {
-    Write-Host "URL publica: $($store.url)"
+    Write-Host "URL pública: $($store.url)"
   }
 } finally {
   Pop-Location

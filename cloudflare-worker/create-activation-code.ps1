@@ -52,7 +52,7 @@ function Invoke-CloudflareApi(
   $Body = $null
 ) {
   if ([string]::IsNullOrWhiteSpace($CloudflareApiToken)) {
-    throw "CLOUDFLARE_API_TOKEN obrigatorio para criar tunnel automaticamente."
+    throw "CLOUDFLARE_API_TOKEN obrigatório para criar tunnel automaticamente."
   }
 
   $headers = @{
@@ -82,15 +82,15 @@ function Invoke-CloudflareApi(
 
 function New-CloudflareTunnelForActivation {
   if ([string]::IsNullOrWhiteSpace($LojaId)) {
-    throw "LojaId obrigatorio quando usas -AutoTunnel. Para criar o tunnel no setup, usa -AutoTunnelOnInstall."
+    throw "LojaId obrigatório quando usas -AutoTunnel. Para criar o tunnel no setup, usa -AutoTunnelOnInstall."
   }
 
   if ([string]::IsNullOrWhiteSpace($CloudflareAccountId)) {
-    throw "CLOUDFLARE_ACCOUNT_ID obrigatorio para criar tunnel automaticamente."
+    throw "CLOUDFLARE_ACCOUNT_ID obrigatório para criar tunnel automaticamente."
   }
 
   if ([string]::IsNullOrWhiteSpace($CloudflareZoneId)) {
-    throw "CLOUDFLARE_ZONE_ID obrigatorio para criar DNS do tunnel automaticamente."
+    throw "CLOUDFLARE_ZONE_ID obrigatório para criar DNS do tunnel automaticamente."
   }
 
   if ([string]::IsNullOrWhiteSpace($TunnelHostname)) {
@@ -120,7 +120,7 @@ function New-CloudflareTunnelForActivation {
   $tunnelId = [string]$tunnel.id
   $token = [string]$tunnel.token
   if ([string]::IsNullOrWhiteSpace($tunnelId) -or [string]::IsNullOrWhiteSpace($token)) {
-    throw "A Cloudflare criou o tunnel, mas nao devolveu id/token."
+    throw "A Cloudflare criou o tunnel, mas não devolveu id/token."
   }
 
   Write-Host "==> Configurar hostname $TunnelHostname -> $TunnelService" -ForegroundColor Cyan
@@ -235,7 +235,7 @@ $key = "activation-code:$($record.code)"
 npx --yes wrangler@latest kv key put --remote --binding $Binding $key $json
 
 Write-Host ""
-Write-Host "Codigo de ativacao criado:" -ForegroundColor Green
+Write-Host "Código de ativação criado:" -ForegroundColor Green
 Write-Host $record.code -ForegroundColor Yellow
 Write-Host ""
 Write-Host "Chave KV: $key"

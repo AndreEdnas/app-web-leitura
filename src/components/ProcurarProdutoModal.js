@@ -3,7 +3,7 @@ import { Modal, Button } from "react-bootstrap";
 
 function formatMoney(value) {
   const number = Number(value);
-  return Number.isFinite(number) ? `${number.toFixed(2)} EUR` : "--";
+  return Number.isFinite(number) ?`${number.toFixed(2)} EUR` : "--";
 }
 
 export default function ProcurarProdutoModal({

@@ -26,7 +26,7 @@ export default function InventarioPage({ lojaSelecionada, empregado, onVoltar })
       try {
         setCarregandoInventarios(true);
         const data = await fetchInventariosAbertos();
-        const inventarios = Array.isArray(data) ? data : [];
+        const inventarios = Array.isArray(data) ?data : [];
 
         if (!ativo) return;
 
@@ -66,7 +66,7 @@ export default function InventarioPage({ lojaSelecionada, empregado, onVoltar })
         if (!ativo) return;
 
         setProdutos(
-          (Array.isArray(linhas) ? linhas : []).map((linha) => ({
+          (Array.isArray(linhas) ?linhas : []).map((linha) => ({
             ...linha,
             __uid: crypto.randomUUID(),
             qtdstock: Number(linha.qtdstock) || 0,
@@ -234,7 +234,7 @@ export default function InventarioPage({ lojaSelecionada, empregado, onVoltar })
           <label className="form-label fw-bold text-center d-block">Inventário aberto:</label>
           <select
             className="form-select text-center"
-            value={inventarioSelecionado ? `${inventarioSelecionado.serie}::${inventarioSelecionado.numero}` : ""}
+            value={inventarioSelecionado ?`${inventarioSelecionado.serie}::${inventarioSelecionado.numero}` : ""}
             disabled={carregandoInventarios || !inventariosAbertos.length || enviando}
             onChange={(e) => {
               const inventario = inventariosAbertos.find((item) =>
@@ -245,9 +245,9 @@ export default function InventarioPage({ lojaSelecionada, empregado, onVoltar })
           >
             <option value="">
               {carregandoInventarios
-                ? "A carregar inventários..."
+                ?"A carregar inventários..."
                 : inventariosAbertos.length
-                  ? "-- Escolher inventário --"
+                  ?"-- Escolher inventário --"
                   : "Nenhum inventário aberto na ZoneSoft"}
             </option>
             {inventariosAbertos.map((inventario) => (
@@ -284,7 +284,7 @@ export default function InventarioPage({ lojaSelecionada, empregado, onVoltar })
           onDetected={onDetected}
         />
 
-        {produtos.length > 0 ? (
+        {produtos.length > 0 ?(
           <div className="table-responsive mx-auto app-inventory-table-wrap">
             <table className="table table-bordered align-middle app-work-table app-inventory-table">
               <thead className="table-light">
@@ -314,8 +314,8 @@ export default function InventarioPage({ lojaSelecionada, empregado, onVoltar })
                       >
                         {Number(p.inventarioQtd) || 0}
                       </td>
-                      <td className={`fw-bold text-center ${diferenca === 0 ? "text-muted" : diferenca > 0 ? "text-success" : "text-danger"}`}>
-                        {diferenca > 0 ? `+${diferenca}` : diferenca}
+                      <td className={`fw-bold text-center ${diferenca === 0 ?"text-muted" : diferenca > 0 ?"text-success" : "text-danger"}`}>
+                        {diferenca > 0 ?`+${diferenca}` : diferenca}
                       </td>
                       <td className="text-center">
                         <button
@@ -361,7 +361,7 @@ export default function InventarioPage({ lojaSelecionada, empregado, onVoltar })
             onConfirmar={(uid, qtd) => {
               setProdutos((prev) =>
                 prev.map((p) =>
-                  p.__uid === uid ? { ...p, inventarioQtd: Number(qtd) } : p
+                  p.__uid === uid ?{ ...p, inventarioQtd: Number(qtd) } : p
                 )
               );
               setProdutoParaStock(null);

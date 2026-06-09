@@ -15,7 +15,7 @@ export default function LoginPage({ apiUrl, onLoginSuccess }) {
         const data = await res.json();
         setEmpregados(data);
       } catch (err) {
-        console.error("Erro ao buscar empregados:", err);
+        console.error("Erro ao obter empregados:", err);
       }
     }
 
@@ -36,12 +36,12 @@ export default function LoginPage({ apiUrl, onLoginSuccess }) {
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "PIN incorreto");
+      if (!res.ok) throw new Error(data.error || "PIN inválido");
 
       localStorage.setItem("empregado", JSON.stringify(data.user));
       onLoginSuccess(data.user);
     } catch {
-      setErro("PIN incorreto. Tente novamente.");
+      setErro("PIN inválido. Tente novamente.");
       setPin("");
     }
   }
@@ -63,9 +63,9 @@ export default function LoginPage({ apiUrl, onLoginSuccess }) {
           </p>
         </div>
 
-        {!empregadoSelecionado ? (
+        {!empregadoSelecionado ?(
           <div className="app-user-strip">
-            {empregados.length > 0 ? (
+            {empregados.length > 0 ?(
               empregados.map((emp) => (
                 <button
                   key={emp.codigo}

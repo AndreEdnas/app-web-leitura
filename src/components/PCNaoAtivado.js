@@ -68,7 +68,7 @@ export default function PCNaoAtivado({ dados, onRevalidar }) {
         <div className="d-grid gap-2">
           <button type="button" className="btn btn-primary" onClick={copiar}>
             <i className="bi bi-clipboard me-1" aria-hidden="true"></i>
-            {copiado ? "Copiado" : "Copiar dados"}
+            {copiado ?"Copiado" : "Copiar dados"}
           </button>
 
           <button type="button" className="btn btn-outline-secondary" onClick={enviarEmail}>

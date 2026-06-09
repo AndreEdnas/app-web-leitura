@@ -40,13 +40,13 @@ import LoginPage from './components/LoginPage';
 import MenuPrincipal from "./components/MenuPrincipal";
 import LojaSelectPage from "./components/LojaSelectPage";
 import PCNaoAtivado from "./components/PCNaoAtivado";
-import { getResolverLojaUrl } from "./services/backendConfig";
+import { getBackendBaseUrl, getBrowserApiBaseUrl, getResolverLojaUrl } from "./services/backendConfig";
 
 function useStickyState(defaultValue, key) {
   const [value, setValue] = useState(() => {
     try {
       const stickyValue = window.localStorage.getItem(key);
-      return stickyValue !== null ? JSON.parse(stickyValue) : defaultValue;
+      return stickyValue !== null ?JSON.parse(stickyValue) : defaultValue;
     } catch {
       return defaultValue;
     }
@@ -62,6 +62,41 @@ function useStickyState(defaultValue, key) {
   }, [key, value]);
 
   return [value, setValue];
+}
+
+function getInitialApiUrl() {
+  try {
+    const savedApiUrl = localStorage.getItem("apiUrl");
+    if (!savedApiUrl) return null;
+
+    const browserApiUrl = getBrowserApiBaseUrl(savedApiUrl);
+    if (browserApiUrl !== savedApiUrl) {
+      localStorage.setItem("apiUrlPublic", savedApiUrl);
+      localStorage.setItem("apiUrl", browserApiUrl);
+    }
+
+    return browserApiUrl;
+  } catch {
+    return null;
+  }
+}
+
+function sameBaseUrl(left, right) {
+  return String(left || "").replace(/\/+$/, "") === String(right || "").replace(/\/+$/, "");
+}
+
+function shouldRestoreLocalApiSession(apiUrl) {
+  try {
+    if (typeof window === "undefined") return false;
+    if (window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1") {
+      return false;
+    }
+
+    if (!apiUrl || !localStorage.getItem("tokenLoja")) return false;
+    return sameBaseUrl(getBrowserApiBaseUrl(apiUrl), getBackendBaseUrl());
+  } catch {
+    return false;
+  }
 }
 
 export default function App() {
@@ -114,8 +149,11 @@ export default function App() {
   const [alerta, setAlerta] = useState(null);
   const [enviando, setEnviando] = useState(false);
 
-  const [apiUrl, setApiUrl] = useState(() => localStorage.getItem("apiUrl") || null);
+  const [apiUrl, setApiUrl] = useState(getInitialApiUrl);
   const [lojaSelecionada, setLojaSelecionada] = useState(() => localStorage.getItem("lojaSelecionada") || null);
+  const [restoringApiSession, setRestoringApiSession] = useState(() =>
+    shouldRestoreLocalApiSession(localStorage.getItem("apiUrl"))
+  );
   const [mostrarPesquisaNome, setMostrarPesquisaNome] = useState(false);
 
 
@@ -127,10 +165,72 @@ export default function App() {
 
   const [empregado, setEmpregado] = useState(() => {
     const saved = localStorage.getItem('empregado');
-    return saved ? JSON.parse(saved) : null;
+    return saved ?JSON.parse(saved) : null;
   });
 
   const [paginaAtual, setPaginaAtual] = useState("menu");
+
+
+
+  useEffect(() => {
+    if (!restoringApiSession) return;
+
+    let cancelled = false;
+
+    async function restoreApiSession() {
+      const token = localStorage.getItem("tokenLoja");
+      if (!token) {
+        setRestoringApiSession(false);
+        return;
+      }
+
+      try {
+        const res = await fetch(resolverLojaUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token }),
+        });
+
+        const data = await res.json().catch(() => null);
+        if (!res.ok || !data?.success) {
+          throw new Error(data?.error || "Não foi possível restaurar a loja.");
+        }
+
+        const loja = data.loja || {};
+        const lojaId = String(loja.id || loja.nome || lojaSelecionada || "").trim();
+        const publicApiUrl = String(loja.url || localStorage.getItem("apiUrlPublic") || "").trim();
+        const browserApiUrl = getBrowserApiBaseUrl(publicApiUrl || apiUrl);
+
+        if (cancelled) return;
+
+        if (lojaId) {
+          setLojaSelecionada(lojaId);
+          localStorage.setItem("lojaSelecionada", lojaId);
+        }
+
+        if (browserApiUrl) {
+          setApiUrl(browserApiUrl);
+          localStorage.setItem("apiUrl", browserApiUrl);
+        }
+
+        if (publicApiUrl) {
+          localStorage.setItem("apiUrlPublic", publicApiUrl);
+        }
+      } catch (err) {
+        console.error("Erro ao restaurar loja:", err);
+      } finally {
+        if (!cancelled) {
+          setRestoringApiSession(false);
+        }
+      }
+    }
+
+    restoreApiSession();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [apiUrl, lojaSelecionada, resolverLojaUrl, restoringApiSession]);
 
 
 
@@ -139,7 +239,7 @@ export default function App() {
 
   useEffect(() => {
     async function fetchTipos() {
-      if (!apiUrl) return;
+      if (!apiUrl || restoringApiSession) return;
       try {
         const res = await fetch(`${apiUrl}/tiposdocumento`);
 
@@ -150,19 +250,20 @@ export default function App() {
           // não define automaticamente o tipo selecionado
         }
       } catch (err) {
-        console.error("Erro ao buscar tipos de documento:", err);
+        console.error("Erro ao obter tipos de documento:", err);
       }
     }
     fetchTipos();
-  }, [apiUrl]);
+  }, [apiUrl, restoringApiSession]);
 
 
 
   useEffect(() => {
+    if (restoringApiSession) return;
     if (apiUrl) {
       apiModule.setApiBaseUrl(apiUrl);
     }
-  }, [apiUrl]);
+  }, [apiUrl, restoringApiSession]);
 
 
 
@@ -171,6 +272,7 @@ export default function App() {
 
   // 🔥 Assim que tivermos a loja selecionada E a URL do túnel, validar licença
   useEffect(() => {
+    if (restoringApiSession) return;
     if (!apiUrl || !lojaSelecionada) return;
 
     async function validarLicenca() {
@@ -206,7 +308,7 @@ export default function App() {
 
 
     validarLicenca();
-  }, [apiUrl, lojaSelecionada]);
+  }, [apiUrl, lojaSelecionada, restoringApiSession]);
 
 
 
@@ -214,7 +316,7 @@ export default function App() {
 
   // 2º useEffect → só corre QUANDO apiUrl já existir
   useEffect(() => {
-    if (!apiUrl) return; // espera até termos a URL válida
+    if (!apiUrl || restoringApiSession) return; // espera até termos a URL válida
 
     import('./services/api').then(apiModule => {
       apiModule.setApiBaseUrl(apiUrl); // define a URL no módulo
@@ -239,7 +341,7 @@ export default function App() {
 
       carregarDados();
     });
-  }, [apiUrl]);
+  }, [apiUrl, restoringApiSession]);
 
 
   // 3º useEffect → timeout do alerta
@@ -301,14 +403,14 @@ export default function App() {
 
       // ❌ IGNORAR SEMPRE margem da BD
       margembruta: margembruta !== null
-        ? Number(margembruta.toFixed(2))
+        ?Number(margembruta.toFixed(2))
         : null,
 
       // 🔹 garantir coerência
       precocompra: Number(precocompra.toFixed(2)),
       pvp1siva: Number(pvp1siva.toFixed(2)),
       precovenda: pvp1siva > 0
-        ? Number((pvp1siva * (1 + iva / 100)).toFixed(2))
+        ?Number((pvp1siva * (1 + iva / 100)).toFixed(2))
         : Number(produto.precovenda) || 0,
     };
   }
@@ -399,7 +501,7 @@ export default function App() {
       setProdutos(prev =>
         prev.map(p =>
           p.__uid === uid
-            ? { ...p, qtdstock: total }
+            ?{ ...p, qtdstock: total }
             : p
         )
       );
@@ -422,7 +524,7 @@ export default function App() {
           ...prev,
           criarProdutos: prev.criarProdutos.map(p =>
             p.__uid === uid
-              ? { ...p, qtdstock: total }
+              ?{ ...p, qtdstock: total }
               : p
           )
         };
@@ -453,7 +555,7 @@ export default function App() {
     setProdutos(prev =>
       prev.map(p =>
         p.__uid === uid
-          ? recalcularProduto(p, 'precocompra', novoPrecoCompra)
+          ?recalcularProduto(p, 'precocompra', novoPrecoCompra)
           : p
       )
     );
@@ -466,7 +568,7 @@ export default function App() {
           ...prev,
           criarProdutos: prev.criarProdutos.map(p =>
             p.__uid === uid
-              ? recalcularProduto(p, 'precocompra', novoPrecoCompra)
+              ?recalcularProduto(p, 'precocompra', novoPrecoCompra)
               : p
           )
         };
@@ -489,7 +591,7 @@ export default function App() {
     setProdutos(prev =>
       prev.map(p =>
         p.__uid === uid
-          ? recalcularProduto(p, 'margembruta', novaMargem)
+          ?recalcularProduto(p, 'margembruta', novaMargem)
           : p
       )
     );
@@ -502,7 +604,7 @@ export default function App() {
           ...prev,
           criarProdutos: prev.criarProdutos.map(p =>
             p.__uid === uid
-              ? recalcularProduto(p, 'margembruta', novaMargem)
+              ?recalcularProduto(p, 'margembruta', novaMargem)
               : p
           )
         };
@@ -525,7 +627,7 @@ export default function App() {
     setProdutos(prev =>
       prev.map(p =>
         p.__uid === uid
-          ? recalcularProduto(p, 'precovenda', novoPrecoVenda)
+          ?recalcularProduto(p, 'precovenda', novoPrecoVenda)
           : p
       )
     );
@@ -538,7 +640,7 @@ export default function App() {
           ...prev,
           criarProdutos: prev.criarProdutos.map(p =>
             p.__uid === uid
-              ? recalcularProduto(p, 'precovenda', novoPrecoVenda)
+              ?recalcularProduto(p, 'precovenda', novoPrecoVenda)
               : p
           )
         };
@@ -564,11 +666,11 @@ export default function App() {
     const iva = Number(produto.iva) || 0;
 
     const pvp1siva = precocompra > 0
-      ? precocompra * (1 + margembruta / 100)
+      ?precocompra * (1 + margembruta / 100)
       : 0;
 
     const precovenda = pvp1siva > 0
-      ? pvp1siva * (1 + iva / 100)
+      ?pvp1siva * (1 + iva / 100)
       : 0;
 
     const produtoComCampos = {
@@ -855,7 +957,7 @@ export default function App() {
       // =========================
       const novosCriados = [];
 
-      const produtosParaCriarAgora = criarDocumento ? [] : alteracoesPendentes.criarProdutos;
+      const produtosParaCriarAgora = criarDocumento ?[] : alteracoesPendentes.criarProdutos;
 
       for (const novoProd of produtosParaCriarAgora) {
 
@@ -884,13 +986,13 @@ export default function App() {
         setProdutos(prev =>
           prev.map(p => {
             const match = novosCriados.find(n => n.__uid === p.__uid);
-            return match ? match : p;
+            return match ?match : p;
           })
         );
       }
 
       const produtosAtuais = criarDocumento
-        ? produtos.filter(p => !p.novo)
+        ?produtos.filter(p => !p.novo)
         : [
           ...produtos.filter(p => !p.novo),
           ...novosCriados
@@ -1018,7 +1120,7 @@ export default function App() {
       setAlerta({
         tipo: "sucesso",
         mensagem: criarDocumento
-          ? "Alterações enviadas e documento criado com sucesso."
+          ?"Alterações enviadas e documento criado com sucesso."
           : "Alterações dos produtos enviadas com sucesso."
       });
     } catch (err) {
@@ -1094,11 +1196,13 @@ export default function App() {
         resolverUrl={resolverLojaUrl}
         onLojaConfirmada={(nome, url, loja) => {
           const lojaId = loja?.id || nome;
+          const browserApiUrl = getBrowserApiBaseUrl(url);
           setLojaSelecionada(lojaId);
-          setApiUrl(url);
+          setApiUrl(browserApiUrl);
 
           localStorage.setItem("lojaSelecionada", lojaId);
-          localStorage.setItem("apiUrl", url);
+          localStorage.setItem("apiUrl", browserApiUrl);
+          localStorage.setItem("apiUrlPublic", url);
         }}
       />
     );
@@ -1189,11 +1293,11 @@ export default function App() {
   if (paginaAtual === "scanner") {
     const tipoDocumentoOptions = tiposDoc.map((t) => ({
       value: `${t.doc}::${t.serie}`,
-      label: `${t.descricao ? `${t.doc} - ${t.descricao}` : t.doc} - Série ${t.serie}`,
+      label: `${t.descricao ?`${t.doc} - ${t.descricao}` : t.doc} - Série ${t.serie}`,
       tipo: t
     }));
     const tipoDocumentoValue = tipoDocSelecionado
-      ? tipoDocumentoOptions.find((option) => option.value === `${tipoDocSelecionado.doc}::${tipoDocSelecionado.serie}`) || null
+      ?tipoDocumentoOptions.find((option) => option.value === `${tipoDocSelecionado.doc}::${tipoDocSelecionado.serie}`) || null
       : null;
 
     return (
@@ -1326,13 +1430,13 @@ export default function App() {
                   classNamePrefix="app-select"
                   value={tipoDocumentoValue}
                   options={tipoDocumentoOptions}
-                  placeholder={tiposDoc.length ? "Escolher tipo de documento" : "Nenhuma série configurada na ZoneSoft"}
+                  placeholder={tiposDoc.length ?"Escolher tipo de documento" : "Nenhuma série configurada na ZoneSoft"}
                   noOptionsMessage={() => "Nenhum tipo de documento encontrado"}
                   onChange={(selected) => setTipoDocSelecionado(selected?.tipo || null)}
                   isDisabled={!tiposDoc.length || enviando}
                   isClearable
                   isSearchable
-                  menuPortalTarget={typeof document !== "undefined" ? document.body : null}
+                  menuPortalTarget={typeof document !== "undefined" ?document.body : null}
                 />
               </div>
             </div>
@@ -1368,7 +1472,7 @@ export default function App() {
             }}
           />
 
-          {produtos.length > 0 ? (
+          {produtos.length > 0 ?(
             <>
               <div className="app-work-table-card table-responsive">
                 <ProdutoTable
@@ -1377,7 +1481,7 @@ export default function App() {
                   onAbrirStock={(produto) => {
                     setProdutoParaStock({
                       ...produto,
-                      __modoStock: produto.novo ? "TOTAL" : "DELTA"
+                      __modoStock: produto.novo ?"TOTAL" : "DELTA"
                     });
                   }}
                   onAbrirPrecoCompra={setProdutoParaPrecoCompra}
@@ -1415,7 +1519,7 @@ export default function App() {
               produto={produtoParaStock}
               quantidadeInicial={
                 produtoParaStock.__modoStock === "TOTAL"
-                  ? Number(produtoParaStock.qtdstock || 0)
+                  ?Number(produtoParaStock.qtdstock || 0)
                   : Number(alteracoesPendentes.stock[produtoParaStock.__uid] || 0)
               }
               onFechar={() => setProdutoParaStock(null)}
@@ -1499,7 +1603,7 @@ export default function App() {
 
                     <label htmlFor="quantidadeInput" className="form-label mt-3"><strong>Quantidade de Stock:</strong></label>
                     <div className="d-flex align-items-center gap-2">
-                      <button className="btn btn-outline-danger" onClick={() => setQuantidadeStock((q) => (q > 0 ? q - 1 : 0))} disabled={quantidadeStock <= 0}>-</button>
+                      <button className="btn btn-outline-danger" onClick={() => setQuantidadeStock((q) => (q > 0 ?q - 1 : 0))} disabled={quantidadeStock <= 0}>-</button>
                       <input type="number" id="quantidadeInput" className="form-control text-center" value={quantidadeStock}
                         onChange={(e) => { const val = Number(e.target.value); if (!isNaN(val) && val >= 0) setQuantidadeStock(val); }}
                         min={0} />

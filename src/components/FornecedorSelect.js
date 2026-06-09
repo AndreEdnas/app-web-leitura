@@ -27,7 +27,7 @@ export default function FornecedorSelect({
       isDisabled={disabled}
       isClearable
       isSearchable
-      menuPortalTarget={typeof document !== "undefined" ? document.body : null}
+      menuPortalTarget={typeof document !== "undefined" ?document.body : null}
     />
   );
 }

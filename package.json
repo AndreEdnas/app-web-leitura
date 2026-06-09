@@ -30,7 +30,7 @@
   "scripts": {
     "start": "concurrently \"npm run client\" \"npm run server\"",
     "client": "cross-env PORT=3050 react-scripts start",
-    "server": "node backend/server.js",
+    "server": "cross-env NODE_ENV=development node backend/server.js",
     "build": "cross-env CI=false react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject"

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap-icons/font/bootstrap-icons.css";
+import { getBrowserApiBaseUrl } from "../services/backendConfig";
 
 export default function LojaSelectPage({ resolverUrl, onLojaConfirmada }) {
   const [tokenLoja, setTokenLoja] = useState("");
@@ -30,7 +31,7 @@ export default function LojaSelectPage({ resolverUrl, onLojaConfirmada }) {
 
       const data = await res.json().catch(() => null);
       if (!res.ok || !data?.success) {
-        throw new Error(data?.error || "Token invalido. Tente novamente.");
+        throw new Error(data?.error || "Token inválido. Tente novamente.");
       }
 
       const loja = data.loja || {};
@@ -38,15 +39,17 @@ export default function LojaSelectPage({ resolverUrl, onLojaConfirmada }) {
       const lojaNome = String(loja.nome || lojaId).trim();
       const apiUrl = String(loja.url || "").trim();
       if (!lojaId || !apiUrl) {
-        throw new Error("Loja sem URL publica configurada.");
+        throw new Error("Loja sem URL pública configurada.");
       }
 
+      const browserApiUrl = getBrowserApiBaseUrl(apiUrl);
       localStorage.setItem("tokenLoja", token);
       localStorage.setItem("lojaSelecionada", lojaId);
-      localStorage.setItem("apiUrl", apiUrl);
+      localStorage.setItem("apiUrl", browserApiUrl);
+      localStorage.setItem("apiUrlPublic", apiUrl);
       onLojaConfirmada(lojaNome || lojaId, apiUrl, loja);
     } catch (err) {
-      setErro(err?.message || "Token invalido. Tente novamente.");
+      setErro(err?.message || "Token inválido. Tente novamente.");
       setTokenLoja("");
     } finally {
       setAValidar(false);
@@ -87,7 +90,7 @@ export default function LojaSelectPage({ resolverUrl, onLojaConfirmada }) {
             className="btn btn-success w-100"
             disabled={aValidar}
           >
-            {aValidar ? "A validar..." : "Entrar"}
+            {aValidar ?"A validar..." : "Entrar"}
           </button>
         </form>
       </section>

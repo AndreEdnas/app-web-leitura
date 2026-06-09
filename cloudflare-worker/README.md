@@ -1,11 +1,11 @@
-# Ednas Cloudflare Worker (Licencas e Ativacao)
+# Ednas Cloudflare Worker (Licenças e Ativação)
 
 Este worker centraliza:
-- configuracao de lojas (`/config`)
+- configuração de lojas (`/config`)
 - registo de loja (`/auto-registar-loja`)
-- ativacao/licenca (`/activation/start`, `/activation/finish`, `/license/check`)
+- ativação/licença (`/activation/start`, `/activation/finish`, `/license/check`)
 - heartbeat (`/heartbeat`)
-- e mantem compatibilidade com rotas antigas:
+- e mantém compatibilidade com rotas antigas:
   - `/listar-lojas`
   - `/listar-licencas`
   - `/guardar-loja`
@@ -34,7 +34,7 @@ wrangler deploy
 - `loja:<loja_id>`
 - `licenca:<hwid>`
 - `instalacao:<instalacao_id>`
-- `tunnel:<hwid>` (quando o tunnel e criado automaticamente por PC)
+- `tunnel:<hwid>` (quando o tunnel é criado automaticamente por PC)
 - `activation-code:<codigo>`
 - `config` (compatibilidade com schema legado)
 
@@ -46,13 +46,13 @@ wrangler deploy
 wrangler kv key put --binding CONFIG "loja:Teste" "{\"id\":\"Teste\",\"nome\":\"Teste\",\"url\":\"https://api.ednas.pt\",\"server\":\"BRUNO\",\"database\":\"tiofredo\",\"port\":1433,\"token\":\"99\"}"
 ```
 
-### Codigo de ativacao
+### Código de ativação
 
 ```bash
 wrangler kv key put --binding CONFIG "activation-code:EDN-TESTE-001" "{\"code\":\"EDN-TESTE-001\",\"loja_id\":\"Teste\",\"estado\":\"ativo\",\"max_uses\":50,\"uses\":0}"
 ```
 
-Para instalacoes comerciais, o codigo de ativacao pode tambem incluir dados de tunnel:
+Para instalações comerciais, o código de ativação pode também incluir dados de tunnel:
 
 ```json
 {
@@ -68,15 +68,15 @@ Para instalacoes comerciais, o codigo de ativacao pode tambem incluir dados de t
 }
 ```
 
-O instalador envia este codigo para `/activation/finish`; o Worker valida o codigo, cria a licenca para o HWID do PC e devolve `loja` + `tunnel` ao backend local.
+O instalador envia este código para `/activation/finish`; o Worker valida o código, cria a licença para o HWID do PC e devolve `loja` + `tunnel` ao backend local.
 
-Tambem podes gerar e gravar um codigo com o script incluido:
+Também podes gerar e gravar um código com o script incluído:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\create-activation-code.ps1 -LojaId "Teste" -MaxUses 1
 ```
 
-Com tunnel ja criado manualmente:
+Com tunnel já criado manualmente:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\create-activation-code.ps1 -LojaId "Teste" -TunnelHostname "teste.ednas.pt" -TunnelUrl "https://teste.ednas.pt" -TunnelToken "TOKEN_UNICO"
@@ -92,15 +92,15 @@ $env:CLOUDFLARE_API_TOKEN="API_TOKEN"
 powershell -ExecutionPolicy Bypass -File .\create-activation-code.ps1 -LojaId "Teste" -AutoTunnel -TunnelHostname "teste.ednas.pt"
 ```
 
-Com tunnel criado automaticamente no momento da instalacao do cliente:
+Com tunnel criado automaticamente no momento da instalação do cliente:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\create-activation-code.ps1 -LojaId "Teste" -AutoTunnelOnInstall
 ```
 
-Neste modo, o tunnel nao e criado quando geras o codigo. O codigo fica marcado com `auto_tunnel: true`; quando o tecnico instala no cliente, o Worker cria o tunnel, cria/atualiza o DNS e devolve o token ao instalador.
+Neste modo, o tunnel não é criado quando geras o código. O código fica marcado com `auto_tunnel: true`; quando o técnico instala no cliente, o Worker cria o tunnel, cria/atualiza o DNS e devolve o token ao instalador.
 
-Tambem podes deixar o script gerar o hostname:
+Também podes deixar o script gerar o hostname:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\create-activation-code.ps1 -LojaId "Teste" -AutoTunnel -TunnelDomain "ednas.pt"
@@ -115,12 +115,12 @@ wrangler secret put CLOUDFLARE_ZONE_ID
 wrangler secret put TUNNEL_DOMAIN
 ```
 
-O `API_TOKEN` precisa de permissoes para criar Cloudflare Tunnel e editar DNS. O tunnel e configurado para apontar para `http://localhost:3051`, que e o backend local instalado no cliente.
+O `API_TOKEN` precisa de permissões para criar Cloudflare Tunnel e editar DNS. O tunnel é configurado para apontar para `http://localhost:3051`, que é o backend local instalado no cliente.
 
 ## 4. Endpoints principais
 
 - `GET /health`
-- `GET /config-lojas` (publico para frontend Vercel)
+- `GET /config-lojas` (público para frontend Vercel)
 - `GET /config`
 - `POST /auto-registar-loja`
 - `POST /activation/start`
@@ -150,4 +150,4 @@ O endpoint `/config` devolve formato legado para manter compatibilidade com o ba
    - `GET /health`
    - `GET /config` com `X-App-Key`
    - `POST /license/check`
-4. Se tudo OK, manter em produção. Se algo falhar, reverter pelo tab Deployments.
+4. Se tudo OK, manter em produção. Se algo falhar, reverter pelo separador Deployments.

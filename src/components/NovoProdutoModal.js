@@ -207,7 +207,7 @@ export default function NovoProdutoModal({
                 <label className="form-label fw-semibold">Código de barras</label>
                 <input
                   type="text"
-                  className={`form-control ${produtoJaExiste ? "is-invalid" : ""}`}
+                  className={`form-control ${produtoJaExiste ?"is-invalid" : ""}`}
                   name="codbarras"
                   value={novoProduto.codbarras}
                   onChange={handleChange}
@@ -221,7 +221,7 @@ export default function NovoProdutoModal({
                 <label className="form-label fw-semibold">PLU</label>
                 <input
                   type="number"
-                  className={`form-control ${pluJaExiste ? "is-invalid" : ""}`}
+                  className={`form-control ${pluJaExiste ?"is-invalid" : ""}`}
                   value={novoProduto.plu || ""}
                   onChange={handlePluChange}
                   min="0"
@@ -280,7 +280,7 @@ export default function NovoProdutoModal({
                     <button
                       key={valor}
                       type="button"
-                      className={`btn ${novoProduto.iva === valor ? "btn-primary" : "btn-outline-primary"}`}
+                      className={`btn ${novoProduto.iva === valor ?"btn-primary" : "btn-outline-primary"}`}
                       onClick={() => setNovoProduto((prev) => ({ ...prev, iva: valor }))}
                     >
                       {valor}%

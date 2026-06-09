@@ -94,7 +94,7 @@ function Invoke-RobocopySafe(
   [string[]]$ExtraArgs = @()
 ) {
   if (-not (Test-Path -LiteralPath $From)) {
-    throw "Pasta de origem nao encontrada: $From"
+    throw "Pasta de origem não encontrada: $From"
   }
 
   New-Item -ItemType Directory -Path $To -Force | Out-Null
@@ -236,7 +236,7 @@ function Resolve-NssmExe([string]$InstallDir) {
     }
 
     if (-not $downloaded) {
-      throw "Nao foi possivel descarregar NSSM."
+      throw "Não foi possível descarregar NSSM."
     }
 
     Expand-Archive -Path $zipPath -DestinationPath $tempRoot -Force
@@ -244,7 +244,7 @@ function Resolve-NssmExe([string]$InstallDir) {
       Where-Object { $_.FullName -match "\\win64\\nssm\.exe$" } |
       Select-Object -First 1
     if ($null -eq $sourceExe) {
-      throw "nssm.exe nao encontrado no pacote descarregado."
+      throw "nssm.exe não encontrado no pacote descarregado."
     }
 
     Copy-Item -LiteralPath $sourceExe.FullName -Destination $nssmExe -Force
@@ -417,7 +417,7 @@ const sql = require("mssql");
 function getArg(name) {
   const prefix = `--${name}=`;
   const arg = process.argv.find((item) => item.startsWith(prefix));
-  return arg ? arg.slice(prefix.length) : "";
+  return arg ?arg.slice(prefix.length) : "";
 }
 
 function splitSqlTarget(rawServer) {
@@ -463,7 +463,7 @@ function splitSqlTarget(rawServer) {
     if (pool) await pool.close();
   }
 })().catch((err) => {
-  console.error(err && err.message ? err.message : String(err));
+  console.error(err && err.message ?err.message : String(err));
   process.exit(1);
 });
 '@
@@ -507,7 +507,7 @@ function Invoke-BackendActivation(
   [string]$DbPort
 ) {
   if ([string]::IsNullOrWhiteSpace($Code)) {
-    throw "Codigo de ativacao obrigatorio."
+    throw "Código de ativação obrigatório."
   }
 
   $bodyObject = @{
@@ -562,7 +562,7 @@ function Invoke-BackendActivation(
     }
   }
 
-  throw "Nao foi possivel ativar o backend local em $uri."
+  throw "Não foi possível ativar o backend local em $uri."
 }
 
 Assert-Admin
@@ -580,7 +580,7 @@ $sourceBuild = Join-Path $SourceDir "build"
 $sourceBuildIndex = Join-Path $sourceBuild "index.html"
 
 if (-not (Test-Path -LiteralPath (Join-Path $sourceBackend "server.js"))) {
-  throw "Nao encontrei backend em: $sourceBackend"
+  throw "Não encontrei backend em: $sourceBackend"
 }
 
 $sourceAndInstallEqual = $SourceDir.TrimEnd("\") -ieq $InstallDir.TrimEnd("\")
@@ -604,7 +604,7 @@ if (-not $SkipCopy) {
       -From $sourceBuild `
       -To (Join-Path $InstallDir "build")
   } else {
-    Write-Step "Build local nao encontrado. Segue em modo Vercel-only."
+    Write-Step "Build local não encontrado. Segue em modo Vercel-only."
   }
 
   $sourceInstaller = Join-Path $SourceDir "installer"
@@ -628,7 +628,7 @@ if (-not [string]::IsNullOrWhiteSpace($NodeExePath)) {
 }
 
 if ([string]::IsNullOrWhiteSpace($nodeExe) -or -not (Test-Path -LiteralPath $nodeExe)) {
-  throw "Node.js nao encontrado. Instala Node LTS e volta a correr o script."
+  throw "Node.js não encontrado. Instala Node LTS e volta a correr o script."
 }
 
 $installEnv = Join-Path $InstallDir "backend\.env"
@@ -671,7 +671,7 @@ if (-not [string]::IsNullOrWhiteSpace($CfAppKey)) {
 } else {
   $CfAppKey = ""
 }
-$ActivationCode = Resolve-Value -Provided $ActivationCode -Stored $storedActivationCode -Label "Codigo de ativacao"
+$ActivationCode = Resolve-Value -Provided $ActivationCode -Stored $storedActivationCode -Label "Código de ativação"
 $StoreToken = Resolve-Value -Provided $StoreToken -Stored $storedStoreToken -Label "Token de entrada da loja"
 $StoreName = if (-not [string]::IsNullOrWhiteSpace($StoreName)) {
   $StoreName.Trim()
@@ -687,17 +687,17 @@ $DbUser = Resolve-Value -Provided $DbUser -Stored $storedDbUser -Label "DB_USER"
 $DbPassword = Resolve-Value -Provided $DbPassword -Stored $storedDbPassword -Label "DB_PASSWORD" -Secret $true
 
 if ([string]::IsNullOrWhiteSpace($CfBase)) {
-  throw "CF_BASE obrigatorio. Exemplo: https://ednas-cloud.andre-86d.workers.dev"
+  throw "CF_BASE obrigatório. Exemplo: https://ednas-cloud.andre-86d.workers.dev"
 }
 
 if ([string]::IsNullOrWhiteSpace($ActivationCode)) {
-  throw "Codigo de ativacao obrigatorio."
+  throw "Código de ativação obrigatório."
 }
 if ([string]::IsNullOrWhiteSpace($StoreToken)) {
-  throw "Token de entrada da loja obrigatorio."
+  throw "Token de entrada da loja obrigatório."
 }
 if ([string]::IsNullOrWhiteSpace($DbServer)) {
-  throw "Servidor SQL obrigatorio."
+  throw "Servidor SQL obrigatório."
 }
 if ([string]::IsNullOrWhiteSpace($DbDatabase)) {
   throw "Base de dados obrigatoria."
@@ -755,10 +755,10 @@ Configure-NssmService `
   -Program $nodeExe `
   -Arguments @("server.js") `
   -AppDirectory $backendDir `
-  -Description "Backend local EDNAS (licenca + SQL + API)."
+  -Description "Backend local EDNAS (licença + SQL + API)."
 Start-ServiceWithDiagnostics -Name $BackendServiceName -AppDirectory $backendDir
 
-Write-Step "Ativar licenca no backend local"
+Write-Step "Ativar licença no backend local"
 try {
   $activationResult = Invoke-BackendActivation `
     -Code $ActivationCode `
@@ -847,7 +847,7 @@ if (-not [string]::IsNullOrWhiteSpace($TunnelToken)) {
   Start-ServiceWithDiagnostics -Name $TunnelServiceName -AppDirectory $cloudflaredDir
   $tunnelConfigured = $true
 } else {
-  Write-Step "Tunnel nao configurado (token vazio)."
+  Write-Step "Tunnel não configurado (token vazio)."
 }
 
 Write-Step "Criar atalho web"
@@ -858,9 +858,9 @@ $desktopShortcut = Join-Path ([Environment]::GetFolderPath("CommonDesktopDirecto
 ) | Set-Content -Path $desktopShortcut -Encoding ASCII
 
 Write-Step "Instalacao concluida."
-Write-Host "Site publico: $PublicWebUrl" -ForegroundColor Green
+Write-Host "Site público: $PublicWebUrl" -ForegroundColor Green
 if ($tunnelConfigured) {
   Write-Host "Backend local instalado e tunnel Cloudflare configurado." -ForegroundColor Green
 } else {
-  Write-Host "Backend local instalado. Tunnel Cloudflare nao configurado." -ForegroundColor Yellow
+  Write-Host "Backend local instalado. Tunnel Cloudflare não configurado." -ForegroundColor Yellow
 }

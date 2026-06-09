@@ -70,7 +70,7 @@ export default function Scanner({ scanning, setScanning, onDetected }) {
   return (
     <div
       ref={videoRef}
-      className={`app-camera-preview ${scanning ? "is-scanning" : ""}`}
+      className={`app-camera-preview ${scanning ?"is-scanning" : ""}`}
     />
   );
 }

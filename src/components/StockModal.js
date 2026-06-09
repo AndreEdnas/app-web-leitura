@@ -17,7 +17,7 @@ export default function StockModal({
   }
 
   function diminuir() {
-    setQuantidade((q) => (q > 0 ? q - 1 : 0));
+    setQuantidade((q) => (q > 0 ?q - 1 : 0));
   }
 
   function confirmar() {

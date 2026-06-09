@@ -54,4 +54,4 @@ if ($RemoveFiles) {
   }
 }
 
-Write-Step "Desinstalacao concluida."
+Write-Step "Desinstalação concluída."
