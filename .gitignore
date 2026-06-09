@@ -9,8 +9,14 @@
 # production
 /build
 
-# backend folder to ignore
-/backend/
+# backend local/runtime files
+/backend/node_modules/
+/backend/.env
+/backend/.env.*
+/backend/*.pem
+/backend/npm-debug.log*
+/backend/yarn-debug.log*
+/backend/yarn-error.log*
 updateNgrok.js
 correr.txt
 fetchNgrokUrl.js
