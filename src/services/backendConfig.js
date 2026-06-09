@@ -25,10 +25,17 @@ function isLocalUrl(url) {
 function isApiProxyUrl(url) {
   try {
     const parsed = new URL(url);
-    return isLocalHostName(parsed.hostname) && parsed.pathname.startsWith("/api-proxy/");
+    return parsed.pathname.startsWith("/api-proxy/");
   } catch {
     return false;
   }
+}
+
+function getWorkerBaseUrl() {
+  return trimTrailingSlash(
+    process.env.REACT_APP_WORKER_BASE_URL?.trim() ||
+    DEFAULT_PUBLIC_WORKER_BASE
+  );
 }
 
 export function getLojasConfigUrl() {
@@ -114,14 +121,25 @@ export function getBackendBaseUrl() {
   return "http://localhost:3051";
 }
 
-export function getBrowserApiBaseUrl(apiUrl) {
+export function getBrowserApiBaseUrl(apiUrl, tokenOverride = "") {
   const normalizedApiUrl = trimTrailingSlash(apiUrl);
   if (!normalizedApiUrl) return normalizedApiUrl;
 
   if (typeof window === "undefined") return normalizedApiUrl;
-  if (!isLocalHostName(window.location.hostname)) return normalizedApiUrl;
+  if (!isLocalHostName(window.location.hostname)) {
+    if (isApiProxyUrl(normalizedApiUrl)) return normalizedApiUrl;
+
+    const token = String(tokenOverride || localStorage.getItem("tokenLoja") || "").trim();
+    if (!token) return normalizedApiUrl;
+
+    return joinUrl(getWorkerBaseUrl(), `/api-proxy/${encodeURIComponent(token)}`);
+  }
+
   if (process.env.REACT_APP_USE_REMOTE_API_ON_LOCAL === "true") return normalizedApiUrl;
-  if (isApiProxyUrl(normalizedApiUrl)) return getBackendBaseUrl();
+  if (isApiProxyUrl(normalizedApiUrl)) {
+    return getBackendBaseUrl();
+  }
+
   if (isLocalUrl(normalizedApiUrl)) {
     return normalizedApiUrl;
   }

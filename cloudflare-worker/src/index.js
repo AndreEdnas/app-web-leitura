@@ -27,8 +27,8 @@ function buildCorsHeaders(request, env) {
   const allowOrigin = env.ALLOW_ORIGIN || request.headers.get("origin") || "*";
   return {
     "access-control-allow-origin": allowOrigin,
-    "access-control-allow-methods": "GET,POST,OPTIONS",
-    "access-control-allow-headers": "Content-Type, X-App-Key",
+    "access-control-allow-methods": "GET,POST,PUT,PATCH,DELETE,OPTIONS",
+    "access-control-allow-headers": "Accept, Content-Type, X-App-Key",
     vary: "Origin",
   };
 }
@@ -41,6 +41,50 @@ function toPublicStore(storeId, store) {
     nome: String(store.nome || storeId),
     url: String(store.url || "").trim() || null,
   };
+}
+
+function getProxyTokenFromPath(pathname) {
+  const match = pathname.match(/^\/api-proxy\/([^/]+)(?:\/|$)/);
+  if (!match) return "";
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return "";
+  }
+}
+
+function getProxyPath(pathname) {
+  return pathname.replace(/^\/api-proxy\/[^/]+/, "") || "/";
+}
+
+function buildProxyHeaders(request) {
+  const headers = new Headers(request.headers);
+  headers.delete("host");
+  headers.delete("origin");
+  headers.delete("referer");
+  headers.delete("cf-connecting-ip");
+  headers.delete("cf-ipcountry");
+  headers.delete("cf-ray");
+  headers.delete("cf-visitor");
+  headers.delete("x-forwarded-proto");
+  headers.delete("x-real-ip");
+  return headers;
+}
+
+function copyProxyResponseHeaders(response, corsHeaders) {
+  const headers = new Headers(response.headers);
+  headers.delete("access-control-allow-origin");
+  headers.delete("access-control-allow-methods");
+  headers.delete("access-control-allow-headers");
+  headers.delete("access-control-allow-credentials");
+  headers.delete("content-encoding");
+  headers.delete("content-length");
+
+  for (const [key, value] of Object.entries(corsHeaders)) {
+    headers.set(key, value);
+  }
+
+  return headers;
 }
 
 async function hashToken(value) {
@@ -969,6 +1013,45 @@ export default {
         200,
         corsHeaders
       );
+    }
+
+    if (pathname.startsWith("/api-proxy/")) {
+      const token = getProxyTokenFromPath(pathname);
+      if (!token) {
+        return jsonResponse(
+          { success: false, error: "Token obrigatório" },
+          400,
+          corsHeaders
+        );
+      }
+
+      const state = await loadState(env, { bypassCache: true });
+      const { store, storeId } = await findStoreByToken(state.normalized.lojas, token);
+      const storeUrl = String(store?.url || "").trim().replace(/\/+$/, "");
+      if (!storeId || !store || !storeUrl) {
+        return jsonResponse(
+          { success: false, error: "Loja não encontrada" },
+          404,
+          corsHeaders
+        );
+      }
+
+      const proxyPath = getProxyPath(pathname);
+      const targetUrl = new URL(`${storeUrl}${proxyPath}`);
+      targetUrl.search = url.search;
+
+      const proxyResponse = await fetch(targetUrl.toString(), {
+        method: request.method,
+        headers: buildProxyHeaders(request),
+        body: ["GET", "HEAD"].includes(request.method) ? undefined : request.body,
+        redirect: "manual",
+      });
+
+      return new Response(proxyResponse.body, {
+        status: proxyResponse.status,
+        statusText: proxyResponse.statusText,
+        headers: copyProxyResponseHeaders(proxyResponse, corsHeaders),
+      });
     }
 
     const expectedAppKey = String(env.APP_KEY || "").trim();

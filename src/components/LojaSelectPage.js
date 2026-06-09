@@ -42,7 +42,7 @@ export default function LojaSelectPage({ resolverUrl, onLojaConfirmada }) {
         throw new Error("Loja sem URL pública configurada.");
       }
 
-      const browserApiUrl = getBrowserApiBaseUrl(apiUrl);
+      const browserApiUrl = getBrowserApiBaseUrl(apiUrl, token);
       localStorage.setItem("tokenLoja", token);
       localStorage.setItem("lojaSelecionada", lojaId);
       localStorage.setItem("apiUrl", browserApiUrl);

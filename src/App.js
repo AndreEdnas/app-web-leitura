@@ -69,7 +69,7 @@ function getInitialApiUrl() {
     const savedApiUrl = localStorage.getItem("apiUrl");
     if (!savedApiUrl) return null;
 
-    const browserApiUrl = getBrowserApiBaseUrl(savedApiUrl);
+    const browserApiUrl = getBrowserApiBaseUrl(savedApiUrl, localStorage.getItem("tokenLoja") || "");
     if (browserApiUrl !== savedApiUrl) {
       localStorage.setItem("apiUrlPublic", savedApiUrl);
       localStorage.setItem("apiUrl", browserApiUrl);
@@ -199,7 +199,7 @@ export default function App() {
         const loja = data.loja || {};
         const lojaId = String(loja.id || loja.nome || lojaSelecionada || "").trim();
         const publicApiUrl = String(loja.url || localStorage.getItem("apiUrlPublic") || "").trim();
-        const browserApiUrl = getBrowserApiBaseUrl(publicApiUrl || apiUrl);
+        const browserApiUrl = getBrowserApiBaseUrl(publicApiUrl || apiUrl, token);
 
         if (cancelled) return;
 
@@ -1196,7 +1196,7 @@ export default function App() {
         resolverUrl={resolverLojaUrl}
         onLojaConfirmada={(nome, url, loja) => {
           const lojaId = loja?.id || nome;
-          const browserApiUrl = getBrowserApiBaseUrl(url);
+          const browserApiUrl = getBrowserApiBaseUrl(url, localStorage.getItem("tokenLoja") || "");
           setLojaSelecionada(lojaId);
           setApiUrl(browserApiUrl);
 
