@@ -504,6 +504,17 @@ code {
   transform: translateY(-1px);
 }
 
+.app-menu-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+  box-shadow: none;
+}
+
+.app-menu-button:disabled:hover {
+  border-color: var(--app-border);
+  transform: none;
+}
+
 .app-menu-icon {
   width: 46px;
   height: 46px;

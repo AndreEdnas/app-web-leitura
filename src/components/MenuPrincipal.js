@@ -27,13 +27,15 @@ export default function MenuPrincipal({
       label: "Gestão de caixa",
       help: "Módulo em preparação",
       icon: "bi-cash-coin",
-      onClick: onIrGestaoCaixa
+      onClick: onIrGestaoCaixa,
+      disabled: true
     },
     {
       label: "Configurações",
       help: "Preferências e parâmetros",
       icon: "bi-gear",
-      onClick: onIrConfiguracoes
+      onClick: onIrConfiguracoes,
+      disabled: true
     }
   ];
 
@@ -56,7 +58,9 @@ export default function MenuPrincipal({
               key={opcao.label}
               type="button"
               className="app-menu-button"
-              onClick={opcao.onClick}
+              onClick={opcao.disabled ?undefined : opcao.onClick}
+              disabled={opcao.disabled}
+              aria-disabled={opcao.disabled}
             >
               <span className="app-menu-icon">
                 <i className={`bi ${opcao.icon}`} aria-hidden="true"></i>
