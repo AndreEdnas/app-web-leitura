@@ -40,7 +40,7 @@ const STORE_TOKEN = String(
 ).trim();
 const DEV_LOCAL_STORE_NAME = String(process.env.DEV_LOCAL_STORE_NAME || "DEV Local").trim();
 const DEV_LOCAL_STORE_TOKEN = String(process.env.DEV_LOCAL_STORE_TOKEN || STORE_TOKEN || "dev").trim();
-const DEV_LOCAL_API_URL = String(process.env.DEV_LOCAL_API_URL || "http://localhost:3051").trim();
+const DEV_LOCAL_API_URL = String(process.env.DEV_LOCAL_API_URL || "http://localhost:3052").trim();
 const DEV_LOCAL_BYPASS_LICENSE =
   process.env.DEV_LOCAL_BYPASS_LICENSE === "true" ||
   (
@@ -4031,7 +4031,7 @@ app.get('/empregados', async (req, res) => {
 
 // ------------------- Iniciar Servidor -------------------
 async function iniciarAPI() {
-  const PORT = Number(process.env.PORT || process.env.BACKEND_PORT || 3051);
+  const PORT = Number(process.env.PORT || process.env.BACKEND_PORT || 3052);
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`API a correr na porta ${PORT}`);

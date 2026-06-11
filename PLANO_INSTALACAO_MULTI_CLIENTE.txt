@@ -52,7 +52,7 @@ MODELO KV RECOMENDADO
 
 EXEMPLO DE CONTEUDO KV (IDEIA)
 - loja:<loja_id>:
-  { "loja_id":"loja_001", "nome":"Loja Teste", "token":"99", "url_api_local":"http://127.0.0.1:3051" }
+  { "loja_id":"loja_001", "nome":"Loja Teste", "token":"99", "url_api_local":"http://127.0.0.1:3052" }
 
 - instalacao:<instalacao_id>:
   { "instalacao_id":"inst_abc", "cliente_id":"cli_1", "loja_id":"loja_001", "hwid":"...", "estado":"ativo", "created_at":"..." }

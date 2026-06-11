@@ -15,7 +15,7 @@ param(
   [string]$CloudflareZoneId = $env:CLOUDFLARE_ZONE_ID,
   [string]$TunnelDomain = "",
   [string]$TunnelName = "",
-  [string]$TunnelService = "http://localhost:3051",
+  [string]$TunnelService = "http://localhost:3052",
   [string]$Binding = "CONFIG"
 )
 

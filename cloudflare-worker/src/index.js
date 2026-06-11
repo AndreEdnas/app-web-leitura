@@ -991,7 +991,7 @@ async function ensureTunnelForActivation(env, kv, activationKey, activationRecor
   const service = String(
     activationRecord?.tunnel_service ||
     env.TUNNEL_SERVICE ||
-    "http://localhost:3051"
+    "http://localhost:3052"
   ).trim();
   const tunnelName = String(
     activationRecord?.tunnel_name ||

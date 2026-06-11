@@ -16,6 +16,7 @@ param(
   [string]$DbPassword = "",
   [string]$TunnelToken = "",
   [string]$PublicWebUrl = "https://picagem-ednas.vercel.app",
+  [string]$BackendPort = "3052",
   [string]$BackendServiceName = "EdnasBackend",
   [string]$TunnelServiceName = "EdnasTunnel",
   [switch]$PromptValues,
@@ -518,7 +519,8 @@ function Invoke-BackendActivation(
   [string]$StoreName,
   [string]$DbServer,
   [string]$DbDatabase,
-  [string]$DbPort
+  [string]$DbPort,
+  [string]$BackendPort
 ) {
   if ([string]::IsNullOrWhiteSpace($Code)) {
     throw "Código de ativação obrigatório."
@@ -545,7 +547,7 @@ function Invoke-BackendActivation(
   }
 
   $body = $bodyObject | ConvertTo-Json -Compress
-  $uri = "http://127.0.0.1:3051/activation/finish"
+  $uri = "http://127.0.0.1:$BackendPort/activation/finish"
 
   for ($i = 1; $i -le 30; $i++) {
     try {
@@ -670,6 +672,10 @@ $storedDbDatabase = Get-EnvValue -EnvPath $installEnv -Key "DB_DATABASE"
 $storedDbPort = Get-EnvValue -EnvPath $installEnv -Key "DB_PORT"
 $storedDbUser = Get-EnvValue -EnvPath $installEnv -Key "DB_USER"
 $storedDbPassword = Get-EnvValue -EnvPath $installEnv -Key "DB_PASSWORD"
+$storedBackendPort = Get-EnvValue -EnvPath $installEnv -Key "BACKEND_PORT"
+if ([string]::IsNullOrWhiteSpace($storedBackendPort)) {
+  $storedBackendPort = Get-EnvValue -EnvPath $installEnv -Key "PORT"
+}
 
 if (-not [string]::IsNullOrWhiteSpace($CfBase)) {
   $CfBase = $CfBase.Trim()
@@ -699,6 +705,7 @@ $DbDatabase = Resolve-Value -Provided $DbDatabase -Stored $storedDbDatabase -Lab
 $DbPort = Resolve-Value -Provided $DbPort -Stored $storedDbPort -Label "Porta SQL (default 1433)"
 $DbUser = Resolve-Value -Provided $DbUser -Stored $storedDbUser -Label "DB_USER"
 $DbPassword = Resolve-Value -Provided $DbPassword -Stored $storedDbPassword -Label "DB_PASSWORD" -Secret $true
+$BackendPort = Resolve-Value -Provided $BackendPort -Stored $storedBackendPort -Label "Porta backend EDNAS (default 3052)"
 
 if ([string]::IsNullOrWhiteSpace($CfBase)) {
   throw "CF_BASE obrigatório. Exemplo: https://ednas-cloud.andre-86d.workers.dev"
@@ -719,6 +726,9 @@ if ([string]::IsNullOrWhiteSpace($DbDatabase)) {
 if ([string]::IsNullOrWhiteSpace($DbPort)) {
   $DbPort = "1433"
 }
+if ([string]::IsNullOrWhiteSpace($BackendPort)) {
+  $BackendPort = "3052"
+}
 
 Write-Step "Escrever backend\\.env"
 $frontendBuildPath = Join-Path $InstallDir "build"
@@ -733,6 +743,8 @@ $envLines = @(
   "DB_PORT=$DbPort"
   "DB_USER=$DbUser"
   "DB_PASSWORD=$DbPassword"
+  "PORT=$BackendPort"
+  "BACKEND_PORT=$BackendPort"
   "MODO_INSTALACAO=false"
 )
 
@@ -780,7 +792,8 @@ try {
     -StoreName $StoreName `
     -DbServer $DbServer `
     -DbDatabase $DbDatabase `
-    -DbPort $DbPort
+    -DbPort $DbPort `
+    -BackendPort $BackendPort
 } catch {
   $logSummary = Get-ServiceLogSummary -Name $BackendServiceName -AppDirectory $backendDir
   $message = $_.Exception.Message

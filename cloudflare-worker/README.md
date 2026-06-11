@@ -115,7 +115,7 @@ wrangler secret put CLOUDFLARE_ZONE_ID
 wrangler secret put TUNNEL_DOMAIN
 ```
 
-O `API_TOKEN` precisa de permissões para criar Cloudflare Tunnel e editar DNS. O tunnel é configurado para apontar para `http://localhost:3051`, que é o backend local instalado no cliente.
+O `API_TOKEN` precisa de permissões para criar Cloudflare Tunnel e editar DNS. O tunnel é configurado para apontar para `http://localhost:3052`, que é o backend local instalado no cliente.
 
 ## 4. Endpoints principais
 

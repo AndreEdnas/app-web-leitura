@@ -47,7 +47,7 @@ export function getLojasConfigUrl() {
       if (!useRemoteOnLocal) {
         const localConfigUrl =
           process.env.REACT_APP_LOCAL_LOJAS_CONFIG_URL?.trim() ||
-          "http://localhost:3051/config-lojas";
+          "http://localhost:3052/config-lojas";
 
         return trimTrailingSlash(localConfigUrl);
       }
@@ -112,13 +112,13 @@ export function getBackendBaseUrl() {
 
   if (typeof window !== "undefined") {
     if (isLocalHostName(window.location.hostname)) {
-      return "http://localhost:3051";
+      return "http://localhost:3052";
     }
 
     return window.location.origin;
   }
 
-  return "http://localhost:3051";
+  return "http://localhost:3052";
 }
 
 export function getBrowserApiBaseUrl(apiUrl, tokenOverride = "") {
