@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
   [string]$InstallDir = "$env:ProgramFiles\EdnasLeitura",
   [string]$SourceDir = "",
@@ -24,6 +24,20 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+
+function Initialize-ConsoleEncoding {
+  try {
+    $utf8 = New-Object System.Text.UTF8Encoding($false)
+    [Console]::InputEncoding = $utf8
+    [Console]::OutputEncoding = $utf8
+    $OutputEncoding = $utf8
+  } catch {
+    # Consolas antigas podem não permitir alterar o encoding; nesse caso seguimos.
+  }
+}
+
+Initialize-ConsoleEncoding
+
 $script:ScriptBoundParameters = @{}
 foreach ($entry in $PSBoundParameters.GetEnumerator()) {
   $script:ScriptBoundParameters[$entry.Key] = $entry.Value
@@ -74,7 +88,7 @@ function Start-ElevatedScript([hashtable]$BoundParameters) {
     }
   }
 
-  Write-Step "A pedir permissao de Administrador"
+  Write-Step "A pedir permissão de Administrador"
   Start-Process `
     -FilePath "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" `
     -Verb RunAs `

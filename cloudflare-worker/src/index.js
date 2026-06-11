@@ -1674,7 +1674,7 @@ export default {
         if (activationIsCliente) {
           if (!lojaId) {
             return jsonResponse(
-              { success: false, error: "Cliente nÃ£o encontrado para ativaÃ§Ã£o" },
+              { success: false, error: "Cliente não encontrado para ativação" },
               404,
               corsHeaders
             );
@@ -1689,7 +1689,7 @@ export default {
 
           if (!isSameInstallation && maxUses > 0 && uses >= maxUses) {
             return jsonResponse(
-              { success: false, error: "CÃ³digo de ativaÃ§Ã£o esgotado" },
+              { success: false, error: "Código de ativação esgotado" },
               409,
               corsHeaders
             );

@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
   [string]$InstallDir = "$env:ProgramFiles\EdnasLeitura",
   [string]$BackendServiceName = "EdnasBackend",
@@ -8,6 +8,19 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+
+function Initialize-ConsoleEncoding {
+  try {
+    $utf8 = New-Object System.Text.UTF8Encoding($false)
+    [Console]::InputEncoding = $utf8
+    [Console]::OutputEncoding = $utf8
+    $OutputEncoding = $utf8
+  } catch {
+    # Consolas antigas podem não permitir alterar o encoding; nesse caso seguimos.
+  }
+}
+
+Initialize-ConsoleEncoding
 
 function Write-Step([string]$Message) {
   Write-Host ""
