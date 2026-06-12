@@ -810,6 +810,57 @@ async function carregarConfigCloudflare() {
   }
 }
 
+async function carregarSnapshotLicencaDireto(machineHwid) {
+  if (!CF_BASE || !machineHwid) {
+    return null;
+  }
+
+  const workerResp = await chamarWorkerJson("/license/check", {
+    method: "POST",
+    body: {
+      hwid: machineHwid,
+      store_token: STORE_TOKEN,
+      store_name: STORE_NAME,
+      activation_code: ACTIVATION_CODE
+    }
+  });
+
+  if (!workerResp.ok || !workerResp.data?.success) {
+    return null;
+  }
+
+  const data = workerResp.data;
+  const lojaId = String(data.loja || data.store_id || STORE_TOKEN || "").trim();
+  const loja = data.store && typeof data.store === "object"
+    ? {
+        ...data.store,
+        id: data.store.id || lojaId,
+        nome: data.store.nome || data.store.name || lojaId
+      }
+    : null;
+  const licenca = data.license && typeof data.license === "object"
+    ? data.license
+    : (data.ativa && lojaId
+        ? {
+            hwid: machineHwid,
+            loja_id: lojaId,
+            loja: lojaId,
+            estado: "ativa",
+            token: ACTIVATION_CODE || null
+          }
+        : null);
+
+  return {
+    configRaw: {
+      lojas: loja && lojaId ? { [lojaId]: loja } : {},
+      licencas: licenca ? { [machineHwid]: licenca } : {}
+    },
+    licenca,
+    lojaDaLicencaId: lojaId || null,
+    lojaDaLicenca: loja,
+  };
+}
+
 function parseJsonSeForTexto(value) {
   if (typeof value !== "string") return value;
   const trimmed = value.trim();
@@ -999,6 +1050,25 @@ async function obterSnapshotLicenca({ req = null, hwid = null, allowAutoRegister
   const guessedUrl = hostHeader ? `https://${hostHeader}` : "Desconhecida";
   const machineHwid = hwid || await gerarHWID();
 
+  const directSnapshot = await carregarSnapshotLicencaDireto(machineHwid);
+  if (directSnapshot?.licenca || directSnapshot?.lojaDaLicenca) {
+    return {
+      hostHeader,
+      guessedUrl,
+      hwid: machineHwid,
+      configRaw: directSnapshot.configRaw,
+      lojas: directSnapshot.lojaDaLicencaId && directSnapshot.lojaDaLicenca
+        ? { [directSnapshot.lojaDaLicencaId]: directSnapshot.lojaDaLicenca }
+        : {},
+      licencasByHwid: directSnapshot.licenca ? { [machineHwid]: directSnapshot.licenca } : {},
+      licenca: directSnapshot.licenca,
+      lojaDoHostId: null,
+      lojaDoHost: null,
+      lojaDaLicencaId: directSnapshot.lojaDaLicencaId,
+      lojaDaLicenca: directSnapshot.lojaDaLicenca
+    };
+  }
+
   let configRaw = await carregarConfigCloudflare();
   if (configRaw && allowAutoRegister) {
     configRaw = await autoRegistarLojaSeNecessario(configRaw, hostHeader, guessedUrl);
@@ -1047,6 +1117,9 @@ async function obterSnapshotLicenca({ req = null, hwid = null, allowAutoRegister
 }
 
 async function chamarWorkerJson(pathname, { method = "GET", body = null } = {}) {
+  const controller = new AbortController();
+  const timeoutMs = Number(process.env.CF_TIMEOUT_MS || 25000) || 25000;
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   const headers = {
     "Accept": "application/json"
   };
@@ -1057,7 +1130,8 @@ async function chamarWorkerJson(pathname, { method = "GET", body = null } = {}) 
 
   const options = {
     method,
-    headers
+    headers,
+    signal: controller.signal
   };
 
   if (body !== null && body !== undefined) {
@@ -1065,8 +1139,19 @@ async function chamarWorkerJson(pathname, { method = "GET", body = null } = {}) 
     options.body = JSON.stringify(body);
   }
 
-  const res = await fetch(`${CF_BASE}${pathname}`, options);
-  const text = await res.text();
+  let res;
+  let text;
+  try {
+    res = await fetch(`${CF_BASE}${pathname}`, options);
+    text = await res.text();
+  } catch (err) {
+    if (err?.name === "AbortError") {
+      throw new Error(`Timeout ao contactar Worker (${timeoutMs} ms)`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
 
   let data = null;
   try {
@@ -1157,6 +1242,7 @@ async function ativarInstalacaoPorCodigo({ req = null } = {}) {
       store_name: STORE_NAME,
       store_token: STORE_TOKEN,
       db_server: DB_SERVER,
+      db_instance: DB_INSTANCE,
       db_database: DB_DATABASE,
       db_port: DB_PORT
     }
@@ -1704,6 +1790,7 @@ app.post("/activation/finish", async (req, res) => {
       store_name: req.body.store_name || req.body.storeName || STORE_NAME,
       store_token: req.body.store_token || req.body.storeToken || req.body.token_loja || STORE_TOKEN,
       db_server: req.body.db_server || req.body.dbServer || DB_SERVER,
+      db_instance: req.body.db_instance || req.body.dbInstance || DB_INSTANCE,
       db_database: req.body.db_database || req.body.dbDatabase || DB_DATABASE,
       db_port: req.body.db_port || req.body.dbPort || DB_PORT
     };

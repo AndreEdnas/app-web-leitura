@@ -33,13 +33,35 @@ function buildCorsHeaders(request, env) {
   };
 }
 
-function toPublicStore(storeId, store) {
+function getClienteTunnelUrl(cliente) {
+  const tunnel = cliente?.tunnel && typeof cliente.tunnel === "object" ?cliente.tunnel : null;
+  return String(
+    tunnel?.url ||
+    tunnel?.tunnel_url ||
+    (tunnel?.hostname ?`https://${tunnel.hostname}` : "") ||
+    (tunnel?.tunnel_hostname ?`https://${tunnel.tunnel_hostname}` : "") ||
+    ""
+  ).trim();
+}
+
+function getPublicStoreUrl(store, cliente = null) {
+  return String(
+    getClienteTunnelUrl(cliente) ||
+    store?.public_url ||
+    store?.publicUrl ||
+    store?.tunnel_url ||
+    store?.url ||
+    ""
+  ).trim();
+}
+
+function toPublicStore(storeId, store, cliente = null) {
   if (!store || typeof store !== "object") return null;
 
   return {
     id: storeId,
     nome: String(store.nome || storeId),
-    url: String(store.url || "").trim() || null,
+    url: getPublicStoreUrl(store, cliente) || null,
   };
 }
 
@@ -122,6 +144,39 @@ async function findStoreByToken(lojas, token) {
   }
 
   return { storeId: null, store: null };
+}
+
+async function resolveStoreByDirectToken(kv, token) {
+  const storeId = normalizeStoreId(token);
+  if (!kv || !storeId) return { storeId: null, store: null, cliente: null };
+
+  const cliente = await readClienteDirect(kv, storeId);
+  if (cliente && typeof cliente === "object") {
+    const store = getClienteStore(storeId, cliente);
+    const acceptedTokens = [
+      storeId,
+      store?.token,
+      store?.store_token,
+      store?.token_loja,
+      cliente.store_token,
+      cliente.token,
+    ];
+    const accepted = acceptedTokens.some((value) => String(value || "").trim() === String(token || "").trim());
+    if (accepted && store) {
+      return { storeId, store, cliente };
+    }
+  }
+
+  const legacyConfig = await readLegacyConfigFromKv(kv);
+  const store = await readStoreDirect(kv, legacyConfig, storeId);
+  if (store) {
+    const expectedToken = store.token || store.store_token || store.token_loja || storeId;
+    if (String(expectedToken || "").trim() === String(token || "").trim()) {
+      return { storeId, store, cliente: null };
+    }
+  }
+
+  return { storeId: null, store: null, cliente: null };
 }
 
 function isAuthorized(request, env) {
@@ -221,6 +276,7 @@ function getClienteStore(clienteId, cliente) {
     url: loja.url || cliente?.url || "",
     server: loja.server || cliente?.server || null,
     database: loja.database || cliente?.database || null,
+    instance: loja.instance || loja.db_instance || cliente?.instance || cliente?.db_instance || null,
     port: Number(loja.port || cliente?.port || 1433),
     token: loja.token || cliente?.token || cliente?.store_token || cliente?.activation_code || null,
     cliente_id: clienteId,
@@ -509,19 +565,6 @@ async function findClienteByActivationCode(kv, activationCode) {
     }
   }
 
-  const clientes = await readPrefixMap(kv, "cliente:");
-  for (const [clienteIdRaw, cliente] of Object.entries(clientes || {})) {
-    if (!cliente || typeof cliente !== "object") continue;
-    if (getClienteActivationCode(cliente) === code) {
-      const clienteId = normalizeStoreId(cliente.id || cliente.cliente_id || cliente.loja_id || clienteIdRaw);
-      return {
-        clienteId,
-        cliente,
-        key: `cliente:${clienteId}`,
-      };
-    }
-  }
-
   return { clienteId: null, cliente: null, key: null };
 }
 
@@ -529,6 +572,175 @@ async function readClienteDirect(kv, clienteId) {
   const normalizedClienteId = normalizeStoreId(clienteId);
   if (!normalizedClienteId) return null;
   return readJson(kv, `cliente:${normalizedClienteId}`);
+}
+
+async function handleClienteActivationDirect(env, kv, corsHeaders, params) {
+  const {
+    body,
+    hwid,
+    guessedUrl,
+    host,
+    activationCode,
+    clienteId,
+    currentCliente,
+  } = params;
+  const lojaId = normalizeStoreId(clienteId || currentCliente?.id || currentCliente?.loja_id);
+  if (!lojaId || !currentCliente || typeof currentCliente !== "object") return null;
+
+  const expectedActivationCode = String(
+    currentCliente.activation_code ||
+    currentCliente.codigo_ativacao ||
+    currentCliente.code ||
+    ""
+  ).trim();
+  if (expectedActivationCode && activationCode && expectedActivationCode !== activationCode) {
+    return jsonResponse(
+      { success: false, error: "Codigo de ativacao invalido para este cliente" },
+      403,
+      corsHeaders
+    );
+  }
+
+  if (!isActivationCodeActive(currentCliente)) {
+    return jsonResponse(
+      { success: false, error: "Codigo de ativacao bloqueado" },
+      403,
+      corsHeaders
+    );
+  }
+
+  if (isActivationCodeExpired(currentCliente)) {
+    return jsonResponse(
+      { success: false, error: "Codigo de ativacao expirado" },
+      403,
+      corsHeaders
+    );
+  }
+
+  const maxUses = Number(currentCliente.max_uses || 0);
+  const uses = Number(currentCliente.uses || 0);
+  const currentStore = getClienteStore(lojaId, currentCliente) || {};
+  const existingLicenseForCliente = getClienteLicense(lojaId, currentCliente);
+  const isSameInstallation = existingLicenseForCliente?.hwid === hwid;
+
+  if (!isSameInstallation && maxUses > 0 && uses >= maxUses) {
+    return jsonResponse(
+      { success: false, error: "Codigo de ativacao esgotado" },
+      409,
+      corsHeaders
+    );
+  }
+
+  const storeSetup = getActivationStoreSetup(body, currentCliente, activationCode, guessedUrl);
+  const now = nowIso();
+  const installationId =
+    currentCliente?.instalacao?.id ||
+    existingLicenseForCliente?.instalacao_id ||
+    `hwid-${hwid}`;
+  const explicitStoreUrl = String(
+    body?.url ||
+    body?.api_url ||
+    body?.apiUrl ||
+    body?.base_url ||
+    body?.baseUrl ||
+    ""
+  ).trim();
+  const explicitPort = Number(
+    body?.port ||
+    body?.db_port ||
+    body?.dbPort ||
+    body?.sql_port ||
+    body?.sqlPort ||
+    0
+  );
+  const storePayload = {
+    ...currentStore,
+    ...(storeSetup || {}),
+    id: lojaId,
+    nome:
+      storeSetup?.nome ||
+      currentStore.nome ||
+      currentCliente.nome ||
+      lojaId,
+    url: explicitStoreUrl || currentStore.url || storeSetup?.url || guessedUrl || null,
+    server: storeSetup?.server || currentStore.server || null,
+    instance: storeSetup?.instance || currentStore.instance || null,
+    database: storeSetup?.database || currentStore.database || null,
+    port: Number(explicitPort || currentStore.port || storeSetup?.port || 1433),
+    token: storeSetup?.token || currentStore.token || activationCode || null,
+  };
+  const installationPayload = {
+    id: installationId,
+    loja_id: lojaId,
+    hwid,
+    host: host || null,
+    guessed_url: guessedUrl || null,
+    estado: "ativo",
+    created_at: currentCliente?.instalacao?.created_at || now,
+    last_seen_at: now,
+  };
+  const licensePayload = {
+    hwid,
+    loja_id: lojaId,
+    loja: lojaId,
+    instalacao_id: installationId,
+    estado: "ativa",
+    token: activationCode || null,
+    ativada_em: currentCliente?.licenca?.ativada_em || now,
+  };
+  const activationRecordWithTunnel = await ensureTunnelForActivationSafe(
+    env,
+    kv,
+    `cliente:${lojaId}`,
+    {
+      ...currentCliente,
+      code: currentCliente.code || currentCliente.activation_code || activationCode || null,
+    },
+    lojaId,
+    hwid
+  );
+  const tunnelSource =
+    activationRecordWithTunnel?.tunnel_token ||
+    activationRecordWithTunnel?.tunnelToken ||
+    activationRecordWithTunnel?.cloudflare_tunnel_token
+      ?activationRecordWithTunnel
+      : currentCliente?.tunnel || activationRecordWithTunnel;
+  const tunnelPayload = toInstallerTunnel(tunnelSource, storePayload);
+  const hasTunnelPayload = Boolean(
+    tunnelPayload?.url ||
+    tunnelPayload?.hostname ||
+    tunnelPayload?.token
+  );
+
+  const updatedCliente = await writeClienteInstallRecord(kv, lojaId, currentCliente, {
+    activationCode: activationCode || null,
+    store: storePayload,
+    installation: installationPayload,
+    license: licensePayload,
+    tunnel: hasTunnelPayload ?tunnelPayload : null,
+  });
+  const updatedClienteWithUsage = {
+    ...updatedCliente,
+    uses: isSameInstallation ?uses : uses + 1,
+    last_hwid: hwid,
+    updated_at: now,
+  };
+  await writeJson(kv, `cliente:${lojaId}`, updatedClienteWithUsage);
+  clearLegacyConfigCache();
+
+  return jsonResponse(
+    {
+      success: true,
+      schema: "cliente-v1",
+      already_active: isSameInstallation,
+      license: licensePayload,
+      installation: installationPayload,
+      loja: toInstallerStore(lojaId, storePayload),
+      tunnel: hasTunnelPayload ?tunnelPayload : toInstallerTunnel(null, storePayload),
+    },
+    200,
+    corsHeaders
+  );
 }
 
 async function writeClienteInstallRecord(kv, clienteId, currentCliente, payload) {
@@ -590,6 +802,7 @@ function toInstallerStore(storeId, store) {
     nome: String(store.nome || storeId),
     url: store.url || null,
     server: store.server || null,
+    instance: store.instance || store.db_instance || null,
     database: store.database || null,
     port: Number(store.port || 1433),
     token: store.token || null,
@@ -640,6 +853,15 @@ function getActivationStoreSetup(body, activationRecord, activationCode, guessed
     activationRecord?.database ||
     ""
   ).trim();
+  const instance = String(
+    body?.db_instance ||
+    body?.dbInstance ||
+    body?.sql_instance ||
+    body?.instance ||
+    activationRecord?.db_instance ||
+    activationRecord?.instance ||
+    ""
+  ).trim();
   const rawPort = body?.db_port || body?.dbPort || body?.port || activationRecord?.db_port || activationRecord?.port;
   const port = Number(rawPort || 1433) || 1433;
   const token = String(
@@ -656,6 +878,7 @@ function getActivationStoreSetup(body, activationRecord, activationCode, guessed
     nome: rawName || activationRecord?.nome || storeId,
     url: String(body?.url || activationRecord?.url || guessedUrl || "").trim() || null,
     server: server || null,
+    instance: instance || null,
     database: database || null,
     port,
     token: token || null,
@@ -685,15 +908,14 @@ async function readStoreDirect(kv, legacyConfig, storeId) {
   return getLegacyOnlyState(legacyConfig).lojas[normalizedStoreId] || null;
 }
 
-async function readLicenseDirect(kv, legacyConfig, hwid) {
+async function readLicenseDirect(kv, legacyConfig, hwid, storeId = "") {
   const normalizedHwid = String(hwid || "").trim();
   if (!normalizedHwid) return null;
 
-  const clientes = await readPrefixMap(kv, "cliente:");
-  for (const [clienteIdRaw, cliente] of Object.entries(clientes || {})) {
-    if (!cliente || typeof cliente !== "object") continue;
-    const clienteId = normalizeStoreId(cliente.id || cliente.cliente_id || cliente.loja_id || clienteIdRaw);
-    const clienteLicense = getClienteLicense(clienteId, cliente);
+  const normalizedStoreId = normalizeStoreId(storeId);
+  if (normalizedStoreId) {
+    const cliente = await readClienteDirect(kv, normalizedStoreId);
+    const clienteLicense = getClienteLicense(normalizedStoreId, cliente);
     if (clienteLicense?.hwid === normalizedHwid) return clienteLicense;
   }
 
@@ -708,9 +930,9 @@ async function readLicenseDirect(kv, legacyConfig, hwid) {
   return getLegacyOnlyState(legacyConfig).licencasByHwid[normalizedHwid] || null;
 }
 
-async function readLicenseSnapshotDirect(kv, legacyConfig, hwid) {
-  const license = await readLicenseDirect(kv, legacyConfig, hwid);
-  const storeId = normalizeStoreId(license?.loja_id || license?.loja || "");
+async function readLicenseSnapshotDirect(kv, legacyConfig, hwid, requestedStoreId = "") {
+  const license = await readLicenseDirect(kv, legacyConfig, hwid, requestedStoreId);
+  const storeId = normalizeStoreId(license?.loja_id || license?.loja || requestedStoreId || "");
   const store = storeId ?await readStoreDirect(kv, legacyConfig, storeId) : null;
 
   return {
@@ -735,6 +957,7 @@ async function upsertStoreFromActivationDirect(env, legacyConfig, storeSetup) {
     nome: storeSetup.nome || current.nome || storeSetup.id,
     url: storeSetup.url || current.url || "",
     server: storeSetup.server || current.server || null,
+    instance: storeSetup.instance || current.instance || null,
     database: storeSetup.database || current.database || null,
     port: Number(storeSetup.port || current.port || 1433),
     token: storeSetup.token || current.token || null,
@@ -812,21 +1035,43 @@ async function upsertStoreFromActivation(env, state, storeSetup) {
 function toInstallerTunnel(activationRecord, store) {
   if (!activationRecord || typeof activationRecord !== "object") {
     return {
+      id: null,
+      name: null,
       url: store?.url || null,
       hostname: null,
+      service: null,
       token: null,
     };
   }
 
+  const token =
+    activationRecord.tunnel_token ||
+    activationRecord.tunnelToken ||
+    activationRecord.cloudflare_tunnel_token ||
+    activationRecord.token ||
+    null;
+  const looksLikeTunnelRecord = Boolean(
+    activationRecord.tunnel_id ||
+    activationRecord.tunnel_name ||
+    activationRecord.tunnel_hostname ||
+    activationRecord.tunnel_url ||
+    activationRecord.tunnel_service ||
+    activationRecord.hostname ||
+    activationRecord.url ||
+    activationRecord.service ||
+    token
+  );
+
   return {
+    id:
+      normalizeCloudflareTunnelId(activationRecord.tunnel_id) ||
+      normalizeCloudflareTunnelId(activationRecord.id) ||
+      getTunnelIdFromToken(token),
+    name: activationRecord.tunnel_name || (looksLikeTunnelRecord ?activationRecord.name : null) || null,
     url: activationRecord.tunnel_url || activationRecord.url || store?.url || null,
     hostname: activationRecord.tunnel_hostname || activationRecord.hostname || null,
-    token:
-      activationRecord.tunnel_token ||
-      activationRecord.tunnelToken ||
-      activationRecord.cloudflare_tunnel_token ||
-      activationRecord.token ||
-      null,
+    service: activationRecord.tunnel_service || activationRecord.service || null,
+    token,
   };
 }
 
@@ -872,6 +1117,39 @@ function shouldAutoCreateTunnel(activationRecord, env) {
   return String(env.AUTO_CREATE_TUNNEL || "").toLowerCase() === "true" &&
     activationRecord.auto_tunnel !== false &&
     activationRecord.autoTunnel !== false;
+}
+
+function getActivationTunnelCodeSlug(activationRecord) {
+  return slugify(
+    activationRecord?.code ||
+    activationRecord?.codigo ||
+    activationRecord?.activation_code ||
+    activationRecord?.codigo_ativacao ||
+    "auto",
+    "auto"
+  );
+}
+
+function buildTunnelCleanupPrefix(lojaId, activationRecord) {
+  return `ednas-${slugify(lojaId, "loja")}-${getActivationTunnelCodeSlug(activationRecord)}-`;
+}
+
+function normalizeCloudflareTunnelId(value) {
+  const id = String(value || "").trim();
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+    ?id
+    : null;
+}
+
+function getTunnelIdFromToken(token) {
+  try {
+    const raw = String(token || "").trim();
+    if (!raw) return null;
+    const decoded = JSON.parse(atob(raw));
+    return String(decoded?.t || "").trim() || null;
+  } catch {
+    return null;
+  }
 }
 
 async function cloudflareApi(env, method, path, body = null) {
@@ -929,6 +1207,47 @@ async function cloudflareApi(env, method, path, body = null) {
   return data.result;
 }
 
+async function cleanupOldTunnelsForActivation(env, accountId, currentTunnelId, cleanupPrefix) {
+  const prefix = String(cleanupPrefix || "").trim();
+  if (!accountId || !currentTunnelId || prefix.length < 8) return;
+  if (String(env.DISABLE_TUNNEL_CLEANUP || "").toLowerCase() === "true") return;
+
+  try {
+    const tunnels = await cloudflareApi(
+      env,
+      "GET",
+      `/accounts/${accountId}/cfd_tunnel?per_page=100`
+    );
+    const items = Array.isArray(tunnels) ?tunnels : [];
+    for (const tunnel of items) {
+      const tunnelId = String(tunnel?.id || "").trim();
+      const tunnelName = String(tunnel?.name || "").trim();
+      if (!tunnelId || tunnelId === currentTunnelId) continue;
+      if (!tunnelName.startsWith(prefix)) continue;
+
+      try {
+        await cloudflareApi(env, "DELETE", `/accounts/${accountId}/cfd_tunnel/${tunnelId}`);
+      } catch (err) {
+        console.warn("Falha ao apagar tunnel antigo:", tunnelName, err?.message || err);
+      }
+    }
+  } catch (err) {
+    console.warn("Falha ao listar tunnels antigos:", err?.message || err);
+  }
+}
+
+async function cloudflareTunnelExists(env, accountId, tunnelId) {
+  const id = normalizeCloudflareTunnelId(tunnelId);
+  if (!accountId || !id) return false;
+
+  try {
+    await cloudflareApi(env, "GET", `/accounts/${accountId}/cfd_tunnel/${id}`);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function buildTunnelHostname(env, activationRecord, lojaId, hwid) {
   const explicitHostname = String(
     activationRecord?.tunnel_hostname ||
@@ -945,7 +1264,14 @@ function buildTunnelHostname(env, activationRecord, lojaId, hwid) {
     throw new Error("TUNNEL_DOMAIN não configurado no Worker.");
   }
 
-  const codeSlug = slugify(activationRecord?.code || activationRecord?.codigo || "", "");
+  const codeSlug = slugify(
+    activationRecord?.code ||
+    activationRecord?.codigo ||
+    activationRecord?.activation_code ||
+    activationRecord?.codigo_ativacao ||
+    "",
+    ""
+  );
   const lojaSlug = slugify(lojaId, "loja");
   const hwidSlug = slugify(String(hwid || "").slice(0, 12), "pc");
   const prefix = codeSlug ?`${lojaSlug}-${codeSlug}` : `${lojaSlug}-${hwidSlug}`;
@@ -954,33 +1280,109 @@ function buildTunnelHostname(env, activationRecord, lojaId, hwid) {
 }
 
 async function ensureTunnelForActivation(env, kv, activationKey, activationRecord, lojaId, hwid) {
+  const accountId = getEnvValue(env, [
+    "CLOUDFLARE_ACCOUNT_ID",
+    "CF_ACCOUNT_ID",
+  ]);
+  const zoneId = getEnvValue(env, [
+    "CLOUDFLARE_ZONE_ID",
+    "CF_ZONE_ID",
+  ]);
+  if (!accountId) throw new Error("CLOUDFLARE_ACCOUNT_ID não configurado no Worker.");
+  if (!zoneId) throw new Error("CLOUDFLARE_ZONE_ID não configurado no Worker.");
+
   const existingToken =
     activationRecord?.tunnel_token ||
     activationRecord?.tunnelToken ||
     activationRecord?.cloudflare_tunnel_token ||
     null;
-  if (existingToken) return activationRecord;
+  if (existingToken) {
+    const existingTokenTunnelId =
+      normalizeCloudflareTunnelId(activationRecord?.tunnel_id) ||
+      getTunnelIdFromToken(existingToken);
+    if (await cloudflareTunnelExists(env, accountId, existingTokenTunnelId)) {
+      return activationRecord;
+    }
+  }
   if (!shouldAutoCreateTunnel(activationRecord, env)) return activationRecord;
+
+  const embeddedTunnel = activationRecord?.tunnel;
+  if (embeddedTunnel?.token) {
+    const embeddedTunnelId =
+      normalizeCloudflareTunnelId(embeddedTunnel.id) ||
+      normalizeCloudflareTunnelId(embeddedTunnel.tunnel_id) ||
+      getTunnelIdFromToken(embeddedTunnel.token);
+    if (!(await cloudflareTunnelExists(env, accountId, embeddedTunnelId))) {
+      if (activationKey && String(activationKey).startsWith("cliente:")) {
+        const currentCliente = await readJson(kv, activationKey);
+        if (currentCliente && typeof currentCliente === "object") {
+          const { tunnel, ...withoutTunnel } = currentCliente;
+          await writeJson(kv, activationKey, {
+            ...withoutTunnel,
+            updated_at: nowIso(),
+          });
+        }
+      }
+    } else {
+    await cleanupOldTunnelsForActivation(
+      env,
+      accountId,
+      embeddedTunnelId,
+      buildTunnelCleanupPrefix(lojaId, activationRecord)
+    );
+
+    return {
+      ...activationRecord,
+      tunnel_id:
+        normalizeCloudflareTunnelId(embeddedTunnel.id) ||
+        normalizeCloudflareTunnelId(embeddedTunnel.tunnel_id) ||
+        getTunnelIdFromToken(embeddedTunnel.token),
+      tunnel_name: embeddedTunnel.name || embeddedTunnel.tunnel_name || null,
+      tunnel_hostname: embeddedTunnel.hostname || embeddedTunnel.tunnel_hostname || null,
+      tunnel_url: embeddedTunnel.url || embeddedTunnel.tunnel_url || null,
+      tunnel_service: embeddedTunnel.service || embeddedTunnel.tunnel_service || null,
+      tunnel_token: embeddedTunnel.token,
+    };
+    }
+  }
 
   const tunnelKey = `tunnel:${hwid}`;
   const existingTunnel = await readJson(kv, tunnelKey);
   if (existingTunnel?.token) {
+    const existingTunnelId =
+      normalizeCloudflareTunnelId(existingTunnel.id) ||
+      normalizeCloudflareTunnelId(existingTunnel.tunnel_id) ||
+      getTunnelIdFromToken(existingTunnel.token);
+    if (!(await cloudflareTunnelExists(env, accountId, existingTunnelId))) {
+      await kv.delete(tunnelKey);
+    } else {
+    await cleanupOldTunnelsForActivation(
+      env,
+      accountId,
+      existingTunnelId,
+      buildTunnelCleanupPrefix(lojaId, activationRecord)
+    );
+
     return {
       ...activationRecord,
-      tunnel_id: existingTunnel.id || existingTunnel.tunnel_id || null,
+      tunnel_id:
+        normalizeCloudflareTunnelId(existingTunnel.id) ||
+        normalizeCloudflareTunnelId(existingTunnel.tunnel_id) ||
+        getTunnelIdFromToken(existingTunnel.token),
       tunnel_name: existingTunnel.name || existingTunnel.tunnel_name || null,
       tunnel_hostname: existingTunnel.hostname || existingTunnel.tunnel_hostname || null,
       tunnel_url: existingTunnel.url || existingTunnel.tunnel_url || null,
       tunnel_service: existingTunnel.service || existingTunnel.tunnel_service || null,
       tunnel_token: existingTunnel.token,
     };
+    }
   }
 
-  const accountId = getEnvValue(env, [
+  const unusedAccountId = getEnvValue(env, [
     "CLOUDFLARE_ACCOUNT_ID",
     "CF_ACCOUNT_ID",
   ]);
-  const zoneId = getEnvValue(env, [
+  const unusedZoneId = getEnvValue(env, [
     "CLOUDFLARE_ZONE_ID",
     "CF_ZONE_ID",
   ]);
@@ -993,15 +1395,34 @@ async function ensureTunnelForActivation(env, kv, activationKey, activationRecor
     env.TUNNEL_SERVICE ||
     "http://localhost:3052"
   ).trim();
-  const tunnelName = String(
+  const cleanupTunnelPrefix = buildTunnelCleanupPrefix(lojaId, activationRecord);
+  const baseTunnelName = String(
     activationRecord?.tunnel_name ||
-    `ednas-${slugify(lojaId, "loja")}-${slugify(activationRecord?.code || "auto", "pc")}-${slugify(String(hwid || "").slice(0, 8), "pc")}`
+    `${cleanupTunnelPrefix}${slugify(String(hwid || "").slice(0, 8), "pc")}`
   ).trim();
 
-  const tunnel = await cloudflareApi(env, "POST", `/accounts/${accountId}/cfd_tunnel`, {
-    name: tunnelName,
-    config_src: "cloudflare",
-  });
+  let tunnelName = baseTunnelName;
+  let tunnel = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      tunnel = await cloudflareApi(env, "POST", `/accounts/${accountId}/cfd_tunnel`, {
+        name: tunnelName,
+        config_src: "cloudflare",
+      });
+      break;
+    } catch (err) {
+      const message = String(err?.message || "");
+      const duplicatedName =
+        message.includes("CF1013") ||
+        message.toLowerCase().includes("already have a tunnel with this name");
+      if (!duplicatedName || attempt > 0) {
+        throw err;
+      }
+
+      tunnelName = `${baseTunnelName}-${Date.now().toString(36)}`;
+    }
+  }
+
   const tunnelId = String(tunnel?.id || "").trim();
   const tunnelToken = String(tunnel?.token || "").trim();
   if (!tunnelId || !tunnelToken) {
@@ -1057,18 +1478,256 @@ async function ensureTunnelForActivation(env, kv, activationKey, activationRecor
     token: tunnelToken,
     loja_id: lojaId,
     hwid,
-    activation_code: activationRecord?.code || null,
+    activation_code:
+      activationRecord?.code ||
+      activationRecord?.codigo ||
+      activationRecord?.activation_code ||
+      activationRecord?.codigo_ativacao ||
+      null,
     created_at: nowIso(),
     updated_at: nowIso(),
   };
-  await writeJson(kv, tunnelKey, tunnelRecord);
 
-  await writeJson(kv, activationKey, {
+  if (activationKey && String(activationKey).startsWith("cliente:")) {
+    const currentCliente = await readJson(kv, activationKey);
+    if (currentCliente && typeof currentCliente === "object") {
+      await writeJson(kv, activationKey, {
+        ...currentCliente,
+        tunnel: {
+          ...(currentCliente.tunnel && typeof currentCliente.tunnel === "object"
+            ?currentCliente.tunnel
+            : {}),
+          ...tunnelRecord,
+        },
+        updated_at: nowIso(),
+      });
+    }
+  } else {
+    await writeJson(kv, tunnelKey, tunnelRecord);
+  }
+
+  if (activationKey && !String(activationKey).startsWith("cliente:")) {
+    await writeJson(kv, activationKey, {
+      ...activationRecord,
+      last_tunnel_id: tunnelId,
+      last_tunnel_hostname: hostname,
+      updated_at: nowIso(),
+    });
+  }
+
+  await cleanupOldTunnelsForActivation(env, accountId, tunnelId, cleanupTunnelPrefix);
+
+  return {
     ...activationRecord,
-    last_tunnel_id: tunnelId,
-    last_tunnel_hostname: hostname,
-    updated_at: nowIso(),
+    tunnel_id: tunnelRecord.id,
+    tunnel_name: tunnelRecord.name,
+    tunnel_hostname: tunnelRecord.hostname,
+    tunnel_url: tunnelRecord.url,
+    tunnel_service: tunnelRecord.service,
+    tunnel_token: tunnelRecord.token,
+  };
+}
+
+async function ensureTunnelForActivationSafe(env, kv, activationKey, activationRecord, lojaId, hwid) {
+  const accountId = getEnvValue(env, [
+    "CLOUDFLARE_ACCOUNT_ID",
+    "CF_ACCOUNT_ID",
+  ]);
+  const zoneId = getEnvValue(env, [
+    "CLOUDFLARE_ZONE_ID",
+    "CF_ZONE_ID",
+  ]);
+  if (!accountId) throw new Error("CLOUDFLARE_ACCOUNT_ID nao configurado no Worker.");
+  if (!zoneId) throw new Error("CLOUDFLARE_ZONE_ID nao configurado no Worker.");
+
+  const cleanupTunnelPrefix = buildTunnelCleanupPrefix(lojaId, activationRecord);
+  const tunnelKey = `tunnel:${hwid}`;
+
+  async function reuseTunnelIfAlive(source) {
+    if (!source?.token) return null;
+    const tunnelId =
+      normalizeCloudflareTunnelId(source.id) ||
+      normalizeCloudflareTunnelId(source.tunnel_id) ||
+      getTunnelIdFromToken(source.token);
+    if (!(await cloudflareTunnelExists(env, accountId, tunnelId))) {
+      return null;
+    }
+
+    await cleanupOldTunnelsForActivation(env, accountId, tunnelId, cleanupTunnelPrefix);
+    return {
+      ...activationRecord,
+      tunnel_id: tunnelId,
+      tunnel_name: source.name || source.tunnel_name || null,
+      tunnel_hostname: source.hostname || source.tunnel_hostname || null,
+      tunnel_url: source.url || source.tunnel_url || null,
+      tunnel_service: source.service || source.tunnel_service || null,
+      tunnel_token: source.token,
+    };
+  }
+
+  const existingToken =
+    activationRecord?.tunnel_token ||
+    activationRecord?.tunnelToken ||
+    activationRecord?.cloudflare_tunnel_token ||
+    null;
+  const reusableDirectTunnel = await reuseTunnelIfAlive({
+    id: activationRecord?.tunnel_id,
+    name: activationRecord?.tunnel_name,
+    hostname: activationRecord?.tunnel_hostname,
+    url: activationRecord?.tunnel_url,
+    service: activationRecord?.tunnel_service,
+    token: existingToken,
   });
+  if (reusableDirectTunnel) return reusableDirectTunnel;
+  if (!shouldAutoCreateTunnel(activationRecord, env)) return activationRecord;
+
+  const embeddedTunnel = activationRecord?.tunnel;
+  const reusableEmbeddedTunnel = await reuseTunnelIfAlive(embeddedTunnel);
+  if (reusableEmbeddedTunnel) return reusableEmbeddedTunnel;
+  if (embeddedTunnel?.token && activationKey && String(activationKey).startsWith("cliente:")) {
+    const currentCliente = await readJson(kv, activationKey);
+    if (currentCliente && typeof currentCliente === "object") {
+      const { tunnel, ...withoutTunnel } = currentCliente;
+      await writeJson(kv, activationKey, {
+        ...withoutTunnel,
+        updated_at: nowIso(),
+      });
+    }
+  }
+
+  const existingTunnel = await readJson(kv, tunnelKey);
+  const reusableLegacyTunnel = await reuseTunnelIfAlive(existingTunnel);
+  if (reusableLegacyTunnel) return reusableLegacyTunnel;
+  if (existingTunnel?.token) {
+    await kv.delete(tunnelKey);
+  }
+
+  const hostname = buildTunnelHostname(env, activationRecord, lojaId, hwid);
+  const service = String(
+    activationRecord?.tunnel_service ||
+    env.TUNNEL_SERVICE ||
+    "http://localhost:3052"
+  ).trim();
+  const baseTunnelName = String(
+    activationRecord?.tunnel_name ||
+    `${cleanupTunnelPrefix}${slugify(String(hwid || "").slice(0, 8), "pc")}`
+  ).trim();
+
+  let tunnelName = baseTunnelName;
+  let tunnel = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      tunnel = await cloudflareApi(env, "POST", `/accounts/${accountId}/cfd_tunnel`, {
+        name: tunnelName,
+        config_src: "cloudflare",
+      });
+      break;
+    } catch (err) {
+      const message = String(err?.message || "");
+      const duplicatedName =
+        message.includes("CF1013") ||
+        message.toLowerCase().includes("already have a tunnel with this name");
+      if (!duplicatedName || attempt > 0) {
+        throw err;
+      }
+
+      tunnelName = `${baseTunnelName}-${Date.now().toString(36)}`;
+    }
+  }
+
+  const tunnelId = String(tunnel?.id || "").trim();
+  const tunnelToken = String(tunnel?.token || "").trim();
+  if (!tunnelId || !tunnelToken) {
+    throw new Error("A Cloudflare criou o tunnel, mas nao devolveu id/token.");
+  }
+
+  await cloudflareApi(env, "PUT", `/accounts/${accountId}/cfd_tunnel/${tunnelId}/configurations`, {
+    config: {
+      ingress: [
+        {
+          hostname,
+          service,
+          originRequest: {},
+        },
+        {
+          service: "http_status:404",
+        },
+      ],
+    },
+  });
+
+  const encodedHostname = encodeURIComponent(hostname);
+  const existingRecords = await cloudflareApi(
+    env,
+    "GET",
+    `/zones/${zoneId}/dns_records?type=CNAME&name=${encodedHostname}`
+  );
+  const dnsBody = {
+    type: "CNAME",
+    name: hostname,
+    content: `${tunnelId}.cfargotunnel.com`,
+    proxied: true,
+    ttl: 1,
+  };
+
+  if (Array.isArray(existingRecords) && existingRecords.length > 0) {
+    await cloudflareApi(
+      env,
+      "PUT",
+      `/zones/${zoneId}/dns_records/${existingRecords[0].id}`,
+      dnsBody
+    );
+  } else {
+    await cloudflareApi(env, "POST", `/zones/${zoneId}/dns_records`, dnsBody);
+  }
+
+  const tunnelRecord = {
+    id: tunnelId,
+    name: tunnelName,
+    hostname,
+    url: `https://${hostname}`,
+    service,
+    token: tunnelToken,
+    loja_id: lojaId,
+    hwid,
+    activation_code:
+      activationRecord?.code ||
+      activationRecord?.codigo ||
+      activationRecord?.activation_code ||
+      activationRecord?.codigo_ativacao ||
+      null,
+    created_at: nowIso(),
+    updated_at: nowIso(),
+  };
+
+  if (activationKey && String(activationKey).startsWith("cliente:")) {
+    const currentCliente = await readJson(kv, activationKey);
+    if (currentCliente && typeof currentCliente === "object") {
+      await writeJson(kv, activationKey, {
+        ...currentCliente,
+        tunnel: {
+          ...(currentCliente.tunnel && typeof currentCliente.tunnel === "object"
+            ?currentCliente.tunnel
+            : {}),
+          ...tunnelRecord,
+        },
+        updated_at: nowIso(),
+      });
+    }
+  } else {
+    await writeJson(kv, tunnelKey, tunnelRecord);
+  }
+
+  if (activationKey && !String(activationKey).startsWith("cliente:")) {
+    await writeJson(kv, activationKey, {
+      ...activationRecord,
+      last_tunnel_id: tunnelId,
+      last_tunnel_hostname: hostname,
+      updated_at: nowIso(),
+    });
+  }
+
+  await cleanupOldTunnelsForActivation(env, accountId, tunnelId, cleanupTunnelPrefix);
 
   return {
     ...activationRecord,
@@ -1176,8 +1835,12 @@ export default {
         );
       }
 
-      const state = await loadState(env, { bypassCache: true });
-      const { storeId, store } = await findStoreByToken(state.normalized.lojas, token);
+      const kv = getKvNamespace(env);
+      if (!kv) {
+        return jsonResponse({ success: false, error: "KV namespace nÃ£o configurado" }, 500, corsHeaders);
+      }
+
+      const { storeId, store, cliente } = await resolveStoreByDirectToken(kv, token);
       if (!storeId || !store) {
         return jsonResponse(
           { success: false, error: "Token inválido" },
@@ -1186,7 +1849,7 @@ export default {
         );
       }
 
-      const publicStore = toPublicStore(storeId, store);
+      const publicStore = toPublicStore(storeId, store, cliente);
       if (!publicStore?.url) {
         return jsonResponse(
           { success: false, error: "Loja sem URL pública configurada" },
@@ -1216,9 +1879,13 @@ export default {
         );
       }
 
-      const state = await loadState(env, { bypassCache: true });
-      const { store, storeId } = await findStoreByToken(state.normalized.lojas, token);
-      const storeUrl = String(store?.url || "").trim().replace(/\/+$/, "");
+      const kv = getKvNamespace(env);
+      if (!kv) {
+        return jsonResponse({ success: false, error: "KV namespace nÃ£o configurado" }, 500, corsHeaders);
+      }
+
+      const { store, storeId, cliente } = await resolveStoreByDirectToken(kv, token);
+      const storeUrl = getPublicStoreUrl(store, cliente).replace(/\/+$/, "");
       if (!storeId || !store || !storeUrl) {
         return jsonResponse(
           { success: false, error: "Loja não encontrada" },
@@ -1237,6 +1904,21 @@ export default {
         body: ["GET", "HEAD"].includes(request.method) ? undefined : request.body,
         redirect: "manual",
       });
+
+      const proxyContentType = proxyResponse.headers.get("content-type") || "";
+      if (!proxyResponse.ok && !proxyContentType.toLowerCase().includes("application/json")) {
+        return jsonResponse(
+          {
+            success: false,
+            error: "Tunnel da loja indisponivel",
+            upstream_status: proxyResponse.status,
+            loja: storeId,
+            url: storeUrl,
+          },
+          proxyResponse.status === 404 ?404 : 502,
+          corsHeaders
+        );
+      }
 
       return new Response(proxyResponse.body, {
         status: proxyResponse.status,
@@ -1552,6 +2234,31 @@ export default {
           return jsonResponse({ success: false, error: "KV namespace não configurado" }, 500, corsHeaders);
         }
 
+        const directClienteId = normalizeStoreId(
+          body.store_token ||
+          body.token_loja ||
+          body.store_id ||
+          body.store_name ||
+          body.loja_id ||
+          body.loja ||
+          ""
+        );
+        if (activationCode && directClienteId) {
+          const directCliente = await readClienteDirect(kv, directClienteId);
+          if (directCliente && typeof directCliente === "object") {
+            const directResponse = await handleClienteActivationDirect(env, kv, corsHeaders, {
+              body,
+              hwid,
+              guessedUrl,
+              host,
+              activationCode,
+              clienteId: directClienteId,
+              currentCliente: directCliente,
+            });
+            if (directResponse) return directResponse;
+          }
+        }
+
         const currentState = await loadState(env, { bypassCache: true });
         const legacyConfig = currentState.legacyConfig;
         const legacyState = currentState.normalized;
@@ -1583,7 +2290,12 @@ export default {
                 : null;
 
               if (existingStore) {
-                const existingTunnel = await readJson(kv, `tunnel:${hwid}`);
+                const existingCliente = existingStoreId
+                  ?await readClienteDirect(kv, existingStoreId)
+                  : null;
+                const existingTunnel =
+                  existingCliente?.tunnel ||
+                  await readJson(kv, `tunnel:${hwid}`);
                 return jsonResponse(
                   {
                     success: true,
@@ -1727,6 +2439,7 @@ export default {
               lojaId,
             url: explicitStoreUrl || currentStore.url || storeSetup?.url || guessedUrl || null,
             server: storeSetup?.server || currentStore.server || null,
+            instance: storeSetup?.instance || currentStore.instance || null,
             database: storeSetup?.database || currentStore.database || null,
             port: Number(explicitPort || currentStore.port || storeSetup?.port || 1433),
             token: storeSetup?.token || currentStore.token || activationCode || null,
@@ -1750,7 +2463,24 @@ export default {
             token: activationCode || null,
             ativada_em: currentCliente?.licenca?.ativada_em || now,
           };
-          const tunnelPayload = toInstallerTunnel(currentCliente?.tunnel || activationRecord, storePayload);
+          const activationRecordWithTunnel = await ensureTunnelForActivationSafe(
+            env,
+            kv,
+            activationKey,
+            {
+              ...activationRecord,
+              code: activationRecord.code || activationRecord.activation_code || activationCode || null,
+            },
+            lojaId,
+            hwid
+          );
+          const tunnelSource =
+            activationRecordWithTunnel?.tunnel_token ||
+            activationRecordWithTunnel?.tunnelToken ||
+            activationRecordWithTunnel?.cloudflare_tunnel_token
+              ?activationRecordWithTunnel
+              : currentCliente?.tunnel || activationRecordWithTunnel;
+          const tunnelPayload = toInstallerTunnel(tunnelSource, storePayload);
           const hasTunnelPayload = Boolean(
             tunnelPayload?.url ||
             tunnelPayload?.hostname ||
@@ -1798,7 +2528,7 @@ export default {
             store = await upsertStoreFromActivationDirect(env, legacyConfig, storeSetup);
           }
           if (activationRecord && activationKey && existingStoreId) {
-            activationRecord = await ensureTunnelForActivation(
+            activationRecord = await ensureTunnelForActivationSafe(
               env,
               kv,
               activationKey,
@@ -1883,7 +2613,7 @@ export default {
         }
 
         if (activationRecord && activationKey) {
-          activationRecord = await ensureTunnelForActivation(
+          activationRecord = await ensureTunnelForActivationSafe(
             env,
             kv,
             activationKey,
@@ -2114,6 +2844,15 @@ export default {
     if (pathname === "/license/check" && request.method === "POST") {
       const body = await request.json().catch(() => ({}));
       const hwid = String(body?.hwid || "").trim();
+      const requestedStoreId = normalizeStoreId(
+        body?.store_token ||
+        body?.token_loja ||
+        body?.store_id ||
+        body?.store_name ||
+        body?.loja_id ||
+        body?.loja ||
+        ""
+      );
 
       if (!hwid) {
         return jsonResponse(
@@ -2129,7 +2868,7 @@ export default {
       }
 
       const legacyConfig = await readLegacyConfigFromKv(kv);
-      const { license, storeId, store } = await readLicenseSnapshotDirect(kv, legacyConfig, hwid);
+      const { license, storeId, store } = await readLicenseSnapshotDirect(kv, legacyConfig, hwid, requestedStoreId);
       const isActive = Boolean(license && store && (license.estado || "ativa") === "ativa");
 
       return jsonResponse(
@@ -2140,6 +2879,8 @@ export default {
           ativa: isActive,
           precisaAtivacao: !license,
           loja: storeId || null,
+          store: store ?toInstallerStore(storeId, store) : null,
+          license: license || null,
           checkedAt: nowIso(),
         },
         200,
@@ -2150,6 +2891,15 @@ export default {
     if (pathname === "/heartbeat" && request.method === "POST") {
       const body = await request.json().catch(() => ({}));
       const hwid = String(body?.hwid || "").trim();
+      const requestedStoreId = normalizeStoreId(
+        body?.store_token ||
+        body?.token_loja ||
+        body?.store_id ||
+        body?.store_name ||
+        body?.loja_id ||
+        body?.loja ||
+        ""
+      );
 
       if (!hwid) {
         return jsonResponse(
@@ -2165,7 +2915,7 @@ export default {
       }
 
       const legacyConfig = await readLegacyConfigFromKv(kv);
-      const { license, storeId, store } = await readLicenseSnapshotDirect(kv, legacyConfig, hwid);
+      const { license, storeId, store } = await readLicenseSnapshotDirect(kv, legacyConfig, hwid, requestedStoreId);
       const isActive = Boolean(license && store && (license.estado || "ativa") === "ativa");
 
       if (license?.instalacao_id) {

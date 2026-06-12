@@ -46,12 +46,29 @@ export default function LoginPage({ apiUrl, onLoginSuccess }) {
     }
   }
 
-  const adicionarNumero = (num) => setPin((prev) => (prev + num).slice(0, 6));
+  const adicionarNumero = (num) =>
+    setPin((prev) => prev + num);
   const apagarUltimo = () => setPin((prev) => prev.slice(0, -1));
   const limparTudo = () => setPin("");
 
   return (
-    <main className="app-auth-page">
+    <main
+      className="app-auth-page"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (!empregadoSelecionado) return;
+
+        if (/^[0-9]$/.test(e.key)) adicionarNumero(e.key);
+        if (e.key === "Backspace") apagarUltimo();
+        if (e.key === "Enter") fazerLogin();
+
+        if (e.key === "Escape") {
+          setEmpregadoSelecionado(null);
+          setPin("");
+          setErro("");
+        }
+      }}
+    >
       <section className="app-auth-card">
         <div className="app-auth-header">
           <div className="app-brand-badge">
@@ -63,9 +80,9 @@ export default function LoginPage({ apiUrl, onLoginSuccess }) {
           </p>
         </div>
 
-        {!empregadoSelecionado ?(
+        {!empregadoSelecionado ? (
           <div className="app-user-strip">
-            {empregados.length > 0 ?(
+            {empregados.length > 0 ? (
               empregados.map((emp) => (
                 <button
                   key={emp.codigo}
@@ -100,6 +117,26 @@ export default function LoginPage({ apiUrl, onLoginSuccess }) {
               placeholder="PIN"
               value={pin}
               readOnly
+              autoFocus
+              onKeyDown={(e) => {
+                if (/^[0-9]$/.test(e.key)) {
+                  adicionarNumero(e.key);
+                }
+
+                if (e.key === "Backspace") {
+                  apagarUltimo();
+                }
+
+                if (e.key === "Enter") {
+                  fazerLogin();
+                }
+
+                if (e.key === "Escape") {
+                  setEmpregadoSelecionado(null);
+                  setPin("");
+                  setErro("");
+                }
+              }}
             />
 
             <div className="app-keypad">
@@ -113,13 +150,21 @@ export default function LoginPage({ apiUrl, onLoginSuccess }) {
                   {n}
                 </button>
               ))}
-              <button type="button" className="btn btn-outline-secondary" onClick={limparTudo}>
+              <button
+                type="button"
+                className="btn btn-outline-secondary"
+                onClick={limparTudo}
+              >
                 C
               </button>
               <button type="button" className="btn btn-outline-dark" onClick={() => adicionarNumero(0)}>
                 0
               </button>
-              <button type="button" className="btn btn-outline-secondary" onClick={apagarUltimo}>
+              <button
+                type="button"
+                className="btn btn-outline-secondary"
+                onClick={apagarUltimo}
+              >
                 Apagar
               </button>
             </div>

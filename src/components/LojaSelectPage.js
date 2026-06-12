@@ -43,7 +43,11 @@ export default function LojaSelectPage({ resolverUrl, onLojaConfirmada }) {
       }
 
       const browserApiUrl = getBrowserApiBaseUrl(apiUrl, token);
+
       localStorage.removeItem("empregado");
+      localStorage.removeItem("produtos");
+      localStorage.removeItem("alteracoesPendentes");
+
       localStorage.setItem("tokenLoja", token);
       localStorage.setItem("lojaSelecionada", lojaId);
       localStorage.setItem("apiUrl", browserApiUrl);
@@ -91,7 +95,7 @@ export default function LojaSelectPage({ resolverUrl, onLojaConfirmada }) {
             className="btn btn-success w-100"
             disabled={aValidar}
           >
-            {aValidar ?"A validar..." : "Entrar"}
+            {aValidar ? "A validar..." : "Entrar"}
           </button>
         </form>
       </section>

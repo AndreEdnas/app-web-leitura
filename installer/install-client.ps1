@@ -10,6 +10,7 @@ param(
   [string]$StoreToken = "",
   [string]$StoreName = "",
   [string]$DbServer = "",
+  [string]$DbInstance = "",
   [string]$DbDatabase = "",
   [string]$DbPort = "",
   [string]$DbUser = "",
@@ -20,24 +21,71 @@ param(
   [string]$BackendServiceName = "EdnasBackend",
   [string]$TunnelServiceName = "EdnasTunnel",
   [switch]$PromptValues,
-  [switch]$SkipCopy
+  [switch]$SkipCopy,
+  [switch]$AllowWithoutTunnel
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+
+trap {
+  Write-Host ""
+  Write-Host "ERRO NA INSTALACAO" -ForegroundColor Red
+  Write-Host $_.Exception.Message -ForegroundColor Red
+  Write-Host ""
+  Read-Host "Pressione Enter para finalizar"
+  exit 1
+}
 
 function Initialize-ConsoleEncoding {
   try {
     $utf8 = New-Object System.Text.UTF8Encoding($false)
     [Console]::InputEncoding = $utf8
     [Console]::OutputEncoding = $utf8
-    $OutputEncoding = $utf8
+    $global:OutputEncoding = $utf8
+    & chcp.com 65001 | Out-Null
   } catch {
     # Consolas antigas podem não permitir alterar o encoding; nesse caso seguimos.
   }
 }
 
 Initialize-ConsoleEncoding
+
+function Disable-ConsoleQuickEdit {
+  try {
+    $signature = @"
+using System;
+using System.Runtime.InteropServices;
+
+public static class ConsoleMode {
+  [DllImport("kernel32.dll")]
+  public static extern IntPtr GetStdHandle(int nStdHandle);
+
+  [DllImport("kernel32.dll")]
+  public static extern bool GetConsoleMode(IntPtr hConsoleHandle, out int lpMode);
+
+  [DllImport("kernel32.dll")]
+  public static extern bool SetConsoleMode(IntPtr hConsoleHandle, int dwMode);
+}
+"@
+    if (-not ("ConsoleMode" -as [type])) {
+      Add-Type -TypeDefinition $signature
+    }
+
+    $stdin = [ConsoleMode]::GetStdHandle(-10)
+    $mode = 0
+    if ([ConsoleMode]::GetConsoleMode($stdin, [ref]$mode)) {
+      $enableExtendedFlags = 0x0080
+      $enableQuickEditMode = 0x0040
+      $newMode = ($mode -bor $enableExtendedFlags) -band (-bnot $enableQuickEditMode)
+      [ConsoleMode]::SetConsoleMode($stdin, $newMode) | Out-Null
+    }
+  } catch {
+    # Se a consola não suportar esta opção, continuamos normalmente.
+  }
+}
+
+Disable-ConsoleQuickEdit
 
 $script:ScriptBoundParameters = @{}
 foreach ($entry in $PSBoundParameters.GetEnumerator()) {
@@ -69,7 +117,6 @@ function Start-ElevatedScript([hashtable]$BoundParameters) {
   $argumentParts = @(
     "-NoProfile",
     "-ExecutionPolicy Bypass",
-    "-NoExit",
     "-File $(Quote-ProcessArgument $scriptPath)"
   )
 
@@ -358,7 +405,7 @@ function Get-RecentFileText(
   }
 
   try {
-    return (Get-Content -LiteralPath $Path -Tail $Lines -ErrorAction Stop | Out-String).Trim()
+    return (Get-Content -LiteralPath $Path -Tail $Lines -Encoding UTF8 -ErrorAction Stop | Out-String).Trim()
   } catch {
     return ""
   }
@@ -390,10 +437,14 @@ function Start-ServiceWithDiagnostics(
   [string]$AppDirectory
 ) {
   $startError = ""
+  $oldWarningPreference = $WarningPreference
   try {
-    Start-Service -Name $Name -ErrorAction Stop
+    $WarningPreference = "SilentlyContinue"
+    Start-Service -Name $Name -ErrorAction Stop -WarningAction SilentlyContinue
   } catch {
     $startError = $_.Exception.Message
+  } finally {
+    $WarningPreference = $oldWarningPreference
   }
 
   for ($i = 1; $i -le 15; $i++) {
@@ -421,6 +472,7 @@ function Test-SqlConnection(
   [string]$NodeExe,
   [string]$BackendDir,
   [string]$DbServer,
+  [string]$DbInstance,
   [string]$DbDatabase,
   [string]$DbPort,
   [string]$DbUser,
@@ -450,6 +502,10 @@ function splitSqlTarget(rawServer) {
 
 (async () => {
   const target = splitSqlTarget(getArg("server"));
+  const explicitInstance = getArg("instance").trim();
+  if (explicitInstance) {
+    target.instanceName = explicitInstance;
+  }
   const config = {
     user: getArg("user"),
     password: getArg("password"),
@@ -490,6 +546,7 @@ function splitSqlTarget(rawServer) {
     $arguments = @(
       $tempScript,
       "--server=$DbServer",
+      "--instance=$DbInstance",
       "--database=$DbDatabase",
       "--port=$DbPort",
       "--user=$DbUser",
@@ -518,6 +575,7 @@ function Invoke-BackendActivation(
   [string]$StoreToken,
   [string]$StoreName,
   [string]$DbServer,
+  [string]$DbInstance,
   [string]$DbDatabase,
   [string]$DbPort,
   [string]$BackendPort
@@ -539,6 +597,9 @@ function Invoke-BackendActivation(
   if (-not [string]::IsNullOrWhiteSpace($DbServer)) {
     $bodyObject.db_server = $DbServer.Trim()
   }
+  if (-not [string]::IsNullOrWhiteSpace($DbInstance)) {
+    $bodyObject.db_instance = $DbInstance.Trim()
+  }
   if (-not [string]::IsNullOrWhiteSpace($DbDatabase)) {
     $bodyObject.db_database = $DbDatabase.Trim()
   }
@@ -549,14 +610,15 @@ function Invoke-BackendActivation(
   $body = $bodyObject | ConvertTo-Json -Compress
   $uri = "http://127.0.0.1:$BackendPort/activation/finish"
 
-  for ($i = 1; $i -le 30; $i++) {
+  for ($i = 1; $i -le 3; $i++) {
     try {
+      Write-Host "A contactar backend local (tentativa $i de 3)..." -ForegroundColor DarkGray
       return Invoke-RestMethod `
         -Uri $uri `
         -Method Post `
         -ContentType "application/json" `
         -Body $body `
-        -TimeoutSec 5
+        -TimeoutSec 35
     } catch {
       if ($null -ne $_.Exception.Response) {
         $errorText = ""
@@ -573,8 +635,9 @@ function Invoke-BackendActivation(
 
         throw "Ativacao rejeitada pelo backend local: $errorText"
       }
-
-      Start-Sleep -Seconds 2
+      if ($i -lt 3) {
+        Start-Sleep -Seconds 2
+      }
     }
   }
 
@@ -668,6 +731,7 @@ if ([string]::IsNullOrWhiteSpace($storedActivationCode)) {
 $storedStoreName = Get-EnvValue -EnvPath $installEnv -Key "STORE_NAME"
 $storedStoreToken = Get-EnvValue -EnvPath $installEnv -Key "STORE_TOKEN"
 $storedDbServer = Get-EnvValue -EnvPath $installEnv -Key "DB_SERVER"
+$storedDbInstance = Get-EnvValue -EnvPath $installEnv -Key "DB_INSTANCE"
 $storedDbDatabase = Get-EnvValue -EnvPath $installEnv -Key "DB_DATABASE"
 $storedDbPort = Get-EnvValue -EnvPath $installEnv -Key "DB_PORT"
 $storedDbUser = Get-EnvValue -EnvPath $installEnv -Key "DB_USER"
@@ -701,6 +765,7 @@ $StoreName = if (-not [string]::IsNullOrWhiteSpace($StoreName)) {
   ""
 }
 $DbServer = Resolve-Value -Provided $DbServer -Stored $storedDbServer -Label "Servidor SQL"
+$DbInstance = Resolve-Value -Provided $DbInstance -Stored $storedDbInstance -Label "Instância SQL (Enter se não tiver)"
 $DbDatabase = Resolve-Value -Provided $DbDatabase -Stored $storedDbDatabase -Label "Base de dados"
 $DbPort = Resolve-Value -Provided $DbPort -Stored $storedDbPort -Label "Porta SQL (default 1433)"
 $DbUser = Resolve-Value -Provided $DbUser -Stored $storedDbUser -Label "DB_USER"
@@ -730,15 +795,62 @@ if ([string]::IsNullOrWhiteSpace($BackendPort)) {
   $BackendPort = "3052"
 }
 
+$backendScript = Join-Path $InstallDir "backend\server.js"
+$backendDir = Split-Path -Parent $backendScript
+
+while ($true) {
+  Write-Step "Testar ligacao SQL"
+  try {
+    Test-SqlConnection `
+      -NodeExe $nodeExe `
+      -BackendDir $backendDir `
+      -DbServer $DbServer `
+      -DbInstance $DbInstance `
+      -DbDatabase $DbDatabase `
+      -DbPort $DbPort `
+      -DbUser $DbUser `
+      -DbPassword $DbPassword
+    break
+  } catch {
+    Write-Host ""
+    Write-Host $_.Exception.Message -ForegroundColor Red
+
+    if (-not $PromptValues) {
+      throw
+    }
+
+    Write-Host ""
+    Write-Host "A ligação SQL falhou. Volta a inserir os dados para tentar novamente." -ForegroundColor Yellow
+    $DbServer = (Read-Host "Servidor SQL").Trim()
+    $DbInstance = (Read-Host "Instância SQL (Enter se não tiver)").Trim()
+    $DbDatabase = (Read-Host "Base de dados").Trim()
+    $DbPort = (Read-Host "Porta SQL (default 1433)").Trim()
+    if ([string]::IsNullOrWhiteSpace($DbPort)) {
+      $DbPort = "1433"
+    }
+    $DbUser = (Read-Host "DB_USER").Trim()
+    $DbPassword = (Read-SecretText "DB_PASSWORD").Trim()
+
+    if ([string]::IsNullOrWhiteSpace($DbServer)) {
+      throw "Servidor SQL obrigatório."
+    }
+    if ([string]::IsNullOrWhiteSpace($DbDatabase)) {
+      throw "Base de dados obrigatoria."
+    }
+  }
+}
+
 Write-Step "Escrever backend\\.env"
 $frontendBuildPath = Join-Path $InstallDir "build"
 $frontendBuildIndex = Join-Path $frontendBuildPath "index.html"
 $envLines = @(
   "CF_BASE=$CfBase"
+  "CF_TIMEOUT_MS=25000"
   "ACTIVATION_CODE=$ActivationCode"
   "STORE_TOKEN=$StoreToken"
   "STORE_NAME=$StoreName"
   "DB_SERVER=$DbServer"
+  "DB_INSTANCE=$DbInstance"
   "DB_DATABASE=$DbDatabase"
   "DB_PORT=$DbPort"
   "DB_USER=$DbUser"
@@ -757,19 +869,6 @@ if (Test-Path -LiteralPath $frontendBuildIndex) {
 }
 
 $envLines | Set-Content -Path $installEnv -Encoding ASCII
-
-$backendScript = Join-Path $InstallDir "backend\server.js"
-$backendDir = Split-Path -Parent $backendScript
-
-Write-Step "Testar ligacao SQL"
-Test-SqlConnection `
-  -NodeExe $nodeExe `
-  -BackendDir $backendDir `
-  -DbServer $DbServer `
-  -DbDatabase $DbDatabase `
-  -DbPort $DbPort `
-  -DbUser $DbUser `
-  -DbPassword $DbPassword
 
 Write-Step "Configurar servico backend"
 $nssmExe = Resolve-NssmExe -InstallDir $InstallDir
@@ -791,6 +890,7 @@ try {
     -StoreToken $StoreToken `
     -StoreName $StoreName `
     -DbServer $DbServer `
+    -DbInstance $DbInstance `
     -DbDatabase $DbDatabase `
     -DbPort $DbPort `
     -BackendPort $BackendPort
@@ -801,6 +901,8 @@ try {
     $message += "`n`nUltimos logs do backend:`n$logSummary"
   }
 
+  Stop-ServiceIfExists -Name $TunnelServiceName
+  Stop-ServiceIfExists -Name $BackendServiceName
   throw $message
 }
 
@@ -830,6 +932,8 @@ if (-not $activationResult.success) {
     $message += "`nResposta: $activationJson"
   }
 
+  Stop-ServiceIfExists -Name $TunnelServiceName
+  Stop-ServiceIfExists -Name $BackendServiceName
   throw $message
 }
 
@@ -840,6 +944,12 @@ if ($null -ne $activationResult.tunnel -and $null -ne $activationResult.tunnel.t
 
 if ([string]::IsNullOrWhiteSpace($TunnelToken)) {
   $TunnelToken = $activationTunnelToken
+}
+
+if ([string]::IsNullOrWhiteSpace($TunnelToken) -and -not $AllowWithoutTunnel) {
+  Stop-ServiceIfExists -Name $TunnelServiceName
+  Stop-ServiceIfExists -Name $BackendServiceName
+  throw "O Worker ativou a licença, mas não devolveu token do tunnel. Confirma se a key do cliente tem auto_tunnel=true e se o Worker tem permissões Cloudflare para criar tunnels."
 }
 
 $tunnelConfigured = $false
@@ -871,7 +981,25 @@ if (-not [string]::IsNullOrWhiteSpace($TunnelToken)) {
     -Arguments @("tunnel", "run", "--token-file", "..\secrets\tunnel-token.txt") `
     -AppDirectory $cloudflaredDir `
     -Description "Tunnel Cloudflare EDNAS."
-  Start-ServiceWithDiagnostics -Name $TunnelServiceName -AppDirectory $cloudflaredDir
+  try {
+    Start-ServiceWithDiagnostics -Name $TunnelServiceName -AppDirectory $cloudflaredDir
+  } catch {
+    Stop-ServiceIfExists -Name $TunnelServiceName
+    Stop-ServiceIfExists -Name $BackendServiceName
+    throw
+  }
+  $tunnelService = Get-Service -Name $TunnelServiceName -ErrorAction SilentlyContinue
+  if ($null -eq $tunnelService -or $tunnelService.Status -ne "Running") {
+    $logSummary = Get-ServiceLogSummary -Name $TunnelServiceName -AppDirectory $cloudflaredDir
+    $message = "O servico $TunnelServiceName foi criado, mas não ficou em execução."
+    if (-not [string]::IsNullOrWhiteSpace($logSummary)) {
+      $message += "`n`nUltimos logs do tunnel:`n$logSummary"
+    }
+
+    Stop-ServiceIfExists -Name $TunnelServiceName
+    Stop-ServiceIfExists -Name $BackendServiceName
+    throw $message
+  }
   $tunnelConfigured = $true
 } else {
   Write-Step "Tunnel não configurado (token vazio)."
@@ -891,3 +1019,6 @@ if ($tunnelConfigured) {
 } else {
   Write-Host "Backend local instalado. Tunnel Cloudflare não configurado." -ForegroundColor Yellow
 }
+
+Write-Host ""
+Read-Host "Pressione Enter para finalizar"
