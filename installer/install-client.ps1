@@ -570,6 +570,162 @@ function splitSqlTarget(rawServer) {
   }
 }
 
+function Get-SqlDatabaseList(
+  [string]$NodeExe,
+  [string]$BackendDir,
+  [string]$DbServer,
+  [string]$DbInstance,
+  [string]$DbPort,
+  [string]$DbUser,
+  [string]$DbPassword
+) {
+  $listScript = @'
+const sql = require("mssql");
+
+function getArg(name) {
+  const prefix = `--${name}=`;
+  const arg = process.argv.find((item) => item.startsWith(prefix));
+  return arg ? arg.slice(prefix.length) : "";
+}
+
+function splitSqlTarget(rawServer) {
+  const server = String(rawServer || "").trim();
+  const slashIndex = server.indexOf("\\");
+  if (slashIndex > -1) {
+    return {
+      server: server.slice(0, slashIndex),
+      instanceName: server.slice(slashIndex + 1),
+    };
+  }
+
+  return { server, instanceName: "" };
+}
+
+(async () => {
+  const target = splitSqlTarget(getArg("server"));
+  const explicitInstance = getArg("instance").trim();
+  if (explicitInstance) {
+    target.instanceName = explicitInstance;
+  }
+
+  const config = {
+    user: getArg("user"),
+    password: getArg("password"),
+    server: target.server,
+    database: "master",
+    connectionTimeout: 10000,
+    requestTimeout: 10000,
+    options: {
+      encrypt: false,
+      trustServerCertificate: true,
+    },
+  };
+
+  if (target.instanceName) {
+    config.options.instanceName = target.instanceName;
+  } else {
+    const port = String(getArg("port") || "").trim();
+    if (port) {
+      config.port = Number(port);
+    }
+  }
+
+  let pool;
+  try {
+    pool = await sql.connect(config);
+    const result = await pool.request().query(`
+      SELECT name
+      FROM sys.databases
+      WHERE database_id > 4
+        AND state_desc = 'ONLINE'
+      ORDER BY name
+    `);
+    console.log(JSON.stringify(result.recordset.map((row) => row.name)));
+  } finally {
+    if (pool) await pool.close();
+  }
+})().catch((err) => {
+  console.error(err && err.message ? err.message : String(err));
+  process.exit(1);
+});
+'@
+
+  $tempScript = Join-Path $BackendDir ("ednas-sql-databases-" + [guid]::NewGuid().ToString("N") + ".js")
+  Set-Content -Path $tempScript -Value $listScript -Encoding UTF8
+
+  try {
+    $arguments = @(
+      $tempScript,
+      "--server=$DbServer",
+      "--instance=$DbInstance",
+      "--port=$DbPort",
+      "--user=$DbUser",
+      "--password=$DbPassword"
+    )
+
+    $output = & $NodeExe @arguments 2>&1
+    $exitCode = $LASTEXITCODE
+    $detail = ($output | Out-String).Trim()
+    if ($exitCode -ne 0) {
+      if ([string]::IsNullOrWhiteSpace($detail)) {
+        $detail = "Sem detalhe devolvido pelo driver SQL."
+      }
+
+      throw "Falha ao listar bases de dados SQL.`n$detail"
+    }
+
+    if ([string]::IsNullOrWhiteSpace($detail)) {
+      return @()
+    }
+
+    return @($detail | ConvertFrom-Json)
+  } finally {
+    if (Test-Path -LiteralPath $tempScript) {
+      Remove-Item -LiteralPath $tempScript -Force
+    }
+  }
+}
+
+function Select-SqlDatabase(
+  [string[]]$Databases,
+  [string]$DefaultDatabase
+) {
+  $availableDatabases = @($Databases | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+  if ($availableDatabases.Count -eq 0) {
+    $manual = (Read-Host "Base de dados").Trim()
+    return $manual
+  }
+
+  Write-Host ""
+  Write-Host "Bases de dados encontradas:" -ForegroundColor Cyan
+  for ($i = 0; $i -lt $availableDatabases.Count; $i++) {
+    Write-Host ("  {0}. {1}" -f ($i + 1), $availableDatabases[$i])
+  }
+
+  $defaultSuffix = ""
+  if (-not [string]::IsNullOrWhiteSpace($DefaultDatabase)) {
+    $defaultSuffix = " [$DefaultDatabase]"
+  }
+
+  while ($true) {
+    $choice = (Read-Host "Escolhe a base por número ou escreve o nome$defaultSuffix").Trim()
+    if ([string]::IsNullOrWhiteSpace($choice) -and -not [string]::IsNullOrWhiteSpace($DefaultDatabase)) {
+      return $DefaultDatabase.Trim()
+    }
+
+    $choiceNumber = 0
+    if ([int]::TryParse($choice, [ref]$choiceNumber)) {
+      if ($choiceNumber -ge 1 -and $choiceNumber -le $availableDatabases.Count) {
+        return $availableDatabases[$choiceNumber - 1]
+      }
+    } elseif (-not [string]::IsNullOrWhiteSpace($choice)) {
+      return $choice
+    }
+
+    Write-Host "Escolha inválida. Usa um número da lista ou escreve o nome da base." -ForegroundColor Yellow
+  }
+}
+
 function Invoke-BackendActivation(
   [string]$Code,
   [string]$StoreToken,
@@ -642,6 +798,74 @@ function Invoke-BackendActivation(
   }
 
   throw "Não foi possível ativar o backend local em $uri."
+}
+
+function Get-TunnelPublicUrl($ActivationResult) {
+  if ($null -eq $ActivationResult -or $null -eq $ActivationResult.tunnel) {
+    return ""
+  }
+
+  $rawUrl = ""
+  if ($null -ne $ActivationResult.tunnel.url) {
+    $rawUrl = [string]$ActivationResult.tunnel.url
+  } elseif ($null -ne $ActivationResult.tunnel.hostname) {
+    $rawUrl = "https://$($ActivationResult.tunnel.hostname)"
+  }
+
+  return $rawUrl.Trim().TrimEnd("/")
+}
+
+function Get-WebErrorDetail([System.Management.Automation.ErrorRecord]$ErrorRecord) {
+  $message = $ErrorRecord.Exception.Message
+  if ($null -eq $ErrorRecord.Exception.Response) {
+    return $message
+  }
+
+  try {
+    $statusCode = [int]$ErrorRecord.Exception.Response.StatusCode
+    $statusDescription = [string]$ErrorRecord.Exception.Response.StatusDescription
+    if (-not [string]::IsNullOrWhiteSpace($statusDescription)) {
+      return "$statusCode $statusDescription - $message"
+    }
+
+    return "$statusCode - $message"
+  } catch {
+    return $message
+  }
+}
+
+function Wait-PublicTunnelHealth(
+  [string]$PublicUrl,
+  [int]$TimeoutSeconds = 90
+) {
+  if ([string]::IsNullOrWhiteSpace($PublicUrl)) {
+    throw "O Worker devolveu token do tunnel, mas não devolveu URL público para validação."
+  }
+
+  $healthUrl = "$($PublicUrl.TrimEnd('/'))/health"
+  $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
+  $attempt = 0
+  $lastError = ""
+
+  while ([DateTime]::UtcNow -lt $deadline) {
+    $attempt++
+    try {
+      Write-Host "A validar tunnel público (tentativa $attempt): $healthUrl" -ForegroundColor DarkGray
+      $response = Invoke-RestMethod -Uri $healthUrl -Method Get -TimeoutSec 12
+
+      if ($null -ne $response -and $response.ok -eq $true -and [string]$response.service -eq "backend") {
+        return
+      }
+
+      $lastError = "Resposta inesperada em $healthUrl"
+    } catch {
+      $lastError = Get-WebErrorDetail -ErrorRecord $_
+    }
+
+    Start-Sleep -Seconds 5
+  }
+
+  throw "O tunnel Cloudflare foi iniciado, mas o URL público não respondeu corretamente em $TimeoutSeconds segundos.`nURL testado: $healthUrl`nÚltimo erro: $lastError"
 }
 
 Assert-Admin
@@ -756,7 +980,7 @@ if (-not [string]::IsNullOrWhiteSpace($CfAppKey)) {
   $CfAppKey = ""
 }
 $ActivationCode = Resolve-Value -Provided $ActivationCode -Stored $storedActivationCode -Label "Código de ativação"
-$StoreToken = Resolve-Value -Provided $StoreToken -Stored $storedStoreToken -Label "Token de entrada da loja"
+$StoreToken = Resolve-Value -Provided $StoreToken -Stored $storedStoreToken -Label "Senha de entrada da loja"
 $StoreName = if (-not [string]::IsNullOrWhiteSpace($StoreName)) {
   $StoreName.Trim()
 } elseif (-not [string]::IsNullOrWhiteSpace($storedStoreName)) {
@@ -765,9 +989,15 @@ $StoreName = if (-not [string]::IsNullOrWhiteSpace($StoreName)) {
   ""
 }
 $DbServer = Resolve-Value -Provided $DbServer -Stored $storedDbServer -Label "Servidor SQL"
-$DbInstance = Resolve-Value -Provided $DbInstance -Stored $storedDbInstance -Label "Instância SQL (Enter se não tiver)"
-$DbDatabase = Resolve-Value -Provided $DbDatabase -Stored $storedDbDatabase -Label "Base de dados"
-$DbPort = Resolve-Value -Provided $DbPort -Stored $storedDbPort -Label "Porta SQL (default 1433)"
+$DbInstance = Resolve-Value -Provided $DbInstance -Stored $storedDbInstance -Label "Instância SQL"
+$DbPort = Resolve-Value -Provided $DbPort -Stored $storedDbPort -Label "Porta SQL (Enter se não tiver)"
+$DbDatabase = if (-not [string]::IsNullOrWhiteSpace($DbDatabase)) {
+  $DbDatabase.Trim()
+} elseif (-not $PromptValues -and -not [string]::IsNullOrWhiteSpace($storedDbDatabase)) {
+  $storedDbDatabase.Trim()
+} else {
+  ""
+}
 $DbUser = Resolve-Value -Provided $DbUser -Stored $storedDbUser -Label "DB_USER"
 $DbPassword = Resolve-Value -Provided $DbPassword -Stored $storedDbPassword -Label "DB_PASSWORD" -Secret $true
 $BackendPort = Resolve-Value -Provided $BackendPort -Stored $storedBackendPort -Label "Porta backend EDNAS (default 3052)"
@@ -780,16 +1010,10 @@ if ([string]::IsNullOrWhiteSpace($ActivationCode)) {
   throw "Código de ativação obrigatório."
 }
 if ([string]::IsNullOrWhiteSpace($StoreToken)) {
-  throw "Token de entrada da loja obrigatório."
+  throw "Senha de entrada da loja obrigatória."
 }
 if ([string]::IsNullOrWhiteSpace($DbServer)) {
   throw "Servidor SQL obrigatório."
-}
-if ([string]::IsNullOrWhiteSpace($DbDatabase)) {
-  throw "Base de dados obrigatoria."
-}
-if ([string]::IsNullOrWhiteSpace($DbPort)) {
-  $DbPort = "1433"
 }
 if ([string]::IsNullOrWhiteSpace($BackendPort)) {
   $BackendPort = "3052"
@@ -801,6 +1025,33 @@ $backendDir = Split-Path -Parent $backendScript
 while ($true) {
   Write-Step "Testar ligacao SQL"
   try {
+    Test-SqlConnection `
+      -NodeExe $nodeExe `
+      -BackendDir $backendDir `
+      -DbServer $DbServer `
+      -DbInstance $DbInstance `
+      -DbDatabase "master" `
+      -DbPort $DbPort `
+      -DbUser $DbUser `
+      -DbPassword $DbPassword
+
+    $availableDatabases = Get-SqlDatabaseList `
+      -NodeExe $nodeExe `
+      -BackendDir $backendDir `
+      -DbServer $DbServer `
+      -DbInstance $DbInstance `
+      -DbPort $DbPort `
+      -DbUser $DbUser `
+      -DbPassword $DbPassword
+
+    if ([string]::IsNullOrWhiteSpace($DbDatabase)) {
+      $DbDatabase = Select-SqlDatabase -Databases $availableDatabases -DefaultDatabase $storedDbDatabase
+    }
+
+    if ([string]::IsNullOrWhiteSpace($DbDatabase)) {
+      throw "Base de dados obrigatoria."
+    }
+
     Test-SqlConnection `
       -NodeExe $nodeExe `
       -BackendDir $backendDir `
@@ -822,20 +1073,14 @@ while ($true) {
     Write-Host ""
     Write-Host "A ligação SQL falhou. Volta a inserir os dados para tentar novamente." -ForegroundColor Yellow
     $DbServer = (Read-Host "Servidor SQL").Trim()
-    $DbInstance = (Read-Host "Instância SQL (Enter se não tiver)").Trim()
-    $DbDatabase = (Read-Host "Base de dados").Trim()
-    $DbPort = (Read-Host "Porta SQL (default 1433)").Trim()
-    if ([string]::IsNullOrWhiteSpace($DbPort)) {
-      $DbPort = "1433"
-    }
+    $DbInstance = (Read-Host "Instância SQL").Trim()
+    $DbPort = (Read-Host "Porta SQL (Enter se não tiver)").Trim()
     $DbUser = (Read-Host "DB_USER").Trim()
     $DbPassword = (Read-SecretText "DB_PASSWORD").Trim()
+    $DbDatabase = ""
 
     if ([string]::IsNullOrWhiteSpace($DbServer)) {
       throw "Servidor SQL obrigatório."
-    }
-    if ([string]::IsNullOrWhiteSpace($DbDatabase)) {
-      throw "Base de dados obrigatoria."
     }
   }
 }
@@ -946,7 +1191,17 @@ if ([string]::IsNullOrWhiteSpace($TunnelToken)) {
   $TunnelToken = $activationTunnelToken
 }
 
-if ([string]::IsNullOrWhiteSpace($TunnelToken) -and -not $AllowWithoutTunnel) {
+$publicTunnelUrl = Get-TunnelPublicUrl -ActivationResult $activationResult
+$tunnelReused = $false
+if ($null -ne $activationResult.tunnel -and $null -ne $activationResult.tunnel.reused) {
+  $tunnelReused = [System.Convert]::ToBoolean($activationResult.tunnel.reused)
+}
+
+if (
+  [string]::IsNullOrWhiteSpace($TunnelToken) -and
+  [string]::IsNullOrWhiteSpace($publicTunnelUrl) -and
+  -not $AllowWithoutTunnel
+) {
   Stop-ServiceIfExists -Name $TunnelServiceName
   Stop-ServiceIfExists -Name $BackendServiceName
   throw "O Worker ativou a licença, mas não devolveu token do tunnel. Confirma se a key do cliente tem auto_tunnel=true e se o Worker tem permissões Cloudflare para criar tunnels."
@@ -1000,7 +1255,34 @@ if (-not [string]::IsNullOrWhiteSpace($TunnelToken)) {
     Stop-ServiceIfExists -Name $BackendServiceName
     throw $message
   }
+
+  Write-Step "Validar tunnel público"
+  try {
+    Wait-PublicTunnelHealth -PublicUrl $publicTunnelUrl -TimeoutSeconds 90
+  } catch {
+    $logSummary = Get-ServiceLogSummary -Name $TunnelServiceName -AppDirectory $cloudflaredDir
+    $message = $_.Exception.Message
+    if (-not [string]::IsNullOrWhiteSpace($logSummary)) {
+      $message += "`n`nUltimos logs do tunnel:`n$logSummary"
+    }
+
+    Stop-ServiceIfExists -Name $TunnelServiceName
+    Stop-ServiceIfExists -Name $BackendServiceName
+    throw $message
+  }
+
   $tunnelConfigured = $true
+} elseif (-not [string]::IsNullOrWhiteSpace($publicTunnelUrl)) {
+  Write-Step "Validar tunnel público existente"
+  try {
+    Wait-PublicTunnelHealth -PublicUrl $publicTunnelUrl -TimeoutSeconds 90
+  } catch {
+    Stop-ServiceIfExists -Name $BackendServiceName
+    throw $_.Exception.Message
+  }
+
+  $tunnelConfigured = $true
+  $tunnelReused = $true
 } else {
   Write-Step "Tunnel não configurado (token vazio)."
 }
@@ -1015,7 +1297,11 @@ $desktopShortcut = Join-Path ([Environment]::GetFolderPath("CommonDesktopDirecto
 Write-Step "Instalacao concluida."
 Write-Host "Site público: $PublicWebUrl" -ForegroundColor Green
 if ($tunnelConfigured) {
-  Write-Host "Backend local instalado e tunnel Cloudflare configurado." -ForegroundColor Green
+  if ($tunnelReused) {
+    Write-Host "Backend local instalado e tunnel Cloudflare existente validado." -ForegroundColor Green
+  } else {
+    Write-Host "Backend local instalado e tunnel Cloudflare configurado." -ForegroundColor Green
+  }
 } else {
   Write-Host "Backend local instalado. Tunnel Cloudflare não configurado." -ForegroundColor Yellow
 }

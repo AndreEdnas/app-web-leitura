@@ -150,6 +150,9 @@ async function resolveStoreByDirectToken(kv, token) {
   const storeId = normalizeStoreId(token);
   if (!kv || !storeId) return { storeId: null, store: null, cliente: null };
 
+  const cached = getStoreResolveCache(token);
+  if (cached) return cached;
+
   const cliente = await readClienteDirect(kv, storeId);
   if (cliente && typeof cliente === "object") {
     const store = getClienteStore(storeId, cliente);
@@ -163,7 +166,7 @@ async function resolveStoreByDirectToken(kv, token) {
     ];
     const accepted = acceptedTokens.some((value) => String(value || "").trim() === String(token || "").trim());
     if (accepted && store) {
-      return { storeId, store, cliente };
+      return setStoreResolveCache(token, { storeId, store, cliente });
     }
   }
 
@@ -172,7 +175,7 @@ async function resolveStoreByDirectToken(kv, token) {
   if (store) {
     const expectedToken = store.token || store.store_token || store.token_loja || storeId;
     if (String(expectedToken || "").trim() === String(token || "").trim()) {
-      return { storeId, store, cliente: null };
+      return setStoreResolveCache(token, { storeId, store, cliente: null });
     }
   }
 
@@ -206,9 +209,64 @@ const CONFIG_CACHE_TTL_MS = 30 * 1000;
 let cachedLegacyConfig = null;
 let cachedLegacyConfigAt = 0;
 
+const STORE_RESOLVE_CACHE_TTL_MS = 60 * 1000;
+let storeResolveCache = new Map();
+const HEARTBEAT_WRITE_INTERVAL_MS = 5 * 60 * 1000;
+
+function cloneCacheValue(value) {
+  if (!value || typeof value !== "object") return value;
+  return JSON.parse(JSON.stringify(value));
+}
+
+function getStoreResolveCache(token) {
+  const key = String(token || "").trim();
+  if (!key) return null;
+
+  const entry = storeResolveCache.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.cachedAt > STORE_RESOLVE_CACHE_TTL_MS) {
+    storeResolveCache.delete(key);
+    return null;
+  }
+
+  return cloneCacheValue(entry.value);
+}
+
+function setStoreResolveCache(token, value) {
+  const key = String(token || "").trim();
+  if (!key || !value?.storeId || !value?.store) return value;
+
+  storeResolveCache.set(key, {
+    cachedAt: Date.now(),
+    value: cloneCacheValue(value),
+  });
+
+  if (storeResolveCache.size > 200) {
+    const oldestKey = storeResolveCache.keys().next().value;
+    if (oldestKey) storeResolveCache.delete(oldestKey);
+  }
+
+  return value;
+}
+
+function clearStoreResolveCache() {
+  storeResolveCache = new Map();
+}
+
+function shouldWriteHeartbeat(installation) {
+  const rawLastSeen = installation?.last_seen_at || installation?.updated_at || "";
+  if (!rawLastSeen) return true;
+
+  const lastSeenAt = new Date(rawLastSeen);
+  if (Number.isNaN(lastSeenAt.getTime())) return true;
+
+  return Date.now() - lastSeenAt.getTime() >= HEARTBEAT_WRITE_INTERVAL_MS;
+}
+
 function clearLegacyConfigCache() {
   cachedLegacyConfig = null;
   cachedLegacyConfigAt = 0;
+  clearStoreResolveCache();
 }
 
 async function readLegacyConfigFromKv(kv, { bypassCache = false } = {}) {
@@ -695,6 +753,7 @@ async function handleClienteActivationDirect(env, kv, corsHeaders, params) {
     {
       ...currentCliente,
       code: currentCliente.code || currentCliente.activation_code || activationCode || null,
+      host,
     },
     lojaId,
     hwid
@@ -702,7 +761,9 @@ async function handleClienteActivationDirect(env, kv, corsHeaders, params) {
   const tunnelSource =
     activationRecordWithTunnel?.tunnel_token ||
     activationRecordWithTunnel?.tunnelToken ||
-    activationRecordWithTunnel?.cloudflare_tunnel_token
+    activationRecordWithTunnel?.cloudflare_tunnel_token ||
+    activationRecordWithTunnel?.tunnel_url ||
+    activationRecordWithTunnel?.reused
       ?activationRecordWithTunnel
       : currentCliente?.tunnel || activationRecordWithTunnel;
   const tunnelPayload = toInstallerTunnel(tunnelSource, storePayload);
@@ -1072,6 +1133,7 @@ function toInstallerTunnel(activationRecord, store) {
     hostname: activationRecord.tunnel_hostname || activationRecord.hostname || null,
     service: activationRecord.tunnel_service || activationRecord.service || null,
     token,
+    reused: activationRecord.reused === true || activationRecord.reuse_existing === true || activationRecord.reuseExisting === true,
   };
 }
 
@@ -1246,6 +1308,237 @@ async function cloudflareTunnelExists(env, accountId, tunnelId) {
   } catch {
     return false;
   }
+}
+
+async function getCloudflareTunnelInfo(env, accountId, tunnelId) {
+  const id = normalizeCloudflareTunnelId(tunnelId);
+  if (!accountId || !id) return null;
+
+  try {
+    return await cloudflareApi(env, "GET", `/accounts/${accountId}/cfd_tunnel/${id}`);
+  } catch {
+    return null;
+  }
+}
+
+async function getCloudflareTunnelToken(env, accountId, tunnelId, fallbackToken = "") {
+  const id = normalizeCloudflareTunnelId(tunnelId);
+  if (!accountId || !id) {
+    throw new Error("Nao foi possivel identificar o tunnel para obter token.");
+  }
+
+  try {
+    const tokenResult = await cloudflareApi(
+      env,
+      "GET",
+      `/accounts/${accountId}/cfd_tunnel/${id}/token`
+    );
+    const freshToken =
+      typeof tokenResult === "string"
+        ?tokenResult
+        : String(tokenResult?.token || "").trim();
+
+    if (freshToken) return freshToken;
+  } catch (err) {
+    throw new Error(`Falha ao obter token fresco do tunnel ${id}: ${err?.message || err}`);
+  }
+
+  const fallback = String(fallbackToken || "").trim();
+  if (fallback && getTunnelIdFromToken(fallback) === id) {
+    return fallback;
+  }
+
+  throw new Error(`Cloudflare nao devolveu token valido para o tunnel ${id}.`);
+}
+
+function normalizeConnectorHostname(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .split(".")[0];
+}
+
+function tunnelStatusIsHealthy(tunnel) {
+  const status = String(tunnel?.status || tunnel?.status_code || "").trim().toLowerCase();
+  return status === "healthy" || status === "active";
+}
+
+async function getCloudflareTunnelConnections(env, accountId, tunnelId) {
+  const id = normalizeCloudflareTunnelId(tunnelId);
+  if (!accountId || !id) return [];
+
+  try {
+    const result = await cloudflareApi(
+      env,
+      "GET",
+      `/accounts/${accountId}/cfd_tunnel/${id}/connections`
+    );
+
+    if (Array.isArray(result)) return result;
+    if (Array.isArray(result?.connections)) return result.connections;
+    return [];
+  } catch (err) {
+    console.warn("Falha ao listar connectors do tunnel:", id, err?.message || err);
+    return [];
+  }
+}
+
+function connectionMatchesHost(connection, host) {
+  const expectedHost = normalizeConnectorHostname(host);
+  if (!expectedHost) return false;
+
+  const candidates = [
+    connection?.hostname,
+    connection?.host,
+    connection?.client_hostname,
+    connection?.clientHostname,
+    connection?.machine_name,
+    connection?.machineName,
+    connection?.metadata?.hostname,
+    connection?.metadata?.host,
+  ];
+
+  return candidates.some((candidate) => normalizeConnectorHostname(candidate) === expectedHost);
+}
+
+async function findReusableTunnelForHost(env, accountId, host, cleanupPrefix) {
+  const expectedHost = normalizeConnectorHostname(host);
+  if (!accountId || !expectedHost) return null;
+
+  try {
+    const tunnels = await cloudflareApi(
+      env,
+      "GET",
+      `/accounts/${accountId}/cfd_tunnel?per_page=100`
+    );
+    const items = Array.isArray(tunnels) ?tunnels : [];
+
+    for (const tunnel of items) {
+      const tunnelId = normalizeCloudflareTunnelId(tunnel?.id);
+      const tunnelName = String(tunnel?.name || "").trim();
+      if (!tunnelId || tunnel?.deleted_at) continue;
+      if (cleanupPrefix && tunnelName.startsWith(cleanupPrefix)) continue;
+      if (!tunnelStatusIsHealthy(tunnel)) continue;
+
+      const connections = await getCloudflareTunnelConnections(env, accountId, tunnelId);
+      if (connections.some((connection) => connectionMatchesHost(connection, expectedHost))) {
+        return {
+          id: tunnelId,
+          name: tunnelName,
+        };
+      }
+    }
+  } catch (err) {
+    console.warn("Falha ao procurar tunnel existente da maquina:", err?.message || err);
+  }
+
+  return null;
+}
+
+async function listCloudflareTunnels(env, accountId) {
+  if (!accountId) return [];
+
+  const tunnels = await cloudflareApi(
+    env,
+    "GET",
+    `/accounts/${accountId}/cfd_tunnel?per_page=100`
+  );
+  return Array.isArray(tunnels) ?tunnels : [];
+}
+
+async function findTunnelByExactName(env, accountId, name) {
+  const expectedName = String(name || "").trim();
+  if (!accountId || !expectedName) return null;
+
+  try {
+    const tunnels = await listCloudflareTunnels(env, accountId);
+    return tunnels.find((tunnel) => {
+      const tunnelId = normalizeCloudflareTunnelId(tunnel?.id);
+      const tunnelName = String(tunnel?.name || "").trim();
+      return tunnelId && !tunnel?.deleted_at && tunnelName === expectedName;
+    }) || null;
+  } catch (err) {
+    console.warn("Falha ao procurar tunnel por nome:", expectedName, err?.message || err);
+    return null;
+  }
+}
+
+async function ensureTunnelDnsRecord(env, zoneId, hostname, tunnelId) {
+  const encodedHostname = encodeURIComponent(hostname);
+  const existingRecords = await cloudflareApi(
+    env,
+    "GET",
+    `/zones/${zoneId}/dns_records?type=CNAME&name=${encodedHostname}`
+  );
+  const dnsBody = {
+    type: "CNAME",
+    name: hostname,
+    content: `${tunnelId}.cfargotunnel.com`,
+    proxied: true,
+    ttl: 1,
+  };
+
+  if (Array.isArray(existingRecords) && existingRecords.length > 0) {
+    await cloudflareApi(
+      env,
+      "PUT",
+      `/zones/${zoneId}/dns_records/${existingRecords[0].id}`,
+      dnsBody
+    );
+  } else {
+    await cloudflareApi(env, "POST", `/zones/${zoneId}/dns_records`, dnsBody);
+  }
+}
+
+function mergeTunnelIngress(existingConfig, hostname, service) {
+  const currentConfig =
+    existingConfig?.config && typeof existingConfig.config === "object"
+      ?existingConfig.config
+      : {};
+  const currentIngress = Array.isArray(currentConfig.ingress)
+    ?currentConfig.ingress
+    : [];
+
+  const appRule = {
+    hostname,
+    service,
+    originRequest: {},
+  };
+
+  const fallbackRules = currentIngress.filter(
+    (rule) => String(rule?.service || "").startsWith("http_status:")
+  );
+  const normalRules = currentIngress.filter((rule) => {
+    if (String(rule?.service || "").startsWith("http_status:")) return false;
+    return String(rule?.hostname || "").toLowerCase() !== hostname.toLowerCase();
+  });
+
+  const fallback = fallbackRules[0] || { service: "http_status:404" };
+
+  return {
+    config: {
+      ...currentConfig,
+      ingress: [appRule, ...normalRules, fallback],
+    },
+  };
+}
+
+async function addHostnameRouteToExistingTunnel(env, accountId, zoneId, tunnelId, hostname, service) {
+  const existingConfig = await cloudflareApi(
+    env,
+    "GET",
+    `/accounts/${accountId}/cfd_tunnel/${tunnelId}/configurations`
+  );
+  const mergedConfig = mergeTunnelIngress(existingConfig, hostname, service);
+
+  await cloudflareApi(
+    env,
+    "PUT",
+    `/accounts/${accountId}/cfd_tunnel/${tunnelId}/configurations`,
+    mergedConfig
+  );
+
+  await ensureTunnelDnsRecord(env, zoneId, hostname, tunnelId);
 }
 
 function buildTunnelHostname(env, activationRecord, lojaId, hwid) {
@@ -1545,14 +1838,26 @@ async function ensureTunnelForActivationSafe(env, kv, activationKey, activationR
 
   async function reuseTunnelIfAlive(source) {
     if (!source?.token) return null;
-    const tunnelId =
+    const explicitTunnelId =
       normalizeCloudflareTunnelId(source.id) ||
-      normalizeCloudflareTunnelId(source.tunnel_id) ||
-      getTunnelIdFromToken(source.token);
-    if (!(await cloudflareTunnelExists(env, accountId, tunnelId))) {
+      normalizeCloudflareTunnelId(source.tunnel_id);
+    const tokenTunnelId = getTunnelIdFromToken(source.token);
+    const tunnelId = explicitTunnelId || tokenTunnelId;
+
+    if (explicitTunnelId && tokenTunnelId && explicitTunnelId !== tokenTunnelId) {
+      console.warn(
+        "Tunnel guardado com id/token divergentes; a obter token fresco:",
+        explicitTunnelId,
+        tokenTunnelId
+      );
+    }
+
+    const tunnelInfo = await getCloudflareTunnelInfo(env, accountId, tunnelId);
+    if (!tunnelInfo || !tunnelStatusIsHealthy(tunnelInfo)) {
       return null;
     }
 
+    const tunnelToken = await getCloudflareTunnelToken(env, accountId, tunnelId, source.token);
     await cleanupOldTunnelsForActivation(env, accountId, tunnelId, cleanupTunnelPrefix);
     return {
       ...activationRecord,
@@ -1561,7 +1866,7 @@ async function ensureTunnelForActivationSafe(env, kv, activationKey, activationR
       tunnel_hostname: source.hostname || source.tunnel_hostname || null,
       tunnel_url: source.url || source.tunnel_url || null,
       tunnel_service: source.service || source.tunnel_service || null,
-      tunnel_token: source.token,
+      tunnel_token: tunnelToken,
     };
   }
 
@@ -1613,6 +1918,148 @@ async function ensureTunnelForActivationSafe(env, kv, activationKey, activationR
     `${cleanupTunnelPrefix}${slugify(String(hwid || "").slice(0, 8), "pc")}`
   ).trim();
 
+  async function useExistingNamedTunnel(existingTunnel) {
+    const tunnelId = normalizeCloudflareTunnelId(existingTunnel?.id);
+    if (!tunnelId || existingTunnel?.deleted_at) return null;
+
+    await addHostnameRouteToExistingTunnel(
+      env,
+      accountId,
+      zoneId,
+      tunnelId,
+      hostname,
+      service
+    );
+    const tunnelToken = await getCloudflareTunnelToken(
+      env,
+      accountId,
+      tunnelId,
+      null
+    );
+    const tunnelRecord = {
+      id: tunnelId,
+      name: String(existingTunnel?.name || baseTunnelName),
+      hostname,
+      url: `https://${hostname}`,
+      service,
+      token: tunnelToken,
+      reused: true,
+      reuse_existing: true,
+      loja_id: lojaId,
+      hwid,
+      activation_code:
+        activationRecord?.code ||
+        activationRecord?.codigo ||
+        activationRecord?.activation_code ||
+        activationRecord?.codigo_ativacao ||
+        null,
+      created_at: nowIso(),
+      updated_at: nowIso(),
+    };
+
+    if (activationKey && String(activationKey).startsWith("cliente:")) {
+      const currentCliente = await readJson(kv, activationKey);
+      if (currentCliente && typeof currentCliente === "object") {
+        await writeJson(kv, activationKey, {
+          ...currentCliente,
+          tunnel: {
+            ...(currentCliente.tunnel && typeof currentCliente.tunnel === "object"
+              ?currentCliente.tunnel
+              : {}),
+            ...tunnelRecord,
+          },
+          updated_at: nowIso(),
+        });
+      }
+    } else {
+      await writeJson(kv, tunnelKey, tunnelRecord);
+    }
+
+    return {
+      ...activationRecord,
+      tunnel_id: tunnelRecord.id,
+      tunnel_name: tunnelRecord.name,
+      tunnel_hostname: tunnelRecord.hostname,
+      tunnel_url: tunnelRecord.url,
+      tunnel_service: tunnelRecord.service,
+      tunnel_token: tunnelRecord.token,
+      reused: true,
+      reuse_existing: true,
+    };
+  }
+
+  const existingNamedTunnel = await findTunnelByExactName(env, accountId, baseTunnelName);
+  const reusableNamedTunnel = await useExistingNamedTunnel(existingNamedTunnel);
+  if (reusableNamedTunnel) return reusableNamedTunnel;
+
+  const reusableHostTunnel = await findReusableTunnelForHost(
+    env,
+    accountId,
+    activationRecord?.host || activationRecord?.hostname || "",
+    cleanupTunnelPrefix
+  );
+  if (reusableHostTunnel?.id) {
+    await addHostnameRouteToExistingTunnel(
+      env,
+      accountId,
+      zoneId,
+      reusableHostTunnel.id,
+      hostname,
+      service
+    );
+
+    const tunnelRecord = {
+      id: reusableHostTunnel.id,
+      name: reusableHostTunnel.name || null,
+      hostname,
+      url: `https://${hostname}`,
+      service,
+      token: null,
+      reused: true,
+      reuse_existing: true,
+      loja_id: lojaId,
+      hwid,
+      activation_code:
+        activationRecord?.code ||
+        activationRecord?.codigo ||
+        activationRecord?.activation_code ||
+        activationRecord?.codigo_ativacao ||
+        null,
+      created_at: nowIso(),
+      updated_at: nowIso(),
+    };
+
+    if (activationKey && String(activationKey).startsWith("cliente:")) {
+      const currentCliente = await readJson(kv, activationKey);
+      if (currentCliente && typeof currentCliente === "object") {
+        await writeJson(kv, activationKey, {
+          ...currentCliente,
+          tunnel: {
+            ...(currentCliente.tunnel && typeof currentCliente.tunnel === "object"
+              ?currentCliente.tunnel
+              : {}),
+            ...tunnelRecord,
+          },
+          updated_at: nowIso(),
+        });
+      }
+    } else {
+      await writeJson(kv, tunnelKey, tunnelRecord);
+    }
+
+    return {
+      ...activationRecord,
+      tunnel_id: tunnelRecord.id,
+      tunnel_name: tunnelRecord.name,
+      tunnel_hostname: tunnelRecord.hostname,
+      tunnel_url: tunnelRecord.url,
+      tunnel_service: tunnelRecord.service,
+      tunnel_token: null,
+      reused: true,
+      reuse_existing: true,
+    };
+  }
+
   let tunnelName = baseTunnelName;
   let tunnel = null;
   for (let attempt = 0; attempt < 2; attempt++) {
@@ -1631,12 +2078,21 @@ async function ensureTunnelForActivationSafe(env, kv, activationKey, activationR
         throw err;
       }
 
+      const existingAfterDuplicate = await findTunnelByExactName(env, accountId, baseTunnelName);
+      const reusableAfterDuplicate = await useExistingNamedTunnel(existingAfterDuplicate);
+      if (reusableAfterDuplicate) return reusableAfterDuplicate;
+
       tunnelName = `${baseTunnelName}-${Date.now().toString(36)}`;
     }
   }
 
   const tunnelId = String(tunnel?.id || "").trim();
-  const tunnelToken = String(tunnel?.token || "").trim();
+  const tunnelToken = await getCloudflareTunnelToken(
+    env,
+    accountId,
+    tunnelId,
+    tunnel?.token
+  );
   if (!tunnelId || !tunnelToken) {
     throw new Error("A Cloudflare criou o tunnel, mas nao devolveu id/token.");
   }
@@ -2470,6 +2926,7 @@ export default {
             {
               ...activationRecord,
               code: activationRecord.code || activationRecord.activation_code || activationCode || null,
+              host,
             },
             lojaId,
             hwid
@@ -2477,7 +2934,9 @@ export default {
           const tunnelSource =
             activationRecordWithTunnel?.tunnel_token ||
             activationRecordWithTunnel?.tunnelToken ||
-            activationRecordWithTunnel?.cloudflare_tunnel_token
+            activationRecordWithTunnel?.cloudflare_tunnel_token ||
+            activationRecordWithTunnel?.tunnel_url ||
+            activationRecordWithTunnel?.reused
               ?activationRecordWithTunnel
               : currentCliente?.tunnel || activationRecordWithTunnel;
           const tunnelPayload = toInstallerTunnel(tunnelSource, storePayload);
@@ -2532,7 +2991,10 @@ export default {
               env,
               kv,
               activationKey,
-              activationRecord,
+              {
+                ...activationRecord,
+                host,
+              },
               existingStoreId,
               hwid
             );
@@ -2617,7 +3079,10 @@ export default {
             env,
             kv,
             activationKey,
-            activationRecord,
+            {
+              ...activationRecord,
+              host,
+            },
             lojaId,
             hwid
           );
@@ -2921,7 +3386,7 @@ export default {
       if (license?.instalacao_id) {
         const installationKey = `instalacao:${license.instalacao_id}`;
         const installation = await readJson(kv, installationKey);
-        if (installation && typeof installation === "object") {
+        if (installation && typeof installation === "object" && shouldWriteHeartbeat(installation)) {
           installation.last_seen_at = nowIso();
           installation.updated_at = nowIso();
           installation.last_meta = body?.meta || null;
