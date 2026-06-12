@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap-icons/font/bootstrap-icons.css";
+import { fetchWithPublicFallback } from "../services/api";
 
 export default function LoginPage({ apiUrl, onLoginSuccess }) {
   const [empregados, setEmpregados] = useState([]);
@@ -11,7 +12,7 @@ export default function LoginPage({ apiUrl, onLoginSuccess }) {
   useEffect(() => {
     async function fetchEmpregados() {
       try {
-        const res = await fetch(`${apiUrl}/empregados`);
+        const res = await fetchWithPublicFallback(`${apiUrl}/empregados`);
         const data = await res.json();
         setEmpregados(data);
       } catch (err) {
@@ -26,7 +27,7 @@ export default function LoginPage({ apiUrl, onLoginSuccess }) {
     if (!empregadoSelecionado || !pin) return;
 
     try {
-      const res = await fetch(`${apiUrl}/login`, {
+      const res = await fetchWithPublicFallback(`${apiUrl}/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

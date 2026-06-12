@@ -12,6 +12,42 @@ export function getApiBaseUrl() {
   return API_BASE;
 }
 
+function trimTrailingSlash(url) {
+  return String(url || "").replace(/\/+$/, "");
+}
+
+function getPublicFallbackBase() {
+  if (typeof window === "undefined") return "";
+  return trimTrailingSlash(window.localStorage.getItem("apiUrlPublic") || "");
+}
+
+function buildFallbackUrl(url) {
+  const fallbackBase = getPublicFallbackBase();
+  const apiBase = trimTrailingSlash(API_BASE);
+  const currentUrl = String(url || "");
+
+  if (!fallbackBase || !apiBase || fallbackBase === apiBase) return "";
+  if (!currentUrl.startsWith(apiBase)) return "";
+
+  return `${fallbackBase}${currentUrl.slice(apiBase.length)}`;
+}
+
+function shouldTryPublicFallback(res) {
+  return [502, 503, 504].includes(Number(res?.status || 0));
+}
+
+export async function fetchWithPublicFallback(url, options = {}) {
+  const requestOptions = withDefaultHeaders(options);
+  const response = await fetch(url, requestOptions);
+  const fallbackUrl = buildFallbackUrl(url);
+
+  if (!fallbackUrl || !shouldTryPublicFallback(response)) {
+    return response;
+  }
+
+  return fetch(fallbackUrl, requestOptions);
+}
+
 const DEFAULT_HEADERS = {
   "Accept": "application/json"
 };
@@ -118,7 +154,7 @@ async function fetchJson(url, options = {}, { retryLicenca = true } = {}) {
   const requestOptions = withDefaultHeaders(options);
 
   try {
-    const resObj = await logResponse(await fetch(url, requestOptions));
+    const resObj = await logResponse(await fetchWithPublicFallback(url, requestOptions));
     return await checkJsonResponse(resObj);
   } catch (err) {
     if (!retryLicenca || !err?.precisaLicenca) {
@@ -130,7 +166,7 @@ async function fetchJson(url, options = {}, { retryLicenca = true } = {}) {
       throw err;
     }
 
-    const resObj = await logResponse(await fetch(url, requestOptions));
+    const resObj = await logResponse(await fetchWithPublicFallback(url, requestOptions));
     return checkJsonResponse(resObj);
   }
 }

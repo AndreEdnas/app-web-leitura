@@ -45,12 +45,17 @@ function getClienteTunnelUrl(cliente) {
 }
 
 function getPublicStoreUrl(store, cliente = null) {
+  const clienteUrl = getClienteTunnelUrl(cliente);
+  const storeUrl = String(store?.url || "").trim();
+  const storeUrlIsLocal =
+    /^https?:\/\/(127\.0\.0\.1|localhost)(?::\d+)?(?:\/|$)/i.test(storeUrl);
+
   return String(
-    getClienteTunnelUrl(cliente) ||
+    clienteUrl ||
     store?.public_url ||
     store?.publicUrl ||
     store?.tunnel_url ||
-    store?.url ||
+    (storeUrlIsLocal ?"" : storeUrl) ||
     ""
   ).trim();
 }

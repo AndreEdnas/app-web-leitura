@@ -20,6 +20,7 @@ import {
   atualizarPrecoVenda,
   atualizarFornecedor,
   criarFornecedor,
+  fetchWithPublicFallback,
 } from './services/api';
 import StockModal from './components/StockModal';
 import PrecoCompraModal from './components/PrecoCompraModal';
@@ -260,7 +261,7 @@ export default function App() {
     async function fetchTipos() {
       if (!apiUrl || restoringApiSession) return;
       try {
-        const res = await fetch(`${apiUrl}/tiposdocumento`);
+        const res = await fetchWithPublicFallback(`${apiUrl}/tiposdocumento`);
 
 
         const data = await res.json();
@@ -296,7 +297,7 @@ export default function App() {
 
     async function validarLicenca() {
       try {
-        const res = await fetch(`${apiUrl}/pedir-licenca`);
+        const res = await fetchWithPublicFallback(`${apiUrl}/pedir-licenca`);
 
         const data = await res.json();
 
@@ -752,7 +753,7 @@ export default function App() {
             throw err;
           }
 
-          const licencaRes = await fetch(`${apiUrl}/pedir-licenca`);
+          const licencaRes = await fetchWithPublicFallback(`${apiUrl}/pedir-licenca`);
           const licencaData = await licencaRes.json().catch(() => null);
 
           if (!licencaRes.ok || licencaData?.success === false) {
@@ -913,7 +914,7 @@ export default function App() {
 
 
 
-      const resp = await fetch(`${apiUrl}/criarDocumentoCompra`, {
+      const resp = await fetchWithPublicFallback(`${apiUrl}/criarDocumentoCompra`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body)
