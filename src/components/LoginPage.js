@@ -52,23 +52,40 @@ export default function LoginPage({ apiUrl, onLoginSuccess }) {
   const apagarUltimo = () => setPin((prev) => prev.slice(0, -1));
   const limparTudo = () => setPin("");
 
+  function handlePinKeyDown(e) {
+    if (!empregadoSelecionado) return;
+
+    if (/^[0-9]$/.test(e.key)) {
+      e.preventDefault();
+      adicionarNumero(e.key);
+      return;
+    }
+
+    if (e.key === "Backspace") {
+      e.preventDefault();
+      apagarUltimo();
+      return;
+    }
+
+    if (e.key === "Enter") {
+      e.preventDefault();
+      fazerLogin();
+      return;
+    }
+
+    if (e.key === "Escape") {
+      e.preventDefault();
+      setEmpregadoSelecionado(null);
+      setPin("");
+      setErro("");
+    }
+  }
+
   return (
     <main
       className="app-auth-page"
       tabIndex={0}
-      onKeyDown={(e) => {
-        if (!empregadoSelecionado) return;
-
-        if (/^[0-9]$/.test(e.key)) adicionarNumero(e.key);
-        if (e.key === "Backspace") apagarUltimo();
-        if (e.key === "Enter") fazerLogin();
-
-        if (e.key === "Escape") {
-          setEmpregadoSelecionado(null);
-          setPin("");
-          setErro("");
-        }
-      }}
+      onKeyDown={handlePinKeyDown}
     >
       <section className="app-auth-card">
         <div className="app-auth-header">
@@ -119,25 +136,6 @@ export default function LoginPage({ apiUrl, onLoginSuccess }) {
               value={pin}
               readOnly
               autoFocus
-              onKeyDown={(e) => {
-                if (/^[0-9]$/.test(e.key)) {
-                  adicionarNumero(e.key);
-                }
-
-                if (e.key === "Backspace") {
-                  apagarUltimo();
-                }
-
-                if (e.key === "Enter") {
-                  fazerLogin();
-                }
-
-                if (e.key === "Escape") {
-                  setEmpregadoSelecionado(null);
-                  setPin("");
-                  setErro("");
-                }
-              }}
             />
 
             <div className="app-keypad">
