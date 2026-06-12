@@ -1,9 +1,9 @@
 {
   "name": "mock-api",
   "version": "1.0.0",
-  "main": "app.js",
+  "main": "server-mock.js",
   "scripts": {
-    "start": "node app.js"
+    "start": "node server-mock.js"
   },
   "dependencies": {
     "cors": "^2.8.5",

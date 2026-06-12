@@ -302,14 +302,16 @@ export default function App() {
 
         // Se não está licenciada → guardar info e mostrar página de ativação
         if (!data.success) {
+          const tokenLojaAtual = localStorage.getItem("tokenLoja") || lojaSelecionada || "";
           setNaoLicenciado({
             chave: data.chave,
-            loja: data.loja,
-            token: data.token,
+            loja: data.loja || lojaSelecionada,
+            token: data.token || tokenLojaAtual,
             server: data.server,
             database: data.database,
             port: data.port,
-            url: data.url,
+            url: data.url || localStorage.getItem("apiUrlPublic") || apiUrl,
+            erro: data.erro || data.error,
           });
           setLoadingApiUrl(false);
           return;
@@ -401,6 +403,15 @@ export default function App() {
       <PCNaoAtivado
         dados={naoLicenciado}
         onRevalidar={() => window.location.reload()}
+        onTrocarLoja={() => {
+          limparSessaoLoja();
+          setApiUrl(null);
+          apiModule.setApiBaseUrl("");
+          setLojaSelecionada(null);
+          setEmpregado(null);
+          setPaginaAtual("menu");
+          setNaoLicenciado(null);
+        }}
       />
     );
   }
