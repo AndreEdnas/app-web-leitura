@@ -1,4 +1,5 @@
 import { normalizarTextoPt } from "./texto";
+import { getBrowserPublicUrl } from "./backendConfig";
 
 let API_BASE = "";
 
@@ -18,7 +19,11 @@ function trimTrailingSlash(url) {
 
 function getPublicFallbackBase() {
   if (typeof window === "undefined") return "";
-  return trimTrailingSlash(window.localStorage.getItem("apiUrlPublic") || "");
+  const fallbackBase = getBrowserPublicUrl(window.localStorage.getItem("apiUrlPublic") || "");
+  if (!fallbackBase) {
+    window.localStorage.removeItem("apiUrlPublic");
+  }
+  return fallbackBase;
 }
 
 function buildFallbackUrl(url) {

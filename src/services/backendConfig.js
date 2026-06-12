@@ -22,6 +22,21 @@ function isLocalUrl(url) {
   }
 }
 
+export function isBrowserPublicUrl(url) {
+  try {
+    const parsed = new URL(url);
+    if (!["http:", "https:"].includes(parsed.protocol)) return false;
+    return !isLocalHostName(parsed.hostname);
+  } catch {
+    return false;
+  }
+}
+
+export function getBrowserPublicUrl(url) {
+  const normalizedUrl = trimTrailingSlash(url);
+  return isBrowserPublicUrl(normalizedUrl) ? normalizedUrl : "";
+}
+
 function isApiProxyUrl(url) {
   try {
     const parsed = new URL(url);

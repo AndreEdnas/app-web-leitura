@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap-icons/font/bootstrap-icons.css";
-import { getBrowserApiBaseUrl } from "../services/backendConfig";
+import { getBrowserApiBaseUrl, getBrowserPublicUrl } from "../services/backendConfig";
 
 export default function LojaSelectPage({ resolverUrl, onLojaConfirmada }) {
   const [tokenLoja, setTokenLoja] = useState("");
@@ -37,7 +37,7 @@ export default function LojaSelectPage({ resolverUrl, onLojaConfirmada }) {
       const loja = data.loja || {};
       const lojaId = String(loja.id || loja.nome || "").trim();
       const lojaNome = String(loja.nome || lojaId).trim();
-      const apiUrl = String(loja.url || "").trim();
+      const apiUrl = getBrowserPublicUrl(loja.url);
       if (!lojaId || !apiUrl) {
         throw new Error("Loja sem URL pública configurada.");
       }

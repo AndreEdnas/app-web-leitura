@@ -41,7 +41,7 @@ import LoginPage from './components/LoginPage';
 import MenuPrincipal from "./components/MenuPrincipal";
 import LojaSelectPage from "./components/LojaSelectPage";
 import PCNaoAtivado from "./components/PCNaoAtivado";
-import { getBackendBaseUrl, getBrowserApiBaseUrl, getResolverLojaUrl } from "./services/backendConfig";
+import { getBackendBaseUrl, getBrowserApiBaseUrl, getBrowserPublicUrl, getResolverLojaUrl } from "./services/backendConfig";
 
 function useStickyState(defaultValue, key) {
   const [value, setValue] = useState(() => {
@@ -72,7 +72,12 @@ function getInitialApiUrl() {
 
     const browserApiUrl = getBrowserApiBaseUrl(savedApiUrl, localStorage.getItem("tokenLoja") || "");
     if (browserApiUrl !== savedApiUrl) {
-      localStorage.setItem("apiUrlPublic", savedApiUrl);
+      const publicApiUrl = getBrowserPublicUrl(savedApiUrl);
+      if (publicApiUrl) {
+        localStorage.setItem("apiUrlPublic", publicApiUrl);
+      } else {
+        localStorage.removeItem("apiUrlPublic");
+      }
       localStorage.setItem("apiUrl", browserApiUrl);
     }
 
@@ -218,7 +223,9 @@ export default function App() {
 
         const loja = data.loja || {};
         const lojaId = String(loja.id || loja.nome || lojaSelecionada || "").trim();
-        const publicApiUrl = String(loja.url || localStorage.getItem("apiUrlPublic") || "").trim();
+        const publicApiUrl =
+          getBrowserPublicUrl(loja.url) ||
+          getBrowserPublicUrl(localStorage.getItem("apiUrlPublic") || "");
         const browserApiUrl = getBrowserApiBaseUrl(publicApiUrl || apiUrl, token);
 
         if (cancelled) return;
@@ -235,6 +242,8 @@ export default function App() {
 
         if (publicApiUrl) {
           localStorage.setItem("apiUrlPublic", publicApiUrl);
+        } else {
+          localStorage.removeItem("apiUrlPublic");
         }
       } catch (err) {
         console.error("Erro ao restaurar loja:", err);
@@ -311,7 +320,7 @@ export default function App() {
             server: data.server,
             database: data.database,
             port: data.port,
-            url: data.url || localStorage.getItem("apiUrlPublic") || apiUrl,
+            url: getBrowserPublicUrl(data.url) || getBrowserPublicUrl(localStorage.getItem("apiUrlPublic") || "") || apiUrl,
             erro: data.erro || data.error,
           });
           setLoadingApiUrl(false);
@@ -1241,7 +1250,12 @@ export default function App() {
           localStorage.setItem("tokenLoja", token);
           localStorage.setItem("lojaSelecionada", lojaId);
           localStorage.setItem("apiUrl", browserApiUrl);
-          localStorage.setItem("apiUrlPublic", url);
+          const publicApiUrl = getBrowserPublicUrl(url);
+          if (publicApiUrl) {
+            localStorage.setItem("apiUrlPublic", publicApiUrl);
+          } else {
+            localStorage.removeItem("apiUrlPublic");
+          }
         }}
       />
     );
