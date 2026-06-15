@@ -34,7 +34,7 @@ export default function PCNaoAtivado({ dados, onRevalidar, onTrocarLoja }) {
 
   const linhas = [
     ["Loja", loja],
-    ["Identificador da m√°quina", identificadorMaquina],
+    ["Identificador da m·quina", identificadorMaquina],
     ["Servidor SQL", dados.server],
     ["Base de dados", dados.database],
     ["Porta SQL", dados.port],
@@ -53,9 +53,9 @@ export default function PCNaoAtivado({ dados, onRevalidar, onTrocarLoja }) {
   }
 
   function enviarEmail() {
-    const subject = `Diagn√≥stico de licen√ßa - ${loja}`;
+    const subject = `DiagnÛstico de licenÁa - ${loja}`;
     const body =
-      `Ol√°,\n\nA aplica√ß√£o n√£o conseguiu validar a licen√ßa desta instala√ß√£o.\n\n` +
+      `Ol·,\n\nA aplicaÁ„o n„o conseguiu validar a licenÁa desta instalaÁ„o.\n\n` +
       linhasSeguras.map(([label, value]) => `${label}: ${valorVisivel(value)}`).join("\n") +
       `\n\nObrigado.`;
 
@@ -71,15 +71,15 @@ export default function PCNaoAtivado({ dados, onRevalidar, onTrocarLoja }) {
           <div className="app-brand-badge text-danger">
             <i className="bi bi-shield-exclamation" aria-hidden="true"></i>
           </div>
-          <h1 className="app-auth-title">Licen√ßa n√£o ativa</h1>
+          <h1 className="app-auth-title">LicenÁa n„o ativa</h1>
           <p className="app-auth-subtitle">
-            Esta loja ainda n√£o conseguiu validar a licen√ßa nesta m√°quina.
+            Esta loja ainda n„o conseguiu validar a licenÁa nesta m·quina.
           </p>
         </div>
 
         {contaInativa && (
           <div className="alert alert-danger py-2 small" role="alert">
-            Esta conta est√° inativa. O acesso foi bloqueado no servidor.
+            Esta conta est· inativa. O acesso foi bloqueado no servidor.
           </div>
         )}
 
@@ -93,7 +93,7 @@ export default function PCNaoAtivado({ dados, onRevalidar, onTrocarLoja }) {
         <div className="bg-light p-3 rounded mb-3 small">
           <LinhaDiagnostico label="Loja" value={loja} />
           <LinhaDiagnostico
-            label="Identificador da m√°quina"
+            label="Identificador da m·quina"
             value={identificadorMaquina}
             mono
           />
@@ -120,7 +120,7 @@ export default function PCNaoAtivado({ dados, onRevalidar, onTrocarLoja }) {
 
           <button type="button" className="btn btn-outline-secondary" onClick={copiar} hidden={!mostrarDiagnostico}>
             <i className="bi bi-clipboard me-1" aria-hidden="true"></i>
-            {copiado ? "Diagn√≥stico copiado" : "Copiar diagn√≥stico"}
+            {copiado ? "DiagnÛstico copiado" : "Copiar diagnÛstico"}
           </button>
 
           <button type="button" className="btn btn-outline-secondary" onClick={enviarEmail} hidden={!mostrarDiagnostico}>

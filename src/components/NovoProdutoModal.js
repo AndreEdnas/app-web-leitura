@@ -124,7 +124,7 @@ export default function NovoProdutoModal({
 
     if (existeCodBarrasLocal(cod)) {
       setProdutoJaExiste(true);
-      setMensagemErro("Ja existe na lista atual.");
+      setMensagemErro("Já existe na lista atual.");
       return;
     }
 
@@ -137,7 +137,7 @@ export default function NovoProdutoModal({
 
     if (existePLULocal(valor)) {
       setPluJaExiste(true);
-      setMensagemErroPLU("PLU ja existe na tabela atual.");
+      setMensagemErroPLU("PLU já existe na tabela atual.");
       return;
     }
 
@@ -146,7 +146,7 @@ export default function NovoProdutoModal({
 
   function handleSubmit() {
     if (!novoProduto.descricao.trim()) {
-      alert("Preencha a descriÃ§Ã£o do produto.");
+      alert("Preencha a descrição do produto.");
       return;
     }
 

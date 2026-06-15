@@ -15,12 +15,12 @@ export default function LoginPage({ apiUrl, onLoginSuccess }) {
         const res = await fetchWithPublicFallback(`${apiUrl}/empregados`);
         const data = await res.json().catch(() => null);
         if (!res.ok) {
-          throw new Error(data?.error || "NÃƒÂ£o foi possÃƒÂ­vel carregar operadores.");
+          throw new Error(data?.error || "Não foi possível carregar operadores.");
         }
         setEmpregados(data);
       } catch (err) {
         console.error("Erro ao obter empregados:", err);
-        setErro(err?.message || "NÃƒÂ£o foi possÃƒÂ­vel carregar operadores.");
+        setErro(err?.message || "Não foi possível carregar operadores.");
       }
     }
 
@@ -41,12 +41,12 @@ export default function LoginPage({ apiUrl, onLoginSuccess }) {
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "PIN invÃ¡lido");
+      if (!res.ok) throw new Error(data.error || "PIN inválido");
 
       localStorage.setItem("empregado", JSON.stringify(data.user));
       onLoginSuccess(data.user);
     } catch {
-      setErro("PIN invÃ¡lido. Tente novamente.");
+      setErro("PIN inválido. Tente novamente.");
       setPin("");
     }
   }
