@@ -26,9 +26,7 @@ export default function PCNaoAtivado({ dados, onRevalidar, onTrocarLoja }) {
   const [copiado, setCopiado] = useState(false);
 
   const loja = valorVisivel(dados.loja) || "Loja selecionada";
-  const token = valorVisivel(dados.token) || valorVisivel(dados.codigoLoja) || valorVisivel(dados.loja);
   const identificadorMaquina = valorVisivel(dados.chave);
-  const url = valorVisivel(dados.url) || window.location.origin;
   const erro = valorVisivel(dados.erro) || valorVisivel(dados.error);
   const contaInativa = dados.tipo === "conta_inativa";
   const mostrarDiagnostico = !contaInativa;
@@ -36,8 +34,6 @@ export default function PCNaoAtivado({ dados, onRevalidar, onTrocarLoja }) {
 
   const linhas = [
     ["Loja", loja],
-    ["Código/Token da loja", token],
-    ["URL público", url],
     ["Identificador da máquina", identificadorMaquina],
     ["Servidor SQL", dados.server],
     ["Base de dados", dados.database],
@@ -96,8 +92,6 @@ export default function PCNaoAtivado({ dados, onRevalidar, onTrocarLoja }) {
         {mostrarDiagnostico && (
         <div className="bg-light p-3 rounded mb-3 small">
           <LinhaDiagnostico label="Loja" value={loja} />
-          <LinhaDiagnostico label="Código/Token da loja" value={token} />
-          <LinhaDiagnostico label="URL público" value={url} />
           <LinhaDiagnostico
             label="Identificador da máquina"
             value={identificadorMaquina}
