@@ -114,6 +114,51 @@ function copyProxyResponseHeaders(response, corsHeaders) {
   return headers;
 }
 
+async function fetchProxyJson(storeUrl, path, request, url) {
+  const targetUrl = new URL(`${storeUrl}${path}`);
+  targetUrl.search = url.search;
+
+  const response = await fetch(targetUrl.toString(), {
+    method: "GET",
+    headers: buildProxyHeaders(request),
+    redirect: "manual",
+  });
+
+  const text = await response.text();
+  let payload = null;
+  try {
+    payload = text ?JSON.parse(text) : null;
+  } catch {
+    payload = null;
+  }
+
+  if (!response.ok || !payload) {
+    throw new Error(`Falha ao carregar ${path}: ${response.status}`);
+  }
+
+  return payload;
+}
+
+async function bootstrapProxyResponse(storeUrl, request, url, corsHeaders) {
+  const [fornecedores, familias, subfamilias, tiposDocumento] = await Promise.all([
+    fetchProxyJson(storeUrl, "/fornecedores", request, url),
+    fetchProxyJson(storeUrl, "/familias", request, url),
+    fetchProxyJson(storeUrl, "/subfamilias", request, url),
+    fetchProxyJson(storeUrl, "/tiposdocumento", request, url),
+  ]);
+
+  return jsonResponse(
+    {
+      fornecedores,
+      familias,
+      subfamilias,
+      tiposDocumento,
+    },
+    200,
+    corsHeaders
+  );
+}
+
 async function hashToken(value) {
   const bytes = new TextEncoder().encode(String(value || ""));
   const digest = await crypto.subtle.digest("SHA-256", bytes);
@@ -2404,6 +2449,24 @@ export default {
       }
 
       const proxyPath = getProxyPath(pathname);
+      if (request.method === "GET" && proxyPath === "/bootstrap") {
+        try {
+          return await bootstrapProxyResponse(storeUrl, request, url, corsHeaders);
+        } catch (err) {
+          return jsonResponse(
+            {
+              success: false,
+              error: "Bootstrap da loja indisponivel",
+              detalhe: err?.message || null,
+              loja: storeId,
+              url: storeUrl,
+            },
+            502,
+            corsHeaders
+          );
+        }
+      }
+
       const targetUrl = new URL(`${storeUrl}${proxyPath}`);
       targetUrl.search = url.search;
 

@@ -199,6 +199,11 @@ async function fetchJson(url, options = {}, { retryLicenca = true } = {}) {
 Com nomes e identificação,
 Busco-os com dedicação,
 Para a app ganhar direção. */
+export async function fetchBootstrap() {
+  const url = `${API_BASE}/bootstrap`;
+  return fetchJson(url, {}, { retryLicenca: false });
+}
+
 export async function fetchFornecedores() {
   const url = `${API_BASE}/fornecedores`;
   return fetchJson(url);
@@ -238,6 +243,11 @@ Se não pertencer, lança-se o torpor,
 Se não existir, erro com vigor,
 Se JSON chegar, é puro amor. */
 
+
+export async function fetchTiposDocumento() {
+  const url = `${API_BASE}/tiposdocumento`;
+  return fetchJson(url);
+}
 
 export async function fetchProdutoPorCodigo(codigo) {
   const baseUrl = getApiBaseUrl();

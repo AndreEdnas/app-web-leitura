@@ -2521,6 +2521,74 @@ app.get('/subfamilias', async (req, res) => {
   }
 });
 
+// ------------------- GET Bootstrap inicial -------------------
+app.get('/bootstrap', async (req, res) => {
+  if (shouldUseDevMockData()) {
+    return res.json({
+      fornecedores: devMockFornecedores,
+      familias: devMockFamilias,
+      subfamilias: devMockSubfamilias,
+      tiposDocumento: devMockTiposDocumento,
+    });
+  }
+
+  let pool;
+  try {
+    const dbConfig = await getDbConfig();
+    pool = await sql.connect(dbConfig);
+
+    const fornecedoresResult = await pool.request().query(`
+      SELECT codigo, nome
+      FROM fornecedores
+      WHERE nome IS NOT NULL
+      ORDER BY nome
+    `);
+
+    const familiasResult = await pool.request().query(`
+      SELECT codigo, descricao
+      FROM familias
+    `);
+
+    const subfamiliasResult = await pool.request().query(`
+      SELECT codigo, descricao, familia
+      FROM subfamilias
+    `);
+
+    const tiposDocumentoResult = await pool.request().query(`
+      SELECT
+        RTRIM(LTRIM(nd.doc)) AS doc,
+        RTRIM(LTRIM(nd.serie)) AS serie,
+        nd.numero,
+        dd.descricao,
+        atcud.atcud,
+        atcud.ativo AS atcudAtivo
+      FROM numdocseries nd
+      LEFT JOIN documentos_definicao dd
+        ON RTRIM(LTRIM(dd.acronimo)) = RTRIM(LTRIM(nd.doc))
+      LEFT JOIN ATCUD atcud
+        ON RTRIM(LTRIM(atcud.doc)) = RTRIM(LTRIM(nd.doc))
+       AND RTRIM(LTRIM(atcud.serie)) = RTRIM(LTRIM(nd.serie))
+       AND ISNULL(atcud.ativo, 0) = 1
+      WHERE NULLIF(RTRIM(LTRIM(nd.doc)), '') IS NOT NULL
+        AND NULLIF(RTRIM(LTRIM(nd.serie)), '') IS NOT NULL
+        AND RTRIM(LTRIM(nd.doc)) IN ('CFA', 'CFS')
+      ORDER BY nd.doc, nd.serie
+    `);
+
+    return res.json({
+      fornecedores: fornecedoresResult.recordset,
+      familias: familiasResult.recordset,
+      subfamilias: subfamiliasResult.recordset,
+      tiposDocumento: tiposDocumentoResult.recordset,
+    });
+  } catch (err) {
+    console.error('Erro ao obter bootstrap inicial:', err);
+    return res.status(500).json({ error: 'Erro ao carregar dados iniciais' });
+  } finally {
+    if (pool) await pool.close();
+  }
+});
+
 
 
 

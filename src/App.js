@@ -274,6 +274,7 @@ export default function App() {
 
 
 
+  /*
   useEffect(() => {
     async function fetchTipos() {
       if (!apiUrl || restoringApiSession) return;
@@ -290,8 +291,9 @@ export default function App() {
         console.error("Erro ao obter tipos de documento:", err);
       }
     }
-    fetchTipos();
+    void fetchTipos;
   }, [apiUrl, restoringApiSession]);
+  */
 
 
 
@@ -364,6 +366,19 @@ export default function App() {
 
       const carregarDados = async () => {
         try {
+          try {
+            const bootstrapData = await apiModule.fetchBootstrap();
+            if (bootstrapData && typeof bootstrapData === "object") {
+              setFornecedores(Array.isArray(bootstrapData.fornecedores) ? bootstrapData.fornecedores : []);
+              setFamilias(Array.isArray(bootstrapData.familias) ? bootstrapData.familias : []);
+              setSubfamilias(Array.isArray(bootstrapData.subfamilias) ? bootstrapData.subfamilias : []);
+              setTiposDoc(Array.isArray(bootstrapData.tiposDocumento) ? bootstrapData.tiposDocumento : []);
+              return;
+            }
+          } catch (bootstrapErr) {
+            console.warn("Bootstrap inicial indisponivel, a usar endpoints antigos:", bootstrapErr);
+          }
+
           const fornecedoresData = await apiModule.fetchFornecedores();
           setFornecedores(fornecedoresData);
           //console.log("Fornecedores:", fornecedoresData);
@@ -375,6 +390,9 @@ export default function App() {
           const subfamiliasData = await apiModule.fetchSubfamilias();
           setSubfamilias(subfamiliasData);
           //console.log("Subfamilias:", subfamiliasData);
+
+          const tiposDocumentoData = await apiModule.fetchTiposDocumento();
+          setTiposDoc(Array.isArray(tiposDocumentoData) ? tiposDocumentoData : []);
         } catch (err) {
           //.error("Erro ao carregar dados da API:", err);
         }
