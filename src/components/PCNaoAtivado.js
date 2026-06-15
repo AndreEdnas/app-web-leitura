@@ -59,7 +59,7 @@ export default function PCNaoAtivado({ dados, onRevalidar, onTrocarLoja }) {
       linhasSeguras.map(([label, value]) => `${label}: ${valorVisivel(value)}`).join("\n") +
       `\n\nObrigado.`;
 
-    window.location.href = `mailto:suporte@ednas.pt?subject=${encodeURIComponent(
+    window.location.href = `mailto:andre@ednas.pt?subject=${encodeURIComponent(
       subject
     )}&body=${encodeURIComponent(body)}`;
   }
