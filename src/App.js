@@ -124,6 +124,14 @@ function limparSessaoLoja() {
   limparDadosLocaisTrabalho();
 }
 
+function limparAcessoLojaPreservandoTrabalho() {
+  localStorage.removeItem("lojaSelecionada");
+  localStorage.removeItem("tokenLoja");
+  localStorage.removeItem("apiUrl");
+  localStorage.removeItem("apiUrlPublic");
+  limparSessaoOperador();
+}
+
 export default function App() {
   const [naoLicenciado, setNaoLicenciado] = useState(null);
   const [loadingApiUrl, setLoadingApiUrl] = useState(true);
@@ -313,7 +321,9 @@ export default function App() {
         // Se não está licenciada → guardar info e mostrar página de ativação
         if (!data.success) {
           const tokenLojaAtual = localStorage.getItem("tokenLoja") || lojaSelecionada || "";
+          const contaInativa = res.status === 403;
           setNaoLicenciado({
+            tipo: contaInativa ? "conta_inativa" : "licenca",
             chave: data.chave,
             loja: data.loja || lojaSelecionada,
             token: data.token || tokenLojaAtual,
@@ -414,7 +424,11 @@ export default function App() {
         dados={naoLicenciado}
         onRevalidar={() => window.location.reload()}
         onTrocarLoja={() => {
-          limparSessaoLoja();
+          if (naoLicenciado?.tipo === "conta_inativa") {
+            limparAcessoLojaPreservandoTrabalho();
+          } else {
+            limparSessaoLoja();
+          }
           setApiUrl(null);
           apiModule.setApiBaseUrl("");
           setLojaSelecionada(null);

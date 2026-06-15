@@ -13,10 +13,14 @@ export default function LoginPage({ apiUrl, onLoginSuccess }) {
     async function fetchEmpregados() {
       try {
         const res = await fetchWithPublicFallback(`${apiUrl}/empregados`);
-        const data = await res.json();
+        const data = await res.json().catch(() => null);
+        if (!res.ok) {
+          throw new Error(data?.error || "NÃ£o foi possÃ­vel carregar operadores.");
+        }
         setEmpregados(data);
       } catch (err) {
         console.error("Erro ao obter empregados:", err);
+        setErro(err?.message || "NÃ£o foi possÃ­vel carregar operadores.");
       }
     }
 

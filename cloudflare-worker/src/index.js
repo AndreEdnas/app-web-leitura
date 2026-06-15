@@ -187,6 +187,41 @@ async function resolveStoreByDirectToken(kv, token) {
   return { storeId: null, store: null, cliente: null };
 }
 
+function normalizeEstado(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function isBlockedEstado(value) {
+  return [
+    "inativo",
+    "inativa",
+    "bloqueado",
+    "bloqueada",
+    "suspenso",
+    "suspensa",
+    "desativado",
+    "desativada",
+  ].includes(normalizeEstado(value));
+}
+
+function isClienteAccessBlocked(cliente) {
+  if (!cliente || typeof cliente !== "object") return false;
+  const licenca = cliente.licenca && typeof cliente.licenca === "object" ?cliente.licenca : null;
+  return isBlockedEstado(cliente.estado) || isBlockedEstado(licenca?.estado);
+}
+
+function clienteBlockedResponse(cliente, corsHeaders) {
+  return jsonResponse(
+    {
+      success: false,
+      error: "Conta inativa ou bloqueada",
+      estado: cliente?.estado || cliente?.licenca?.estado || null,
+    },
+    403,
+    corsHeaders
+  );
+}
+
 function isAuthorized(request, env) {
   const expected = (env.APP_KEY || "").trim();
   if (!expected) return false;
@@ -214,7 +249,8 @@ const CONFIG_CACHE_TTL_MS = 30 * 1000;
 let cachedLegacyConfig = null;
 let cachedLegacyConfigAt = 0;
 
-const STORE_RESOLVE_CACHE_TTL_MS = 60 * 1000;
+const ACTIVE_STORE_RESOLVE_CACHE_TTL_MS = 10 * 1000;
+const BLOCKED_STORE_RESOLVE_CACHE_TTL_MS = 60 * 1000;
 let storeResolveCache = new Map();
 const HEARTBEAT_WRITE_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -229,7 +265,8 @@ function getStoreResolveCache(token) {
 
   const entry = storeResolveCache.get(key);
   if (!entry) return null;
-  if (Date.now() - entry.cachedAt > STORE_RESOLVE_CACHE_TTL_MS) {
+  const ttlMs = Number(entry.ttlMs || ACTIVE_STORE_RESOLVE_CACHE_TTL_MS);
+  if (Date.now() - entry.cachedAt > ttlMs) {
     storeResolveCache.delete(key);
     return null;
   }
@@ -243,6 +280,9 @@ function setStoreResolveCache(token, value) {
 
   storeResolveCache.set(key, {
     cachedAt: Date.now(),
+    ttlMs: isClienteAccessBlocked(value?.cliente)
+      ?BLOCKED_STORE_RESOLVE_CACHE_TTL_MS
+      : ACTIVE_STORE_RESOLVE_CACHE_TTL_MS,
     value: cloneCacheValue(value),
   });
 
@@ -2310,6 +2350,10 @@ export default {
         );
       }
 
+      if (isClienteAccessBlocked(cliente)) {
+        return clienteBlockedResponse(cliente, corsHeaders);
+      }
+
       const publicStore = toPublicStore(storeId, store, cliente);
       if (!publicStore?.url) {
         return jsonResponse(
@@ -2353,6 +2397,10 @@ export default {
           404,
           corsHeaders
         );
+      }
+
+      if (isClienteAccessBlocked(cliente)) {
+        return clienteBlockedResponse(cliente, corsHeaders);
       }
 
       const proxyPath = getProxyPath(pathname);

@@ -30,6 +30,7 @@ export default function PCNaoAtivado({ dados, onRevalidar, onTrocarLoja }) {
   const identificadorMaquina = valorVisivel(dados.chave);
   const url = valorVisivel(dados.url) || window.location.origin;
   const erro = valorVisivel(dados.erro) || valorVisivel(dados.error);
+  const contaInativa = dados.tipo === "conta_inativa";
   const temDadosSql = dados.server || dados.database || dados.port;
 
   const linhas = [
@@ -77,6 +78,12 @@ export default function PCNaoAtivado({ dados, onRevalidar, onTrocarLoja }) {
             Esta loja ainda não conseguiu validar a licença nesta máquina.
           </p>
         </div>
+
+        {contaInativa && (
+          <div className="alert alert-danger py-2 small" role="alert">
+            Esta conta está inativa. O acesso foi bloqueado no servidor.
+          </div>
+        )}
 
         {erro && (
           <div className="alert alert-warning py-2 small" role="alert">
