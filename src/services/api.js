@@ -41,9 +41,27 @@ function shouldTryPublicFallback(res) {
   return [502, 503, 504].includes(Number(res?.status || 0));
 }
 
+function getRequestMethod(options = {}) {
+  return String(options.method || "GET").trim().toUpperCase();
+}
+
+function shouldRetryRead(res, options = {}) {
+  return getRequestMethod(options) === "GET" && [502, 503, 504].includes(Number(res?.status || 0));
+}
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export async function fetchWithPublicFallback(url, options = {}) {
   const requestOptions = withDefaultHeaders(options);
-  const response = await fetch(url, requestOptions);
+  let response = await fetch(url, requestOptions);
+
+  if (shouldRetryRead(response, requestOptions)) {
+    await delay(800);
+    response = await fetch(url, requestOptions);
+  }
+
   const fallbackUrl = buildFallbackUrl(url);
 
   if (!fallbackUrl || !shouldTryPublicFallback(response)) {
