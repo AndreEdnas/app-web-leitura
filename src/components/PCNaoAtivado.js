@@ -31,7 +31,8 @@ export default function PCNaoAtivado({ dados, onRevalidar, onTrocarLoja }) {
   const url = valorVisivel(dados.url) || window.location.origin;
   const erro = valorVisivel(dados.erro) || valorVisivel(dados.error);
   const contaInativa = dados.tipo === "conta_inativa";
-  const temDadosSql = dados.server || dados.database || dados.port;
+  const mostrarDiagnostico = !contaInativa;
+  const temDadosSql = mostrarDiagnostico && (dados.server || dados.database || dados.port);
 
   const linhas = [
     ["Loja", loja],
@@ -43,9 +44,10 @@ export default function PCNaoAtivado({ dados, onRevalidar, onTrocarLoja }) {
     ["Porta SQL", dados.port],
     ["Detalhe", erro],
   ].filter(([, value]) => valorVisivel(value));
+  const linhasSeguras = mostrarDiagnostico ? linhas : [];
 
   function copiar() {
-    const texto = linhas
+    const texto = linhasSeguras
       .map(([label, value]) => `${label}: ${valorVisivel(value)}`)
       .join("\n");
 
@@ -58,7 +60,7 @@ export default function PCNaoAtivado({ dados, onRevalidar, onTrocarLoja }) {
     const subject = `Diagnóstico de licença - ${loja}`;
     const body =
       `Olá,\n\nA aplicação não conseguiu validar a licença desta instalação.\n\n` +
-      linhas.map(([label, value]) => `${label}: ${valorVisivel(value)}`).join("\n") +
+      linhasSeguras.map(([label, value]) => `${label}: ${valorVisivel(value)}`).join("\n") +
       `\n\nObrigado.`;
 
     window.location.href = `mailto:suporte@ednas.pt?subject=${encodeURIComponent(
@@ -85,12 +87,13 @@ export default function PCNaoAtivado({ dados, onRevalidar, onTrocarLoja }) {
           </div>
         )}
 
-        {erro && (
+        {erro && mostrarDiagnostico && (
           <div className="alert alert-warning py-2 small" role="alert">
             {erro}
           </div>
         )}
 
+        {mostrarDiagnostico && (
         <div className="bg-light p-3 rounded mb-3 small">
           <LinhaDiagnostico label="Loja" value={loja} />
           <LinhaDiagnostico label="Código/Token da loja" value={token} />
@@ -106,6 +109,7 @@ export default function PCNaoAtivado({ dados, onRevalidar, onTrocarLoja }) {
           <LinhaDiagnostico label="Base de dados" value={dados.database} />
           <LinhaDiagnostico label="Porta SQL" value={dados.port} />
         </div>
+        )}
 
         <div className="d-grid gap-2">
           <button type="button" className="btn btn-success" onClick={onRevalidar}>
@@ -120,12 +124,12 @@ export default function PCNaoAtivado({ dados, onRevalidar, onTrocarLoja }) {
             </button>
           )}
 
-          <button type="button" className="btn btn-outline-secondary" onClick={copiar}>
+          <button type="button" className="btn btn-outline-secondary" onClick={copiar} hidden={!mostrarDiagnostico}>
             <i className="bi bi-clipboard me-1" aria-hidden="true"></i>
             {copiado ? "Diagnóstico copiado" : "Copiar diagnóstico"}
           </button>
 
-          <button type="button" className="btn btn-outline-secondary" onClick={enviarEmail}>
+          <button type="button" className="btn btn-outline-secondary" onClick={enviarEmail} hidden={!mostrarDiagnostico}>
             <i className="bi bi-envelope me-1" aria-hidden="true"></i>
             Enviar para suporte
           </button>
