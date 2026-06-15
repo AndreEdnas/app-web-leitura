@@ -30,3 +30,9 @@ Name: "{group}\Configurar EDNAS"; Filename: "{sys}\WindowsPowerShell\v1.0\powers
 
 [Run]
 Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\{#MyAppExeName}"" -InstallDir ""{app}"" -SkipCopy -PromptValues"; StatusMsg: "A configurar EDNAS..."
+
+[UninstallRun]
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\installer\uninstall-client.ps1"""; Flags: runhidden waituntilterminated; RunOnceId: "RemoveEdnasServices"
+
+[UninstallDelete]
+Type: filesandordirs; Name: "{app}"
