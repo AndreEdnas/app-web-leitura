@@ -1364,6 +1364,7 @@ export default function App() {
       <InventarioPage
         lojaSelecionada={lojaSelecionada}
         empregado={empregado}
+        apiUrl={apiUrl}
         onVoltar={() => setPaginaAtual("menu")}
       />
     );

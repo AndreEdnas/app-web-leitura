@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import ScannerHardware from "../components/ScannerHardware";
 import StockModal from "../components/StockModal";
 import AlertaMensagem from "../components/AlertaMensagem";
+import ProcurarProdutoModal from "../components/ProcurarProdutoModal";
 import {
   fetchProdutoPorCodigo,
   fetchInventariosAbertos,
@@ -9,10 +10,11 @@ import {
   gravarLinhasInventario
 } from "../services/api";
 
-export default function InventarioPage({ lojaSelecionada, empregado, onVoltar }) {
+export default function InventarioPage({ lojaSelecionada, empregado, apiUrl, onVoltar }) {
   const [produtos, setProdutos] = useState([]);
   const [produtoParaStock, setProdutoParaStock] = useState(null);
   const [mostrarScanner, setMostrarScanner] = useState(false);
+  const [mostrarPesquisa, setMostrarPesquisa] = useState(false);
   const [alerta, setAlerta] = useState(null);
   const [enviando, setEnviando] = useState(false);
   const [inventariosAbertos, setInventariosAbertos] = useState([]);
@@ -85,33 +87,36 @@ export default function InventarioPage({ lojaSelecionada, empregado, onVoltar })
     };
   }, [inventarioSelecionado]);
 
+  function adicionarProdutoAoInventario(produto) {
+    const jaExiste = produtos.find(
+      (p) =>
+        (p.codbarras && produto.codbarras && p.codbarras === produto.codbarras) ||
+        (p.codigo && produto.codigo && p.codigo === produto.codigo)
+    );
+
+    if (jaExiste) {
+      setAlerta({
+        tipo: "aviso",
+        mensagem: "Este produto já foi adicionado ao inventário."
+      });
+      return;
+    }
+
+    const produtoInventario = {
+      ...produto,
+      __uid: crypto.randomUUID(),
+      qtdstock: Number(produto.qtdstock) || 0,
+      inventarioQtd: Number(produto.qtdstock) || 0
+    };
+
+    setProdutos((prev) => [...prev, produtoInventario]);
+    setProdutoParaStock(produtoInventario);
+  }
+
   async function onDetected(codigo) {
     try {
       const produto = await fetchProdutoPorCodigo(codigo);
-
-      const jaExiste = produtos.find(
-        (p) =>
-          (p.codbarras && p.codbarras === produto.codbarras) ||
-          (p.codigo && p.codigo === produto.codigo)
-      );
-
-      if (jaExiste) {
-        setAlerta({
-          tipo: "aviso",
-          mensagem: "Este produto já foi picado no inventário."
-        });
-        return;
-      }
-
-      const produtoInventario = {
-        ...produto,
-        __uid: crypto.randomUUID(),
-        qtdstock: Number(produto.qtdstock) || 0,
-        inventarioQtd: Number(produto.qtdstock) || 0
-      };
-
-      setProdutos((prev) => [...prev, produtoInventario]);
-      setProdutoParaStock(produtoInventario);
+      adicionarProdutoAoInventario(produto);
     } catch (err) {
       setAlerta({ tipo: "erro", mensagem: err.message });
     }
@@ -276,12 +281,27 @@ export default function InventarioPage({ lojaSelecionada, empregado, onVoltar })
             <i className="bi bi-upc-scan me-1" aria-hidden="true"></i>
             Picar Produto
           </button>
+          <button
+            className="btn btn-outline-primary"
+            onClick={() => setMostrarPesquisa(true)}
+            disabled={enviando || !apiUrl}
+          >
+            <i className="bi bi-search me-1" aria-hidden="true"></i>
+            Procurar Produto
+          </button>
         </div>
 
         <ScannerHardware
           show={mostrarScanner}
           onClose={() => setMostrarScanner(false)}
           onDetected={onDetected}
+        />
+
+        <ProcurarProdutoModal
+          show={mostrarPesquisa}
+          onClose={() => setMostrarPesquisa(false)}
+          apiUrl={apiUrl}
+          onSelecionarProduto={adicionarProdutoAoInventario}
         />
 
         {produtos.length > 0 ?(
@@ -293,7 +313,7 @@ export default function InventarioPage({ lojaSelecionada, empregado, onVoltar })
                   <th className="app-inventory-code-col">Código de barras</th>
                   <th className="text-center app-inventory-number-col">Atual</th>
                   <th className="text-center app-inventory-number-col">Contagem</th>
-                  <th className="text-center app-inventory-diff-col">Diferenca</th>
+                  <th className="text-center app-inventory-diff-col">Diferença</th>
                   <th className="text-center app-inventory-action-col">Apagar</th>
                 </tr>
               </thead>
@@ -372,3 +392,4 @@ export default function InventarioPage({ lojaSelecionada, empregado, onVoltar })
     </div>
   );
 }
+
