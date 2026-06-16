@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { normalizarTextoPt } from "../services/texto";
 
 const config = {
@@ -8,9 +8,16 @@ const config = {
   aviso: { className: "alert-warning", icon: "bi-exclamation-circle" }
 };
 
-export default function AlertaMensagem({ tipo = "info", mensagem, onFechar }) {
+export default function AlertaMensagem({ tipo = "info", mensagem, onFechar, autoFecharMs = 4000 }) {
   const alertConfig = config[tipo] || config.info;
   const mensagemNormalizada = normalizarTextoPt(mensagem);
+
+  useEffect(() => {
+    if (!onFechar || !autoFecharMs) return undefined;
+
+    const timer = setTimeout(onFechar, autoFecharMs);
+    return () => clearTimeout(timer);
+  }, [mensagem, onFechar, autoFecharMs]);
 
   return (
     <div
