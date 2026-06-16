@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
+import { Button, Modal } from "react-bootstrap";
 import ScannerHardware from "../components/ScannerHardware";
 import StockModal from "../components/StockModal";
 import AlertaMensagem from "../components/AlertaMensagem";
@@ -21,6 +22,7 @@ export default function InventarioPage({ lojaSelecionada, empregado, apiUrl, onV
   const [inventarioSelecionado, setInventarioSelecionado] = useState(null);
   const [carregandoInventarios, setCarregandoInventarios] = useState(false);
   const [ultimaAtualizacao, setUltimaAtualizacao] = useState(null);
+  const [mostrarConfirmarAtualizacao, setMostrarConfirmarAtualizacao] = useState(false);
 
   const normalizarLinhasInventario = useCallback((linhas) => {
     return (Array.isArray(linhas) ?linhas : []).map((linha) => ({
@@ -179,22 +181,25 @@ export default function InventarioPage({ lojaSelecionada, empregado, apiUrl, onV
     return produtos.some((produto) => diferencaInventario(produto) !== 0);
   }
 
-  async function atualizarDados() {
-    if (temAlteracoesLocais()) {
-      const continuar = window.confirm(
-        "Há alterações por enviar. Atualizar vai substituir os dados atuais. Continuar?"
-      );
-      if (!continuar) return;
-    }
-
+  async function executarAtualizacaoDados() {
     try {
       const inventarioAtualizado = await carregarInventariosAbertos({ manterSelecionado: true });
       await carregarLinhasSelecionadas(inventarioAtualizado);
       setAlerta({ tipo: "sucesso", mensagem: "Dados atualizados." });
+      setMostrarConfirmarAtualizacao(false);
     } catch (err) {
       setCarregandoInventarios(false);
       setAlerta({ tipo: "erro", mensagem: err.message });
     }
+  }
+
+  async function atualizarDados() {
+    if (temAlteracoesLocais()) {
+      setMostrarConfirmarAtualizacao(true);
+      return;
+    }
+
+    await executarAtualizacaoDados();
   }
 
   return (
@@ -435,6 +440,35 @@ export default function InventarioPage({ lojaSelecionada, empregado, apiUrl, onV
             }}
           />
         )}
+
+        <Modal
+          show={mostrarConfirmarAtualizacao}
+          onHide={() => setMostrarConfirmarAtualizacao(false)}
+          centered
+        >
+          <Modal.Header closeButton>
+            <Modal.Title>Atualizar dados?</Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            Há alterações por enviar. Atualizar vai substituir os dados atuais.
+          </Modal.Body>
+          <Modal.Footer>
+            <Button
+              variant="secondary"
+              onClick={() => setMostrarConfirmarAtualizacao(false)}
+              disabled={carregandoInventarios}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="primary"
+              onClick={executarAtualizacaoDados}
+              disabled={carregandoInventarios}
+            >
+              {carregandoInventarios ? "A atualizar..." : "Atualizar"}
+            </Button>
+          </Modal.Footer>
+        </Modal>
       </div>
     </div>
   );
