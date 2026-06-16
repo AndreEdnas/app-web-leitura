@@ -124,7 +124,7 @@ export default function NovoProdutoModal({
 
     if (existeCodBarrasLocal(cod)) {
       setProdutoJaExiste(true);
-      setMensagemErro("J· existe na lista atual.");
+      setMensagemErro("J√° existe na lista atual.");
       return;
     }
 
@@ -137,7 +137,7 @@ export default function NovoProdutoModal({
 
     if (existePLULocal(valor)) {
       setPluJaExiste(true);
-      setMensagemErroPLU("PLU j· existe na tabela atual.");
+      setMensagemErroPLU("PLU j√° existe na tabela atual.");
       return;
     }
 
@@ -146,7 +146,7 @@ export default function NovoProdutoModal({
 
   function handleSubmit() {
     if (!novoProduto.descricao.trim()) {
-      alert("Preencha a descriÁ„o do produto.");
+      alert("Preencha a descri√ß√£o do produto.");
       return;
     }
 
@@ -156,7 +156,7 @@ export default function NovoProdutoModal({
     }
 
     if (pluJaExiste) {
-      alert("Este PLU ja esta em uso. Escolha outro.");
+      alert("Este PLU j√° est√° em uso. Escolha outro.");
       return;
     }
 
