@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import { normalizarTextoPt } from "../services/texto";
 
 const config = {
@@ -11,13 +11,20 @@ const config = {
 export default function AlertaMensagem({ tipo = "info", mensagem, onFechar, autoFecharMs = 4000 }) {
   const alertConfig = config[tipo] || config.info;
   const mensagemNormalizada = normalizarTextoPt(mensagem);
+  const onFecharRef = useRef(onFechar);
 
   useEffect(() => {
-    if (!onFechar || !autoFecharMs) return undefined;
+    onFecharRef.current = onFechar;
+  }, [onFechar]);
 
-    const timer = setTimeout(onFechar, autoFecharMs);
+  useEffect(() => {
+    if (!onFecharRef.current || !autoFecharMs) return undefined;
+
+    const timer = setTimeout(() => {
+      onFecharRef.current?.();
+    }, autoFecharMs);
     return () => clearTimeout(timer);
-  }, [mensagem, onFechar, autoFecharMs]);
+  }, [mensagem, tipo, autoFecharMs]);
 
   return (
     <div
