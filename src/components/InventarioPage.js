@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import ScannerHardware from "../components/ScannerHardware";
 import StockModal from "../components/StockModal";
 import AlertaMensagem from "../components/AlertaMensagem";
@@ -20,72 +20,80 @@ export default function InventarioPage({ lojaSelecionada, empregado, apiUrl, onV
   const [inventariosAbertos, setInventariosAbertos] = useState([]);
   const [inventarioSelecionado, setInventarioSelecionado] = useState(null);
   const [carregandoInventarios, setCarregandoInventarios] = useState(false);
+  const [ultimaAtualizacao, setUltimaAtualizacao] = useState(null);
 
-  useEffect(() => {
-    let ativo = true;
-
-    async function carregarInventariosAbertos() {
-      try {
-        setCarregandoInventarios(true);
-        const data = await fetchInventariosAbertos();
-        const inventarios = Array.isArray(data) ?data : [];
-
-        if (!ativo) return;
-
-        setInventariosAbertos(inventarios);
-        setInventarioSelecionado(inventarios[0] || null);
-      } catch (err) {
-        if (ativo) {
-          setAlerta({ tipo: "erro", mensagem: err.message });
-        }
-      } finally {
-        if (ativo) setCarregandoInventarios(false);
-      }
-    }
-
-    carregarInventariosAbertos();
-
-    return () => {
-      ativo = false;
-    };
+  const normalizarLinhasInventario = useCallback((linhas) => {
+    return (Array.isArray(linhas) ?linhas : []).map((linha) => ({
+      ...linha,
+      __uid: crypto.randomUUID(),
+      qtdstock: Number(linha.qtdstock) || 0,
+      inventarioQtd: Number(linha.inventarioQtd) || 0
+    }));
   }, []);
 
+  const carregarInventariosAbertos = useCallback(async ({ manterSelecionado = false } = {}) => {
+    setCarregandoInventarios(true);
+    const data = await fetchInventariosAbertos();
+    const inventarios = Array.isArray(data) ?data : [];
+    let selecionado = null;
+
+    setInventariosAbertos(inventarios);
+    setInventarioSelecionado((atual) => {
+      if (manterSelecionado && atual) {
+        const aindaExiste = inventarios.find((item) =>
+          item.serie === atual.serie && Number(item.numero) === Number(atual.numero)
+        );
+        if (aindaExiste) {
+          selecionado = aindaExiste;
+          return aindaExiste;
+        }
+      }
+
+      selecionado = inventarios[0] || null;
+      return selecionado;
+    });
+    setUltimaAtualizacao(new Date());
+    setCarregandoInventarios(false);
+    return selecionado;
+  }, []);
+
+  const carregarLinhasSelecionadas = useCallback(async (inventario = inventarioSelecionado) => {
+    if (!inventario) {
+      setProdutos([]);
+      return;
+    }
+
+    const linhas = await fetchLinhasInventario(inventario.serie, inventario.numero);
+    setProdutos(normalizarLinhasInventario(linhas));
+    setUltimaAtualizacao(new Date());
+  }, [inventarioSelecionado, normalizarLinhasInventario]);
+
   useEffect(() => {
     let ativo = true;
 
-    async function carregarLinhas() {
-      if (!inventarioSelecionado) {
-        setProdutos([]);
-        return;
+    carregarInventariosAbertos().catch((err) => {
+      if (ativo) {
+        setCarregandoInventarios(false);
+        setAlerta({ tipo: "erro", mensagem: err.message });
       }
-
-      try {
-        const linhas = await fetchLinhasInventario(
-          inventarioSelecionado.serie,
-          inventarioSelecionado.numero
-        );
-
-        if (!ativo) return;
-
-        setProdutos(
-          (Array.isArray(linhas) ?linhas : []).map((linha) => ({
-            ...linha,
-            __uid: crypto.randomUUID(),
-            qtdstock: Number(linha.qtdstock) || 0,
-            inventarioQtd: Number(linha.inventarioQtd) || 0
-          }))
-        );
-      } catch (err) {
-        if (ativo) setAlerta({ tipo: "erro", mensagem: err.message });
-      }
-    }
-
-    carregarLinhas();
+    });
 
     return () => {
       ativo = false;
     };
-  }, [inventarioSelecionado]);
+  }, [carregarInventariosAbertos]);
+
+  useEffect(() => {
+    let ativo = true;
+
+    carregarLinhasSelecionadas().catch((err) => {
+      if (ativo) setAlerta({ tipo: "erro", mensagem: err.message });
+    });
+
+    return () => {
+      ativo = false;
+    };
+  }, [carregarLinhasSelecionadas, inventarioSelecionado]);
 
   function adicionarProdutoAoInventario(produto) {
     const jaExiste = produtos.find(
@@ -165,6 +173,28 @@ export default function InventarioPage({ lojaSelecionada, empregado, apiUrl, onV
 
   function diferencaInventario(produto) {
     return (Number(produto.inventarioQtd) || 0) - (Number(produto.qtdstock) || 0);
+  }
+
+  function temAlteracoesLocais() {
+    return produtos.some((produto) => diferencaInventario(produto) !== 0);
+  }
+
+  async function atualizarDados() {
+    if (temAlteracoesLocais()) {
+      const continuar = window.confirm(
+        "Há alterações por enviar. Atualizar vai substituir os dados atuais. Continuar?"
+      );
+      if (!continuar) return;
+    }
+
+    try {
+      const inventarioAtualizado = await carregarInventariosAbertos({ manterSelecionado: true });
+      await carregarLinhasSelecionadas(inventarioAtualizado);
+      setAlerta({ tipo: "sucesso", mensagem: "Dados atualizados." });
+    } catch (err) {
+      setCarregandoInventarios(false);
+      setAlerta({ tipo: "erro", mensagem: err.message });
+    }
   }
 
   return (
@@ -289,7 +319,24 @@ export default function InventarioPage({ lojaSelecionada, empregado, apiUrl, onV
             <i className="bi bi-search me-1" aria-hidden="true"></i>
             Procurar Produto
           </button>
+          <button
+            className="btn btn-outline-secondary"
+            onClick={atualizarDados}
+            disabled={enviando || carregandoInventarios}
+          >
+            <i className="bi bi-arrow-clockwise me-1" aria-hidden="true"></i>
+            {carregandoInventarios ? "A atualizar..." : "Atualizar dados"}
+          </button>
         </div>
+
+        {ultimaAtualizacao && (
+          <p className="text-muted text-center small mb-4">
+            Atualizado às {ultimaAtualizacao.toLocaleTimeString("pt-PT", {
+              hour: "2-digit",
+              minute: "2-digit"
+            })}
+          </p>
+        )}
 
         <ScannerHardware
           show={mostrarScanner}
@@ -392,4 +439,3 @@ export default function InventarioPage({ lojaSelecionada, empregado, apiUrl, onV
     </div>
   );
 }
-
