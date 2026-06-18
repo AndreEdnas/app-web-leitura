@@ -12,7 +12,7 @@ import {
   gravarLinhasInventario
 } from "../services/api";
 
-const PAGE_SIZE = 10;
+const DEFAULT_PAGE_SIZE = 10;
 
 export default function InventarioPage({ lojaSelecionada, empregado, apiUrl, onVoltar, onTrocarLoja }) {
   const [produtos, setProdutos] = useState([]);
@@ -27,6 +27,7 @@ export default function InventarioPage({ lojaSelecionada, empregado, apiUrl, onV
   const [ultimaAtualizacao, setUltimaAtualizacao] = useState(null);
   const [mostrarConfirmarAtualizacao, setMostrarConfirmarAtualizacao] = useState(false);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
 
   const normalizarLinhasInventario = useCallback((linhas) => {
     return (Array.isArray(linhas) ? linhas : []).map((linha) => ({
@@ -210,9 +211,14 @@ export default function InventarioPage({ lojaSelecionada, empregado, apiUrl, onV
     await executarAtualizacaoDados();
   }
 
-  const totalPages = Math.max(1, Math.ceil(produtos.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(produtos.length / pageSize));
   const currentPage = Math.min(page, totalPages);
-  const produtosPagina = produtos.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const produtosPagina = produtos.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  function handlePageSizeChange(nextPageSize) {
+    setPageSize(nextPageSize);
+    setPage(1);
+  }
 
   return (
     <main className="app-work-page app-inventory-page">
@@ -405,9 +411,10 @@ export default function InventarioPage({ lojaSelecionada, empregado, apiUrl, onV
             </table>
             <TablePagination
               page={currentPage}
-              pageSize={PAGE_SIZE}
+              pageSize={pageSize}
               totalItems={produtos.length}
               onPageChange={setPage}
+              onPageSizeChange={handlePageSizeChange}
             />
           </div>
         ) : (

@@ -2,7 +2,7 @@ import React from "react";
 import ProdutoRow from "./ProdutoRow";
 import TablePagination from "./TablePagination";
 
-const PAGE_SIZE = 10;
+const DEFAULT_PAGE_SIZE = 10;
 
 export default function ProdutoTable({
   produtos,
@@ -16,13 +16,19 @@ export default function ProdutoTable({
   setAlerta
 }) {
   const [page, setPage] = React.useState(1);
-  const totalPages = Math.max(1, Math.ceil(produtos.length / PAGE_SIZE));
+  const [pageSize, setPageSize] = React.useState(DEFAULT_PAGE_SIZE);
+  const totalPages = Math.max(1, Math.ceil(produtos.length / pageSize));
   const currentPage = Math.min(page, totalPages);
-  const produtosPagina = produtos.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const produtosPagina = produtos.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   React.useEffect(() => {
     setPage(1);
   }, [produtos.length]);
+
+  function handlePageSizeChange(nextPageSize) {
+    setPageSize(nextPageSize);
+    setPage(1);
+  }
 
   return (
     <>
@@ -58,9 +64,10 @@ export default function ProdutoTable({
       </table>
       <TablePagination
         page={currentPage}
-        pageSize={PAGE_SIZE}
+        pageSize={pageSize}
         totalItems={produtos.length}
         onPageChange={setPage}
+        onPageSizeChange={handlePageSizeChange}
       />
     </>
   );

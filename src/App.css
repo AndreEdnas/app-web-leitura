@@ -719,10 +719,35 @@
   background: #f8fbff;
 }
 
+.app-table-pagination-summary {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
 .app-table-pagination-info,
 .app-table-pagination-page {
   color: #526985;
   font-size: 13px;
+  font-weight: 700;
+}
+
+.app-table-page-size {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #526985;
+  font-size: 13px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.app-table-page-size .form-select {
+  width: 82px;
+  min-height: 34px;
+  border-color: #cbd6e4;
+  color: #0b1f3a;
   font-weight: 700;
 }
 
@@ -804,6 +829,10 @@
   .app-table-pagination {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .app-table-pagination-summary {
+    justify-content: space-between;
   }
 
   .app-table-pagination-actions {
