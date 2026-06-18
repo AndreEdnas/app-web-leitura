@@ -7,22 +7,26 @@ export default function StockModal({
   onConfirmar
 }) {
   const [quantidade, setQuantidade] = useState(0);
+  const [erro, setErro] = useState("");
 
   useEffect(() => {
     setQuantidade(Number(quantidadeInicial) || 0);
+    setErro("");
   }, [quantidadeInicial]);
 
   function aumentar() {
     setQuantidade((q) => q + 1);
+    setErro("");
   }
 
   function diminuir() {
-    setQuantidade((q) => (q > 0 ?q - 1 : 0));
+    setQuantidade((q) => (q > 0 ? q - 1 : 0));
+    setErro("");
   }
 
   function confirmar() {
     if (quantidade < 0) {
-      alert("Introduza uma quantidade válida.");
+      setErro("Introduza uma quantidade valida.");
       return;
     }
 
@@ -55,11 +59,14 @@ export default function StockModal({
               </button>
               <input
                 type="number"
-                className="form-control text-center"
+                className={`form-control text-center ${erro ? "is-invalid" : ""}`}
                 value={quantidade}
                 onChange={(e) => {
                   const val = Number(e.target.value);
-                  if (!isNaN(val) && val >= 0) setQuantidade(val);
+                  if (!Number.isNaN(val)) {
+                    setQuantidade(val);
+                    setErro("");
+                  }
                 }}
                 min={0}
               />
@@ -67,6 +74,7 @@ export default function StockModal({
                 +
               </button>
             </div>
+            {erro && <div className="text-danger small fw-semibold mt-2">{erro}</div>}
           </div>
           <div className="modal-footer">
             <button type="button" className="btn btn-secondary" onClick={onFechar}>Cancelar</button>

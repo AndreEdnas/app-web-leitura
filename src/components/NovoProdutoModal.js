@@ -23,8 +23,20 @@ export default function NovoProdutoModal({
 
   const [produtoJaExiste, setProdutoJaExiste] = useState(false);
   const [mensagemErro, setMensagemErro] = useState("");
+  const [erroGeral, setErroGeral] = useState("");
   const [pluJaExiste, setPluJaExiste] = useState(false);
   const [mensagemErroPLU, setMensagemErroPLU] = useState("");
+
+  function mostrarErro(message) {
+    setErroGeral(
+      String(message || "")
+        .replace("descriÃ§Ã£o", "descricao")
+        .replace("JÃ¡", "Ja")
+        .replace("cÃ³digo", "codigo")
+        .replace("jÃ¡", "ja")
+        .replace("estÃ¡", "esta")
+    );
+  }
 
   const optionsFamilias = familias.map((f) => ({
     value: f.codigo,
@@ -111,6 +123,7 @@ export default function NovoProdutoModal({
   function handleChange(e) {
     const { name, value } = e.target;
 
+    setErroGeral("");
     setNovoProduto((prev) => ({ ...prev, [name]: value }));
 
     if (name !== "codbarras") return;
@@ -133,6 +146,7 @@ export default function NovoProdutoModal({
 
   async function handlePluChange(e) {
     const valor = e.target.value;
+    setErroGeral("");
     setNovoProduto((prev) => ({ ...prev, plu: valor }));
 
     if (existePLULocal(valor)) {
@@ -146,17 +160,17 @@ export default function NovoProdutoModal({
 
   function handleSubmit() {
     if (!novoProduto.descricao.trim()) {
-      alert("Preencha a descrição do produto.");
+      mostrarErro("Preencha a descrição do produto.");
       return;
     }
 
     if (produtoJaExiste) {
-      alert("Já existe um produto com este código de barras.");
+      mostrarErro("Já existe um produto com este código de barras.");
       return;
     }
 
     if (pluJaExiste) {
-      alert("Este PLU já está em uso. Escolha outro.");
+      mostrarErro("Este PLU já está em uso. Escolha outro.");
       return;
     }
 
@@ -188,6 +202,7 @@ export default function NovoProdutoModal({
           </div>
 
           <div className="modal-body">
+            {erroGeral && <div className="alert alert-danger py-2">{erroGeral}</div>}
             <div className="app-form-grid">
               <div className="app-form-span-2">
                 <label className="form-label fw-semibold">Descrição</label>
