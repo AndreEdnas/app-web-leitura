@@ -246,6 +246,33 @@ function Write-Utf8NoBomLines([string]$Path, [string[]]$Lines) {
   [System.IO.File]::WriteAllLines($Path, $Lines, $utf8NoBom)
 }
 
+function Remove-DotEnvKeys([string]$Path, [string[]]$Keys) {
+  if (-not (Test-Path -LiteralPath $Path)) {
+    return
+  }
+
+  $prefixes = $Keys | ForEach-Object { "$_=" }
+  $lines = Get-Content -Path $Path | Where-Object {
+    $line = $_
+    -not ($prefixes | Where-Object { $line.StartsWith($_) })
+  }
+
+  Write-Utf8NoBomLines -Path $Path -Lines $lines
+}
+
+function Remove-InstallSubdir([string]$InstallRoot, [string]$ChildName) {
+  $root = [System.IO.Path]::GetFullPath($InstallRoot).TrimEnd("\") + "\"
+  $target = [System.IO.Path]::GetFullPath((Join-Path $InstallRoot $ChildName))
+
+  if (-not $target.StartsWith($root, [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw "Seguranca: destino fora da pasta de instalacao. Abortar limpeza: $target"
+  }
+
+  if (Test-Path -LiteralPath $target) {
+    Remove-Item -LiteralPath $target -Recurse -Force
+  }
+}
+
 function Stop-ServiceIfExists([string]$Name) {
   $svc = Get-Service -Name $Name -ErrorAction SilentlyContinue
   if ($null -eq $svc) {
@@ -906,6 +933,7 @@ $InstallDir = [System.IO.Path]::GetFullPath($InstallDir)
 $sourceBackend = Join-Path $SourceDir "backend"
 $sourceBuild = Join-Path $SourceDir "build"
 $sourceBuildIndex = Join-Path $sourceBuild "index.html"
+$packageIsVercelOnly = Test-Path -LiteralPath (Join-Path $SourceDir "VERCEL_ONLY")
 
 if (-not (Test-Path -LiteralPath (Join-Path $sourceBackend "server.js"))) {
   throw "Não encontrei backend em: $sourceBackend"
@@ -927,7 +955,10 @@ if (-not $SkipCopy) {
     -To (Join-Path $InstallDir "backend") `
     -ExtraArgs @("/XD", ".git")
 
-  if (Test-Path -LiteralPath $sourceBuildIndex) {
+  if ($packageIsVercelOnly) {
+    Write-Step "Remover frontend local antigo (modo Vercel-only)"
+    Remove-InstallSubdir -InstallRoot $InstallDir -ChildName "build"
+  } elseif (Test-Path -LiteralPath $sourceBuildIndex) {
     Invoke-RobocopySafe `
       -From $sourceBuild `
       -To (Join-Path $InstallDir "build")
@@ -942,6 +973,10 @@ if (-not $SkipCopy) {
       -To (Join-Path $InstallDir "installer") `
       -ExtraArgs @("/XF", "prepare-package.ps1")
   }
+}
+
+if ($packageIsVercelOnly) {
+  Remove-InstallSubdir -InstallRoot $InstallDir -ChildName "build"
 }
 
 Write-Step "Resolver binario Node.js"
@@ -961,6 +996,11 @@ if ([string]::IsNullOrWhiteSpace($nodeExe) -or -not (Test-Path -LiteralPath $nod
 
 $installEnv = Join-Path $InstallDir "backend\.env"
 $sourceEnv = Join-Path $sourceBackend ".env"
+
+if ($packageIsVercelOnly) {
+  Remove-DotEnvKeys -Path $installEnv -Keys @("FRONTEND_BUILD_PATH")
+}
+
 $hasExistingConfig = (Test-Path -LiteralPath $installEnv) -and -not $ForceConfigure
 
 if ($hasExistingConfig) {

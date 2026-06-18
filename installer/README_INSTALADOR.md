@@ -11,9 +11,17 @@ Isto cria uma pasta pronta para distribuir:
 
 ```text
 dist\ednas-client\
-  build\
   backend\
   installer\
+  tools\
+  VERCEL_ONLY
+```
+
+Por defeito o pacote do cliente e Vercel-only: nao inclui o frontend local, porque o cliente usa `https://picagem-ednas.vercel.app`.
+Se for preciso incluir frontend local para testes internos:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\installer\prepare-package.ps1 -IncludeFrontendBuild
 ```
 
 ## 2) Instalar no cliente

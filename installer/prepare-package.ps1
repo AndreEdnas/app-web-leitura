@@ -1,6 +1,7 @@
 ﻿[CmdletBinding()]
 param(
   [string]$OutputDir = "dist\ednas-client",
+  [switch]$IncludeFrontendBuild,
   [switch]$SkipFrontendBuild,
   [switch]$SkipBackendDeps
 )
@@ -132,7 +133,7 @@ if (Test-Path -LiteralPath $packageRoot) {
 
 New-Item -ItemType Directory -Path $packageRoot -Force | Out-Null
 
-if (-not $SkipFrontendBuild) {
+if ($IncludeFrontendBuild -and -not $SkipFrontendBuild) {
   Write-Step "Build frontend (npm run build)"
   Push-Location $repoRoot
   try {
@@ -140,17 +141,20 @@ if (-not $SkipFrontendBuild) {
   } finally {
     Pop-Location
   }
-}
+  Write-Step "Copiar build frontend"
+  $buildDir = Join-Path $repoRoot "build"
+  $buildIndex = Join-Path $buildDir "index.html"
+  if (-not (Test-Path -LiteralPath $buildIndex)) {
+    throw "Build frontend nao encontrado depois de npm run build."
+  }
 
-Write-Step "Copiar build frontend"
-$buildDir = Join-Path $repoRoot "build"
-$buildIndex = Join-Path $buildDir "index.html"
-if (Test-Path -LiteralPath $buildIndex) {
   Invoke-RobocopySafe `
     -From $buildDir `
     -To (Join-Path $packageRoot "build")
 } else {
-  Write-Host "Aviso: build frontend não encontrado. Pacote será backend+tunnel (modo Vercel)." -ForegroundColor Yellow
+  Write-Step "Omitir frontend local"
+  "Cliente usa o site Vercel. Este pacote instala apenas backend local, tunnel e atalhos." |
+    Set-Content -Path (Join-Path $packageRoot "VERCEL_ONLY") -Encoding ASCII
 }
 
 Write-Step "Copiar backend"
@@ -183,6 +187,7 @@ $versionFile = Join-Path $packageRoot "PACKAGE_INFO.txt"
   "EDNAS CLIENT PACKAGE"
   "Data UTC: $([DateTime]::UtcNow.ToString("yyyy-MM-dd HH:mm:ss"))"
   "Origem: $repoRoot"
+  "Frontend local: $(if ($IncludeFrontendBuild -and -not $SkipFrontendBuild) { "incluido" } else { "omitido - Vercel" })"
 ) | Set-Content -Path $versionFile -Encoding UTF8
 
 Write-Step "Pacote criado com sucesso."
