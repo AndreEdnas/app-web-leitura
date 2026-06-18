@@ -173,12 +173,12 @@ if (-not $SkipActivationCode -and [string]::IsNullOrWhiteSpace($ActivationCode))
   $ActivationCode = New-ActivationCode
 }
 
-$now = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
-$storeToken = if ([string]::IsNullOrWhiteSpace($Token)) {
-  $ActivationCode.Trim()
-} else {
-  $Token.Trim()
+if ([string]::IsNullOrWhiteSpace($Token)) {
+  throw "Token de entrada da loja obrigatorio. Usa -Token para definir o token que o cliente usa para entrar no site."
 }
+
+$now = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+$storeToken = $Token.Trim()
 
 $store = [ordered]@{
   id = $LojaId.Trim()

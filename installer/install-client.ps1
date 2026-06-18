@@ -980,7 +980,7 @@ if (-not [string]::IsNullOrWhiteSpace($CfAppKey)) {
   $CfAppKey = ""
 }
 $ActivationCode = Resolve-Value -Provided $ActivationCode -Stored $storedActivationCode -Label "Código de ativação"
-$StoreToken = Resolve-Value -Provided $StoreToken -Stored $storedStoreToken -Label "Senha de entrada da loja"
+$StoreToken = Resolve-Value -Provided $StoreToken -Stored $storedStoreToken -Label "Token de entrada da loja"
 $StoreName = if (-not [string]::IsNullOrWhiteSpace($StoreName)) {
   $StoreName.Trim()
 } elseif (-not [string]::IsNullOrWhiteSpace($storedStoreName)) {
@@ -1010,7 +1010,7 @@ if ([string]::IsNullOrWhiteSpace($ActivationCode)) {
   throw "Código de ativação obrigatório."
 }
 if ([string]::IsNullOrWhiteSpace($StoreToken)) {
-  throw "Senha de entrada da loja obrigatória."
+  throw "Token de entrada da loja obrigatório."
 }
 if ([string]::IsNullOrWhiteSpace($DbServer)) {
   throw "Servidor SQL obrigatório."

@@ -11,7 +11,7 @@ import {
   gravarLinhasInventario
 } from "../services/api";
 
-export default function InventarioPage({ lojaSelecionada, empregado, apiUrl, onVoltar }) {
+export default function InventarioPage({ lojaSelecionada, empregado, apiUrl, onVoltar, onTrocarLoja }) {
   const [produtos, setProdutos] = useState([]);
   const [produtoParaStock, setProdutoParaStock] = useState(null);
   const [mostrarScanner, setMostrarScanner] = useState(false);
@@ -233,7 +233,7 @@ export default function InventarioPage({ lojaSelecionada, empregado, apiUrl, onV
               </li>
 
               <li className="nav-item">
-                <button className="btn btn-outline-light btn-sm" onClick={() => window.location.reload()}>
+                <button className="btn btn-outline-light btn-sm" onClick={onTrocarLoja}>
                   <i className="bi bi-arrow-repeat me-1" aria-hidden="true"></i>
                   Trocar loja
                 </button>

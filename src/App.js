@@ -203,6 +203,45 @@ export default function App() {
 
   const [paginaAtual, setPaginaAtual] = useState("menu");
 
+  function trocarLoja() {
+    limparSessaoLoja();
+    setRestoringApiSession(false);
+    setLoadingApiUrl(false);
+    setApiUrl(null);
+    apiModule.setApiBaseUrl("");
+    setLojaSelecionada(null);
+    setEmpregado(null);
+    setPaginaAtual("menu");
+    setProdutos([]);
+    setAlteracoesPendentes({
+      stock: {},
+      precoCompra: {},
+      margem: {},
+      precoVenda: {},
+      criarProdutos: []
+    });
+    setFornecedores([]);
+    setFamilias([]);
+    setSubfamilias([]);
+    setTiposDoc([]);
+    setFornecedorSelecionado("");
+    setTipoDocSelecionado(null);
+    setProdutoParaConfirmar(null);
+    setProdutoParaStock(null);
+    setProdutoParaPrecoCompra(null);
+    setProdutoParaPrecoVenda(null);
+    setProdutoParaMargem(null);
+    setProdutoParaApagar(null);
+    setMostrarModalConfirmarApagar(false);
+    setMostrarModalConfirmarEnvio(false);
+    setMostrarModalNovoProduto(false);
+    setMostrarModalNovoFornecedor(false);
+    setMostrarPesquisaNome(false);
+    setMostrarScannerHardware(false);
+    setAlerta(null);
+    setNaoLicenciado(null);
+  }
+
 
 
   useEffect(() => {
@@ -444,15 +483,8 @@ export default function App() {
         onTrocarLoja={() => {
           if (naoLicenciado?.tipo === "conta_inativa") {
             limparAcessoLojaPreservandoTrabalho();
-          } else {
-            limparSessaoLoja();
           }
-          setApiUrl(null);
-          apiModule.setApiBaseUrl("");
-          setLojaSelecionada(null);
-          setEmpregado(null);
-          setPaginaAtual("menu");
-          setNaoLicenciado(null);
+          trocarLoja();
         }}
       />
     );
@@ -1326,6 +1358,7 @@ export default function App() {
           setPaginaAtual("menu");
         }}
         onTrocarLoja={() => {
+          trocarLoja();
           limparSessaoLoja();
 
           // 🧹 limpar estados React
@@ -1366,6 +1399,7 @@ export default function App() {
         empregado={empregado}
         apiUrl={apiUrl}
         onVoltar={() => setPaginaAtual("menu")}
+        onTrocarLoja={trocarLoja}
       />
     );
   }
@@ -1722,13 +1756,7 @@ export default function App() {
               type="button"
               className="btn btn-outline-secondary"
               onClick={() => {
-                limparSessaoLoja();
-
-                setApiUrl(null);
-                apiModule.setApiBaseUrl("");
-                setLojaSelecionada(null);
-                setEmpregado(null);
-                setPaginaAtual("menu");
+                trocarLoja();
               }}
             >
               <i className="bi bi-arrow-repeat me-1" aria-hidden="true"></i>

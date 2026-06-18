@@ -87,10 +87,10 @@ export function getLojasConfigUrl() {
 export function getResolverLojaUrl() {
   if (typeof window !== "undefined") {
     if (isLocalHostName(window.location.hostname)) {
-      const useRemoteOnLocal =
-        process.env.REACT_APP_USE_REMOTE_LOJAS_CONFIG === "true";
+      const useLocalResolver =
+        process.env.REACT_APP_USE_LOCAL_RESOLVER === "true";
 
-      if (!useRemoteOnLocal) {
+      if (useLocalResolver) {
         return joinUrl(getBackendBaseUrl(), "/resolver-loja");
       }
     }
@@ -156,7 +156,7 @@ export function getBrowserApiBaseUrl(apiUrl, tokenOverride = "") {
   }
 
   if (isLocalUrl(normalizedApiUrl)) {
-    return normalizedApiUrl;
+    return getBackendBaseUrl();
   }
 
   return getBackendBaseUrl();

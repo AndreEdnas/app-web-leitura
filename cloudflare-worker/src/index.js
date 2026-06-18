@@ -197,35 +197,39 @@ async function findStoreByToken(lojas, token) {
 }
 
 async function resolveStoreByDirectToken(kv, token) {
-  const storeId = normalizeStoreId(token);
-  if (!kv || !storeId) return { storeId: null, store: null, cliente: null };
+  const providedToken = String(token || "").trim();
+  if (!kv || !providedToken) return { storeId: null, store: null, cliente: null };
 
-  const cached = getStoreResolveCache(token);
+  const cached = getStoreResolveCache(providedToken);
   if (cached) return cached;
 
-  const cliente = await readClienteDirect(kv, storeId);
-  if (cliente && typeof cliente === "object") {
-    const store = getClienteStore(storeId, cliente);
+  const clienteEntries = await readPrefixMap(kv, "cliente:");
+  for (const [clienteKeyId, cliente] of Object.entries(clienteEntries || {})) {
+    if (!cliente || typeof cliente !== "object") continue;
+
+    const clienteId = normalizeStoreId(cliente.id || cliente.cliente_id || cliente.loja_id || clienteKeyId);
+    const store = getClienteStore(clienteId, cliente);
     const acceptedTokens = [
-      storeId,
       store?.token,
       store?.store_token,
       store?.token_loja,
       cliente.store_token,
       cliente.token,
+      cliente.token_loja,
     ];
-    const accepted = acceptedTokens.some((value) => String(value || "").trim() === String(token || "").trim());
+    const accepted = acceptedTokens.some((value) => String(value || "").trim() === providedToken);
     if (accepted && store) {
-      return setStoreResolveCache(token, { storeId, store, cliente });
+      return setStoreResolveCache(providedToken, { storeId: clienteId, store, cliente });
     }
   }
 
+  const storeId = normalizeStoreId(providedToken);
   const legacyConfig = await readLegacyConfigFromKv(kv);
   const store = await readStoreDirect(kv, legacyConfig, storeId);
   if (store) {
-    const expectedToken = store.token || store.store_token || store.token_loja || storeId;
-    if (String(expectedToken || "").trim() === String(token || "").trim()) {
-      return setStoreResolveCache(token, { storeId, store, cliente: null });
+    const expectedToken = store.token || store.store_token || store.token_loja || "";
+    if (String(expectedToken || "").trim() === providedToken) {
+      return setStoreResolveCache(providedToken, { storeId, store, cliente: null });
     }
   }
 
@@ -711,6 +715,26 @@ async function findClienteByActivationCode(kv, activationCode) {
         key: `cliente:${clienteId}`,
       };
     }
+  }
+
+  const clienteEntries = await readPrefixMap(kv, "cliente:");
+  for (const [clienteKeyId, cliente] of Object.entries(clienteEntries || {})) {
+    if (!cliente || typeof cliente !== "object") continue;
+    if (getClienteActivationCode(cliente) !== code) continue;
+
+    const clienteId = normalizeStoreId(
+      cliente.id ||
+      cliente.cliente_id ||
+      cliente.loja_id ||
+      clienteKeyId
+    );
+    if (!clienteId) continue;
+
+    return {
+      clienteId,
+      cliente,
+      key: `cliente:${clienteId}`,
+    };
   }
 
   return { clienteId: null, cliente: null, key: null };
@@ -2804,31 +2828,6 @@ export default {
         const kv = getKvNamespace(env);
         if (!kv) {
           return jsonResponse({ success: false, error: "KV namespace não configurado" }, 500, corsHeaders);
-        }
-
-        const directClienteId = normalizeStoreId(
-          body.store_token ||
-          body.token_loja ||
-          body.store_id ||
-          body.store_name ||
-          body.loja_id ||
-          body.loja ||
-          ""
-        );
-        if (activationCode && directClienteId) {
-          const directCliente = await readClienteDirect(kv, directClienteId);
-          if (directCliente && typeof directCliente === "object") {
-            const directResponse = await handleClienteActivationDirect(env, kv, corsHeaders, {
-              body,
-              hwid,
-              guessedUrl,
-              host,
-              activationCode,
-              clienteId: directClienteId,
-              currentCliente: directCliente,
-            });
-            if (directResponse) return directResponse;
-          }
         }
 
         const currentState = await loadState(env, { bypassCache: true });
