@@ -1,5 +1,5 @@
 #define MyAppName "EDNAS Picagem"
-#define MyAppVersion "1.0.1"
+#define MyAppVersion "1.0.0"
 #define MyAppPublisher "EDNAS"
 #define MyAppExeName "installer\\install-client.ps1"
 
