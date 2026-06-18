@@ -443,7 +443,6 @@ function getClienteLicense(clienteId, cliente) {
     loja_id: licenca?.loja_id || licenca?.loja || cliente?.loja_id || clienteId,
     loja: licenca?.loja || licenca?.loja_id || cliente?.loja_id || clienteId,
     activation_code: licenca?.activation_code || licenca?.codigo_ativacao || licenca?.token || cliente?.activation_code || null,
-    codigo_ativacao: licenca?.codigo_ativacao || licenca?.activation_code || licenca?.token || cliente?.activation_code || null,
     estado: licenca?.estado || cliente?.estado || "ativa",
     instalacao_id: licenca?.instalacao_id || cliente?.instalacao?.id || null,
     cliente_id: clienteId,
@@ -559,7 +558,6 @@ function toLegacyConfig(normalized, originalLegacyConfig) {
       loja: lic.loja || lic.loja_id || null,
       loja_id: lic.loja_id || lic.loja || null,
       activation_code: lic.activation_code || lic.codigo_ativacao || lic.token || null,
-      codigo_ativacao: lic.codigo_ativacao || lic.activation_code || lic.token || null,
       estado: lic.estado || "ativa",
       ativada_em: lic.ativada_em || null,
     };
@@ -653,7 +651,6 @@ async function persistLicenseAndInstallation(env, payload) {
     instalacao_id: installationId,
     estado: "ativa",
     activation_code: activationCode || null,
-    codigo_ativacao: activationCode || null,
     ativada_em: existingInstallation?.created_at || activatedAt,
     updated_at: activatedAt,
   };
@@ -858,7 +855,6 @@ async function handleClienteActivationDirect(env, kv, corsHeaders, params) {
     instalacao_id: installationId,
     estado: "ativa",
     activation_code: activationCode || null,
-    codigo_ativacao: activationCode || null,
     ativada_em: currentCliente?.licenca?.ativada_em || now,
   };
   const activationRecordWithTunnel = await ensureTunnelForActivationSafe(
@@ -3036,7 +3032,6 @@ export default {
             instalacao_id: installationId,
             estado: "ativa",
             activation_code: activationCode || null,
-            codigo_ativacao: activationCode || null,
             ativada_em: currentCliente?.licenca?.ativada_em || now,
           };
           const activationRecordWithTunnel = await ensureTunnelForActivationSafe(

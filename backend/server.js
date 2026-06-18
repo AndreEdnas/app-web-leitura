@@ -846,8 +846,7 @@ async function carregarSnapshotLicencaDireto(machineHwid) {
             loja_id: lojaId,
             loja: lojaId,
             estado: "ativa",
-            activation_code: ACTIVATION_CODE || null,
-            codigo_ativacao: ACTIVATION_CODE || null
+            activation_code: ACTIVATION_CODE || null
           }
         : null);
 
@@ -1090,7 +1089,6 @@ async function obterSnapshotLicenca({ req = null, hwid = null, allowAutoRegister
           loja_id: lojaId,
           loja: lojaId,
           activation_code: ACTIVATION_CODE || null,
-          codigo_ativacao: ACTIVATION_CODE || null,
           estado: "ativa"
         }
       }
