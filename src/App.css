@@ -277,23 +277,29 @@
   border: 1px solid #d8e0ea;
   border-radius: 12px;
   padding: 0;
+  overflow: hidden;
+  box-shadow: 0 14px 28px rgba(15, 23, 42, 0.05);
+}
+
+.app-table-scroll {
+  width: 100%;
+  max-width: 100%;
   overflow-x: auto;
   overflow-y: hidden;
-  box-shadow: 0 14px 28px rgba(15, 23, 42, 0.05);
   -webkit-overflow-scrolling: touch;
   scrollbar-color: #9fb1c7 #eef4fb;
   scrollbar-width: thin;
 }
 
-.app-work-table-card::-webkit-scrollbar {
+.app-table-scroll::-webkit-scrollbar {
   height: 10px;
 }
 
-.app-work-table-card::-webkit-scrollbar-track {
+.app-table-scroll::-webkit-scrollbar-track {
   background: #eef4fb;
 }
 
-.app-work-table-card::-webkit-scrollbar-thumb {
+.app-table-scroll::-webkit-scrollbar-thumb {
   background: #9fb1c7;
   border-radius: 999px;
   border: 2px solid #eef4fb;
@@ -829,10 +835,19 @@
   .app-table-pagination {
     align-items: stretch;
     flex-direction: column;
+    gap: 10px;
+    padding: 14px 16px;
   }
 
   .app-table-pagination-summary {
+    display: grid;
+    grid-template-columns: 1fr auto;
     justify-content: space-between;
+    width: 100%;
+  }
+
+  .app-table-page-size {
+    justify-content: flex-end;
   }
 
   .app-table-pagination-actions {

@@ -363,52 +363,54 @@ export default function InventarioPage({ lojaSelecionada, empregado, apiUrl, onV
 
         {produtos.length > 0 ? (
           <div className="app-work-table-card app-inventory-table-wrap">
-            <table className="table align-middle app-work-table app-inventory-table">
-              <thead>
-                <tr>
-                  <th>Descricao</th>
-                  <th className="app-inventory-code-col">Codigo de barras</th>
-                  <th className="text-center app-inventory-number-col">Atual</th>
-                  <th className="text-center app-inventory-number-col">Contagem</th>
-                  <th className="text-center app-inventory-diff-col">Diferenca</th>
-                  <th className="text-center app-inventory-action-col">Apagar</th>
-                </tr>
-              </thead>
-              <tbody>
-                {produtosPagina.map((p) => {
-                  const diferenca = diferencaInventario(p);
+            <div className="app-table-scroll">
+              <table className="table align-middle app-work-table app-inventory-table">
+                <thead>
+                  <tr>
+                    <th>Descricao</th>
+                    <th className="app-inventory-code-col">Codigo de barras</th>
+                    <th className="text-center app-inventory-number-col">Atual</th>
+                    <th className="text-center app-inventory-number-col">Contagem</th>
+                    <th className="text-center app-inventory-diff-col">Diferenca</th>
+                    <th className="text-center app-inventory-action-col">Apagar</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {produtosPagina.map((p) => {
+                    const diferenca = diferencaInventario(p);
 
-                  return (
-                    <tr key={p.__uid}>
-                      <td className="fw-semibold">{p.descricao}</td>
-                      <td className="text-muted">{p.codbarras || "-"}</td>
-                      <td className="text-center">{Number(p.qtdstock) || 0}</td>
-                      <td
-                        className="fw-bold text-primary text-center app-clickable-cell"
-                        title="Clique para alterar contagem"
-                        onClick={() => setProdutoParaStock(p)}
-                      >
-                        {Number(p.inventarioQtd) || 0}
-                      </td>
-                      <td className={`fw-bold text-center ${diferenca === 0 ? "text-muted" : diferenca > 0 ? "text-success" : "text-danger"}`}>
-                        {diferenca > 0 ? `+${diferenca}` : diferenca}
-                      </td>
-                      <td className="text-center">
-                        <button
-                          className="btn btn-sm btn-outline-danger"
-                          onClick={() =>
-                            setProdutos((prev) => prev.filter((x) => x.__uid !== p.__uid))
-                          }
-                          disabled={enviando}
+                    return (
+                      <tr key={p.__uid}>
+                        <td className="fw-semibold">{p.descricao}</td>
+                        <td className="text-muted">{p.codbarras || "-"}</td>
+                        <td className="text-center">{Number(p.qtdstock) || 0}</td>
+                        <td
+                          className="fw-bold text-primary text-center app-clickable-cell"
+                          title="Clique para alterar contagem"
+                          onClick={() => setProdutoParaStock(p)}
                         >
-                          <i className="bi bi-trash" aria-hidden="true"></i>
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                          {Number(p.inventarioQtd) || 0}
+                        </td>
+                        <td className={`fw-bold text-center ${diferenca === 0 ? "text-muted" : diferenca > 0 ? "text-success" : "text-danger"}`}>
+                          {diferenca > 0 ? `+${diferenca}` : diferenca}
+                        </td>
+                        <td className="text-center">
+                          <button
+                            className="btn btn-sm btn-outline-danger"
+                            onClick={() =>
+                              setProdutos((prev) => prev.filter((x) => x.__uid !== p.__uid))
+                            }
+                            disabled={enviando}
+                          >
+                            <i className="bi bi-trash" aria-hidden="true"></i>
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
             <TablePagination
               page={currentPage}
               pageSize={pageSize}

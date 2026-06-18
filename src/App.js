@@ -1603,7 +1603,7 @@ export default function App() {
 
           {produtos.length > 0 ? (
             <>
-              <div className="app-work-table-card table-responsive">
+              <div className="app-work-table-card">
                 <ProdutoTable
                   produtos={produtos}
                   alteracoesPendentesStock={alteracoesPendentes.stock}
