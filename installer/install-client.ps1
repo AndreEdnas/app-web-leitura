@@ -234,7 +234,9 @@ function ConvertTo-DotEnvValue([string]$Value) {
 
 function Write-TempJsonConfig([string]$Directory, [hashtable]$Config) {
   $path = Join-Path $Directory ("ednas-config-" + [guid]::NewGuid().ToString("N") + ".json")
-  $Config | ConvertTo-Json -Depth 8 | Set-Content -Path $path -Encoding UTF8
+  $json = $Config | ConvertTo-Json -Depth 8
+  $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+  [System.IO.File]::WriteAllText($path, $json, $utf8NoBom)
   return $path
 }
 
