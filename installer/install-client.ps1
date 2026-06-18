@@ -1,6 +1,6 @@
 ﻿[CmdletBinding()]
 param(
-  [string]$InstallDir = "$env:ProgramFiles\EdnasLeitura",
+  [string]$InstallDir = "$env:ProgramFiles\EDNAS Picagem",
   [string]$SourceDir = "",
   [string]$NodeExePath = "",
   [string]$CloudflaredExePath = "",
@@ -1312,7 +1312,7 @@ if (-not [string]::IsNullOrWhiteSpace($TunnelToken)) {
 }
 
 Write-Step "Criar atalho web"
-$desktopShortcut = Join-Path ([Environment]::GetFolderPath("CommonDesktopDirectory")) "EDNAS Leitura.url"
+$desktopShortcut = Join-Path ([Environment]::GetFolderPath("CommonDesktopDirectory")) "EDNAS Picagem.url"
 @(
   "[InternetShortcut]"
   "URL=$PublicWebUrl"

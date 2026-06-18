@@ -1,4 +1,4 @@
-#define MyAppName "EDNAS Leitura"
+#define MyAppName "EDNAS Picagem"
 #define MyAppVersion "1.0.0"
 #define MyAppPublisher "EDNAS"
 #define MyAppExeName "installer\\install-client.ps1"
@@ -8,11 +8,11 @@ AppId={{D6E0C97F-66F8-4E6C-9C1F-2E0CF4A8A123}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
-DefaultDirName={autopf}\EdnasLeitura
+DefaultDirName={autopf}\EDNAS Picagem
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 OutputDir=..\dist
-OutputBaseFilename=EDNAS_Leitura_Setup
+OutputBaseFilename=EDNAS_Picagem_Setup
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern

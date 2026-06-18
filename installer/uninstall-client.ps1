@@ -1,6 +1,6 @@
 ﻿[CmdletBinding()]
 param(
-  [string]$InstallDir = "$env:ProgramFiles\EdnasLeitura",
+  [string]$InstallDir = "$env:ProgramFiles\EDNAS Picagem",
   [string]$BackendServiceName = "EdnasBackend",
   [string]$TunnelServiceName = "EdnasTunnel",
   [switch]$RemoveFiles
@@ -58,7 +58,7 @@ Remove-ServiceIfExists -Name $BackendServiceName
 
 if ($RemoveFiles) {
   Write-Step "Remover ficheiros locais"
-  if ($InstallDir -notmatch "EdnasLeitura") {
+  if ($InstallDir -notmatch "EDNAS Picagem|EdnasLeitura") {
     throw "Seguranca: caminho inesperado para apagar: $InstallDir"
   }
 
