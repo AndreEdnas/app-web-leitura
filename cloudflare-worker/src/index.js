@@ -733,7 +733,7 @@ async function findClienteByActivationCode(kv, activationCode) {
     return {
       clienteId,
       cliente,
-      key: `cliente:${clienteId}`,
+      key: `cliente:${clienteKeyId}`,
     };
   }
 
@@ -887,20 +887,23 @@ async function handleClienteActivationDirect(env, kv, corsHeaders, params) {
     tunnelPayload?.token
   );
 
+  const clienteWriteKey = params.clienteKey && String(params.clienteKey).startsWith("cliente:")
+    ? params.clienteKey
+    : `cliente:${lojaId}`;
   const updatedCliente = await writeClienteInstallRecord(kv, lojaId, currentCliente, {
     activationCode: activationCode || null,
     store: storePayload,
     installation: installationPayload,
     license: licensePayload,
     tunnel: hasTunnelPayload ?tunnelPayload : null,
-  });
+  }, clienteWriteKey);
   const updatedClienteWithUsage = {
     ...updatedCliente,
     uses: isSameInstallation ?uses : uses + 1,
     last_hwid: hwid,
     updated_at: now,
   };
-  await writeJson(kv, `cliente:${lojaId}`, updatedClienteWithUsage);
+  await writeJson(kv, clienteWriteKey, updatedClienteWithUsage);
   clearLegacyConfigCache();
 
   return jsonResponse(
@@ -918,7 +921,7 @@ async function handleClienteActivationDirect(env, kv, corsHeaders, params) {
   );
 }
 
-async function writeClienteInstallRecord(kv, clienteId, currentCliente, payload) {
+async function writeClienteInstallRecord(kv, clienteId, currentCliente, payload, clienteKey = null) {
   const now = nowIso();
   const loja = {
     ...(currentCliente?.loja && typeof currentCliente.loja === "object" ?currentCliente.loja : {}),
@@ -965,7 +968,7 @@ async function writeClienteInstallRecord(kv, clienteId, currentCliente, payload)
     cliente.tunnel = tunnel;
   }
 
-  await writeJson(kv, `cliente:${clienteId}`, cliente);
+  await writeJson(kv, clienteKey || `cliente:${clienteId}`, cliente);
   return cliente;
 }
 
@@ -3061,20 +3064,23 @@ export default {
             tunnelPayload?.token
           );
 
+          const clienteWriteKey = activationKey && String(activationKey).startsWith("cliente:")
+            ? activationKey
+            : `cliente:${lojaId}`;
           const updatedCliente = await writeClienteInstallRecord(kv, lojaId, currentCliente, {
             activationCode: activationCode || null,
             store: storePayload,
             installation: installationPayload,
             license: licensePayload,
             tunnel: hasTunnelPayload ?tunnelPayload : null,
-          });
+          }, clienteWriteKey);
           const updatedClienteWithUsage = {
             ...updatedCliente,
             uses: isSameInstallation ?uses : uses + 1,
             last_hwid: hwid,
             updated_at: now,
           };
-          await writeJson(kv, `cliente:${lojaId}`, updatedClienteWithUsage);
+          await writeJson(kv, clienteWriteKey, updatedClienteWithUsage);
           clearLegacyConfigCache();
 
           return jsonResponse(
