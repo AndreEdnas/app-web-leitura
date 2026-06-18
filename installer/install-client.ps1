@@ -22,6 +22,7 @@ param(
   [string]$TunnelServiceName = "EdnasTunnel",
   [switch]$PromptValues,
   [switch]$SkipCopy,
+  [switch]$ForceConfigure,
   [switch]$AllowWithoutTunnel
 )
 
@@ -960,6 +961,16 @@ if ([string]::IsNullOrWhiteSpace($nodeExe) -or -not (Test-Path -LiteralPath $nod
 
 $installEnv = Join-Path $InstallDir "backend\.env"
 $sourceEnv = Join-Path $sourceBackend ".env"
+$hasExistingConfig = (Test-Path -LiteralPath $installEnv) -and -not $ForceConfigure
+
+if ($hasExistingConfig) {
+  $existingDbServer = Get-EnvValue -EnvPath $installEnv -Key "DB_SERVER"
+  $existingActivationCode = Get-EnvValue -EnvPath $installEnv -Key "ACTIVATION_CODE"
+  $existingStoreToken = Get-EnvValue -EnvPath $installEnv -Key "STORE_TOKEN"
+  $hasExistingConfig = -not [string]::IsNullOrWhiteSpace($existingDbServer) -and
+    -not [string]::IsNullOrWhiteSpace($existingActivationCode) -and
+    -not [string]::IsNullOrWhiteSpace($existingStoreToken)
+}
 
 $storedCfBase = Get-EnvValue -EnvPath $installEnv -Key "CF_BASE"
 if ([string]::IsNullOrWhiteSpace($storedCfBase)) {
@@ -987,6 +998,57 @@ $storedDbPassword = Get-EnvValue -EnvPath $installEnv -Key "DB_PASSWORD"
 $storedBackendPort = Get-EnvValue -EnvPath $installEnv -Key "BACKEND_PORT"
 if ([string]::IsNullOrWhiteSpace($storedBackendPort)) {
   $storedBackendPort = Get-EnvValue -EnvPath $installEnv -Key "PORT"
+}
+
+$backendScript = Join-Path $InstallDir "backend\server.js"
+$backendDir = Split-Path -Parent $backendScript
+
+if ($hasExistingConfig) {
+  Write-Step "Instalacao existente detectada - atualizar sem reconfigurar"
+
+  if ([string]::IsNullOrWhiteSpace($storedBackendPort)) {
+    $storedBackendPort = $BackendPort
+  }
+
+  $BackendPort = if (-not [string]::IsNullOrWhiteSpace($storedBackendPort)) {
+    $storedBackendPort.Trim()
+  } else {
+    "3052"
+  }
+
+  if (-not (Test-Path -LiteralPath $backendScript)) {
+    throw "Backend não encontrado após atualização: $backendScript"
+  }
+
+  Write-Step "Configurar servico backend"
+  $nssmExe = Resolve-NssmExe -InstallDir $InstallDir
+
+  Configure-NssmService `
+    -NssmExe $nssmExe `
+    -Name $BackendServiceName `
+    -DisplayName "EDNAS Backend" `
+    -Program $nodeExe `
+    -Arguments @("server.js") `
+    -AppDirectory $backendDir `
+    -Description "Backend local EDNAS (licença + SQL + API)."
+  Start-ServiceWithDiagnostics -Name $BackendServiceName -AppDirectory $backendDir
+
+  Write-Step "Manter configuracao e licenca existentes"
+  Write-Host "Atualizacao concluida sem pedir SQL nem ativar novamente." -ForegroundColor Green
+
+  Write-Step "Criar atalho web"
+  $desktopShortcut = Join-Path ([Environment]::GetFolderPath("CommonDesktopDirectory")) "EDNAS Picagem.url"
+  @(
+    "[InternetShortcut]"
+    "URL=$PublicWebUrl"
+  ) | Set-Content -Path $desktopShortcut -Encoding ASCII
+
+  Write-Step "Instalacao concluida."
+  Write-Host "Site público: $PublicWebUrl" -ForegroundColor Green
+  Write-Host "Backend local atualizado com a configuração existente." -ForegroundColor Green
+  Write-Host ""
+  Read-Host "Pressione Enter para finalizar"
+  exit 0
 }
 
 if (-not [string]::IsNullOrWhiteSpace($CfBase)) {
@@ -1042,9 +1104,6 @@ if ([string]::IsNullOrWhiteSpace($DbServer)) {
 if ([string]::IsNullOrWhiteSpace($BackendPort)) {
   $BackendPort = "3052"
 }
-
-$backendScript = Join-Path $InstallDir "backend\server.js"
-$backendDir = Split-Path -Parent $backendScript
 
 while ($true) {
   Write-Step "Testar ligacao SQL"

@@ -26,7 +26,7 @@ Name: "portuguese"; MessagesFile: "compiler:Languages\Portuguese.isl"
 Source: "..\dist\ednas-client\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{group}\Configurar EDNAS"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\{#MyAppExeName}"" -InstallDir ""{app}"" -SkipCopy -PromptValues"
+Name: "{group}\Configurar EDNAS"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\{#MyAppExeName}"" -InstallDir ""{app}"" -SkipCopy -PromptValues -ForceConfigure"
 
 [Run]
 Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\{#MyAppExeName}"" -InstallDir ""{app}"" -SkipCopy -PromptValues"; StatusMsg: "A configurar EDNAS..."
