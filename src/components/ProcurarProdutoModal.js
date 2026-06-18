@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Modal, Button } from "react-bootstrap";
+import { fetchWithPublicFallback } from "../services/api";
 
 function formatMoney(value) {
   const number = Number(value);
@@ -28,7 +29,7 @@ export default function ProcurarProdutoModal({
       try {
         setLoading(true);
         setErro("");
-        const res = await fetch(
+        const res = await fetchWithPublicFallback(
           `${apiUrl}/produtos/pesquisa?q=${encodeURIComponent(termo)}`
         );
         const data = await res.json().catch(() => null);
