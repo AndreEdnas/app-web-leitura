@@ -223,6 +223,26 @@ function Resolve-Value(
   return ""
 }
 
+function ConvertTo-DotEnvValue([string]$Value) {
+  if ($null -eq $Value) {
+    return '""'
+  }
+
+  $escaped = $Value.Replace("\", "\\").Replace('"', '\"').Replace("`r", "\r").Replace("`n", "\n")
+  return '"' + $escaped + '"'
+}
+
+function Write-TempJsonConfig([string]$Directory, [hashtable]$Config) {
+  $path = Join-Path $Directory ("ednas-config-" + [guid]::NewGuid().ToString("N") + ".json")
+  $Config | ConvertTo-Json -Depth 8 | Set-Content -Path $path -Encoding UTF8
+  return $path
+}
+
+function Write-Utf8NoBomLines([string]$Path, [string[]]$Lines) {
+  $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+  [System.IO.File]::WriteAllLines($Path, $Lines, $utf8NoBom)
+}
+
 function Stop-ServiceIfExists([string]$Name) {
   $svc = Get-Service -Name $Name -ErrorAction SilentlyContinue
   if ($null -eq $svc) {
@@ -480,12 +500,10 @@ function Test-SqlConnection(
 ) {
   $testScript = @'
 const sql = require("mssql");
+const fs = require("fs");
 
-function getArg(name) {
-  const prefix = `--${name}=`;
-  const arg = process.argv.find((item) => item.startsWith(prefix));
-  return arg ?arg.slice(prefix.length) : "";
-}
+const configPath = process.argv[2];
+const input = JSON.parse(fs.readFileSync(configPath, "utf8"));
 
 function splitSqlTarget(rawServer) {
   const server = String(rawServer || "").trim();
@@ -501,16 +519,16 @@ function splitSqlTarget(rawServer) {
 }
 
 (async () => {
-  const target = splitSqlTarget(getArg("server"));
-  const explicitInstance = getArg("instance").trim();
+  const target = splitSqlTarget(input.server);
+  const explicitInstance = String(input.instance || "").trim();
   if (explicitInstance) {
     target.instanceName = explicitInstance;
   }
   const config = {
-    user: getArg("user"),
-    password: getArg("password"),
+    user: input.user,
+    password: input.password,
     server: target.server,
-    database: getArg("database"),
+    database: input.database,
     connectionTimeout: 10000,
     requestTimeout: 10000,
     options: {
@@ -522,7 +540,7 @@ function splitSqlTarget(rawServer) {
   if (target.instanceName) {
     config.options.instanceName = target.instanceName;
   } else {
-    config.port = Number(getArg("port") || 1433);
+    config.port = Number(input.port || 1433);
   }
 
   let pool;
@@ -540,20 +558,20 @@ function splitSqlTarget(rawServer) {
 '@
 
   $tempScript = Join-Path $BackendDir ("ednas-sql-test-" + [guid]::NewGuid().ToString("N") + ".js")
+  $tempConfig = ""
   Set-Content -Path $tempScript -Value $testScript -Encoding UTF8
 
   try {
-    $arguments = @(
-      $tempScript,
-      "--server=$DbServer",
-      "--instance=$DbInstance",
-      "--database=$DbDatabase",
-      "--port=$DbPort",
-      "--user=$DbUser",
-      "--password=$DbPassword"
-    )
+    $tempConfig = Write-TempJsonConfig -Directory $BackendDir -Config @{
+      server = $DbServer
+      instance = $DbInstance
+      database = $DbDatabase
+      port = $DbPort
+      user = $DbUser
+      password = $DbPassword
+    }
 
-    $output = & $NodeExe @arguments 2>&1
+    $output = & $NodeExe $tempScript $tempConfig 2>&1
     $exitCode = $LASTEXITCODE
     if ($exitCode -ne 0) {
       $detail = ($output | Out-String).Trim()
@@ -566,6 +584,9 @@ function splitSqlTarget(rawServer) {
   } finally {
     if (Test-Path -LiteralPath $tempScript) {
       Remove-Item -LiteralPath $tempScript -Force
+    }
+    if (-not [string]::IsNullOrWhiteSpace($tempConfig) -and (Test-Path -LiteralPath $tempConfig)) {
+      Remove-Item -LiteralPath $tempConfig -Force
     }
   }
 }
@@ -581,12 +602,10 @@ function Get-SqlDatabaseList(
 ) {
   $listScript = @'
 const sql = require("mssql");
+const fs = require("fs");
 
-function getArg(name) {
-  const prefix = `--${name}=`;
-  const arg = process.argv.find((item) => item.startsWith(prefix));
-  return arg ? arg.slice(prefix.length) : "";
-}
+const configPath = process.argv[2];
+const input = JSON.parse(fs.readFileSync(configPath, "utf8"));
 
 function splitSqlTarget(rawServer) {
   const server = String(rawServer || "").trim();
@@ -602,15 +621,15 @@ function splitSqlTarget(rawServer) {
 }
 
 (async () => {
-  const target = splitSqlTarget(getArg("server"));
-  const explicitInstance = getArg("instance").trim();
+  const target = splitSqlTarget(input.server);
+  const explicitInstance = String(input.instance || "").trim();
   if (explicitInstance) {
     target.instanceName = explicitInstance;
   }
 
   const config = {
-    user: getArg("user"),
-    password: getArg("password"),
+    user: input.user,
+    password: input.password,
     server: target.server,
     database: "master",
     connectionTimeout: 10000,
@@ -624,7 +643,7 @@ function splitSqlTarget(rawServer) {
   if (target.instanceName) {
     config.options.instanceName = target.instanceName;
   } else {
-    const port = String(getArg("port") || "").trim();
+    const port = String(input.port || "").trim();
     if (port) {
       config.port = Number(port);
     }
@@ -651,19 +670,19 @@ function splitSqlTarget(rawServer) {
 '@
 
   $tempScript = Join-Path $BackendDir ("ednas-sql-databases-" + [guid]::NewGuid().ToString("N") + ".js")
+  $tempConfig = ""
   Set-Content -Path $tempScript -Value $listScript -Encoding UTF8
 
   try {
-    $arguments = @(
-      $tempScript,
-      "--server=$DbServer",
-      "--instance=$DbInstance",
-      "--port=$DbPort",
-      "--user=$DbUser",
-      "--password=$DbPassword"
-    )
+    $tempConfig = Write-TempJsonConfig -Directory $BackendDir -Config @{
+      server = $DbServer
+      instance = $DbInstance
+      port = $DbPort
+      user = $DbUser
+      password = $DbPassword
+    }
 
-    $output = & $NodeExe @arguments 2>&1
+    $output = & $NodeExe $tempScript $tempConfig 2>&1
     $exitCode = $LASTEXITCODE
     $detail = ($output | Out-String).Trim()
     if ($exitCode -ne 0) {
@@ -682,6 +701,9 @@ function splitSqlTarget(rawServer) {
   } finally {
     if (Test-Path -LiteralPath $tempScript) {
       Remove-Item -LiteralPath $tempScript -Force
+    }
+    if (-not [string]::IsNullOrWhiteSpace($tempConfig) -and (Test-Path -LiteralPath $tempConfig)) {
+      Remove-Item -LiteralPath $tempConfig -Force
     }
   }
 }
@@ -1089,31 +1111,31 @@ Write-Step "Escrever backend\\.env"
 $frontendBuildPath = Join-Path $InstallDir "build"
 $frontendBuildIndex = Join-Path $frontendBuildPath "index.html"
 $envLines = @(
-  "CF_BASE=$CfBase"
+  "CF_BASE=$(ConvertTo-DotEnvValue $CfBase)"
   "CF_TIMEOUT_MS=25000"
-  "ACTIVATION_CODE=$ActivationCode"
-  "STORE_TOKEN=$StoreToken"
-  "STORE_NAME=$StoreName"
-  "DB_SERVER=$DbServer"
-  "DB_INSTANCE=$DbInstance"
-  "DB_DATABASE=$DbDatabase"
-  "DB_PORT=$DbPort"
-  "DB_USER=$DbUser"
-  "DB_PASSWORD=$DbPassword"
+  "ACTIVATION_CODE=$(ConvertTo-DotEnvValue $ActivationCode)"
+  "STORE_TOKEN=$(ConvertTo-DotEnvValue $StoreToken)"
+  "STORE_NAME=$(ConvertTo-DotEnvValue $StoreName)"
+  "DB_SERVER=$(ConvertTo-DotEnvValue $DbServer)"
+  "DB_INSTANCE=$(ConvertTo-DotEnvValue $DbInstance)"
+  "DB_DATABASE=$(ConvertTo-DotEnvValue $DbDatabase)"
+  "DB_PORT=$(ConvertTo-DotEnvValue $DbPort)"
+  "DB_USER=$(ConvertTo-DotEnvValue $DbUser)"
+  "DB_PASSWORD=$(ConvertTo-DotEnvValue $DbPassword)"
   "PORT=$BackendPort"
   "BACKEND_PORT=$BackendPort"
   "MODO_INSTALACAO=false"
 )
 
 if (-not [string]::IsNullOrWhiteSpace($CfAppKey)) {
-  $envLines += "CF_APP_KEY=$CfAppKey"
+  $envLines += "CF_APP_KEY=$(ConvertTo-DotEnvValue $CfAppKey)"
 }
 
 if (Test-Path -LiteralPath $frontendBuildIndex) {
-  $envLines += "FRONTEND_BUILD_PATH=$frontendBuildPath"
+  $envLines += "FRONTEND_BUILD_PATH=$(ConvertTo-DotEnvValue $frontendBuildPath)"
 }
 
-$envLines | Set-Content -Path $installEnv -Encoding ASCII
+Write-Utf8NoBomLines -Path $installEnv -Lines $envLines
 
 Write-Step "Configurar servico backend"
 $nssmExe = Resolve-NssmExe -InstallDir $InstallDir
