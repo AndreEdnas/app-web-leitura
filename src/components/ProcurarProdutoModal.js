@@ -3,7 +3,7 @@ import { Modal, Button } from "react-bootstrap";
 
 function formatMoney(value) {
   const number = Number(value);
-  return Number.isFinite(number) ?`${number.toFixed(2)} EUR` : "--";
+  return Number.isFinite(number) ? `${number.toFixed(2)} EUR` : "--";
 }
 
 export default function ProcurarProdutoModal({
@@ -15,23 +15,30 @@ export default function ProcurarProdutoModal({
   const [termo, setTermo] = useState("");
   const [resultados, setResultados] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [erro, setErro] = useState("");
 
   useEffect(() => {
     if (!termo) {
       setResultados([]);
+      setErro("");
       return;
     }
 
     const timer = setTimeout(async () => {
       try {
         setLoading(true);
+        setErro("");
         const res = await fetch(
           `${apiUrl}/produtos/pesquisa?q=${encodeURIComponent(termo)}`
         );
-        const data = await res.json();
-        setResultados(data || []);
-      } catch {
+        const data = await res.json().catch(() => null);
+        if (!res.ok) {
+          throw new Error(data?.error || data?.message || "Erro ao pesquisar produtos.");
+        }
+        setResultados(Array.isArray(data) ? data : []);
+      } catch (err) {
         setResultados([]);
+        setErro(err?.message || "Erro ao pesquisar produtos.");
       } finally {
         setLoading(false);
       }
@@ -40,15 +47,20 @@ export default function ProcurarProdutoModal({
     return () => clearTimeout(timer);
   }, [termo, apiUrl]);
 
-  function escolherProduto(produto) {
-    onSelecionarProduto(produto);
+  function fechar() {
     setTermo("");
     setResultados([]);
+    setErro("");
     onClose();
   }
 
+  function escolherProduto(produto) {
+    onSelecionarProduto(produto);
+    fechar();
+  }
+
   return (
-    <Modal show={show} onHide={onClose} centered size="lg">
+    <Modal show={show} onHide={fechar} centered size="lg">
       <Modal.Header closeButton className="bg-primary text-white">
         <Modal.Title>
           <i className="bi bi-search me-2" aria-hidden="true"></i>
@@ -59,7 +71,7 @@ export default function ProcurarProdutoModal({
       <Modal.Body>
         <input
           className="form-control mb-3"
-          placeholder="Introduza o nome ou código do produto..."
+          placeholder="Introduza o nome ou codigo do produto..."
           value={termo}
           onChange={(e) => setTermo(e.target.value)}
           autoFocus
@@ -67,7 +79,11 @@ export default function ProcurarProdutoModal({
 
         {loading && <p className="text-muted mb-0">A pesquisar...</p>}
 
-        {!loading && resultados.length === 0 && termo.length >= 2 && (
+        {!loading && erro && (
+          <p className="text-danger mb-0">{erro}</p>
+        )}
+
+        {!loading && !erro && resultados.length === 0 && termo.length >= 2 && (
           <p className="text-muted mb-0">Nenhum produto encontrado.</p>
         )}
 
@@ -82,7 +98,7 @@ export default function ProcurarProdutoModal({
               <span className="text-start">
                 <span className="d-block fw-bold">{produto.descricao}</span>
                 <small className="text-muted">
-                  {produto.codbarras || "Sem código"}
+                  {produto.codbarras || "Sem codigo"}
                 </small>
               </span>
               <span className="fw-bold text-primary text-nowrap">
@@ -94,7 +110,7 @@ export default function ProcurarProdutoModal({
       </Modal.Body>
 
       <Modal.Footer>
-        <Button variant="secondary" onClick={onClose}>
+        <Button variant="secondary" onClick={fechar}>
           Fechar
         </Button>
       </Modal.Footer>
