@@ -14,7 +14,6 @@ dist\ednas-client\
   backend\
   installer\
   tools\
-  VERCEL_ONLY
 ```
 
 Por defeito o pacote do cliente e Vercel-only: nao inclui o frontend local, porque o cliente usa `https://picagem-ednas.vercel.app`.

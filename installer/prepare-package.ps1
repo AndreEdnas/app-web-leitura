@@ -153,8 +153,6 @@ if ($IncludeFrontendBuild -and -not $SkipFrontendBuild) {
     -To (Join-Path $packageRoot "build")
 } else {
   Write-Step "Omitir frontend local"
-  "Cliente usa o site Vercel. Este pacote instala apenas backend local, tunnel e atalhos." |
-    Set-Content -Path (Join-Path $packageRoot "VERCEL_ONLY") -Encoding ASCII
 }
 
 Write-Step "Copiar backend"

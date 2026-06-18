@@ -933,7 +933,11 @@ $InstallDir = [System.IO.Path]::GetFullPath($InstallDir)
 $sourceBackend = Join-Path $SourceDir "backend"
 $sourceBuild = Join-Path $SourceDir "build"
 $sourceBuildIndex = Join-Path $sourceBuild "index.html"
-$packageIsVercelOnly = Test-Path -LiteralPath (Join-Path $SourceDir "VERCEL_ONLY")
+$packageInfo = Join-Path $SourceDir "PACKAGE_INFO.txt"
+$packageIsVercelOnly = $false
+if (Test-Path -LiteralPath $packageInfo) {
+  $packageIsVercelOnly = (Get-Content -Path $packageInfo -Raw) -match "Frontend local:\s*omitido"
+}
 
 if (-not (Test-Path -LiteralPath (Join-Path $sourceBackend "server.js"))) {
   throw "Não encontrei backend em: $sourceBackend"
