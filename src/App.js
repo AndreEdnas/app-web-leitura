@@ -278,6 +278,20 @@ export default function App() {
         if (cancelled) return;
 
         if (lojaId) {
+          const lojaAnterior = String(localStorage.getItem("lojaSelecionada") || "").trim();
+          if (lojaAnterior && lojaAnterior !== lojaId) {
+            limparSessaoOperador();
+            limparDadosLocaisTrabalho();
+            setEmpregado(null);
+            setProdutos([]);
+            setAlteracoesPendentes({
+              stock: {},
+              precoCompra: {},
+              margem: {},
+              precoVenda: {},
+              criarProdutos: []
+            });
+          }
           setLojaSelecionada(lojaId);
           localStorage.setItem("lojaSelecionada", lojaId);
         }

@@ -141,23 +141,32 @@ export function getBrowserApiBaseUrl(apiUrl, tokenOverride = "") {
   if (!normalizedApiUrl) return normalizedApiUrl;
 
   if (typeof window === "undefined") return normalizedApiUrl;
+  const token = String(tokenOverride || localStorage.getItem("tokenLoja") || "").trim();
+
   if (!isLocalHostName(window.location.hostname)) {
     if (isApiProxyUrl(normalizedApiUrl)) return normalizedApiUrl;
 
-    const token = String(tokenOverride || localStorage.getItem("tokenLoja") || "").trim();
     if (!token) return normalizedApiUrl;
 
     return joinUrl(getWorkerBaseUrl(), `/api_proxy/${encodeURIComponent(token)}`);
   }
 
-  if (process.env.REACT_APP_USE_REMOTE_API_ON_LOCAL === "true") return normalizedApiUrl;
+  if (process.env.REACT_APP_USE_LOCAL_API_ON_LOCAL === "true") {
+    return getBackendBaseUrl();
+  }
+
   if (isApiProxyUrl(normalizedApiUrl)) {
-    return getBackendBaseUrl();
+    return normalizedApiUrl;
   }
 
-  if (isLocalUrl(normalizedApiUrl)) {
-    return getBackendBaseUrl();
+  if (token && isBrowserPublicUrl(normalizedApiUrl)) {
+    return joinUrl(getWorkerBaseUrl(), `/api_proxy/${encodeURIComponent(token)}`);
   }
 
-  return getBackendBaseUrl();
+  if (process.env.REACT_APP_USE_REMOTE_API_ON_LOCAL === "true") return normalizedApiUrl;
+  if (isLocalUrl(normalizedApiUrl)) return getBackendBaseUrl();
+
+  return token
+    ? joinUrl(getWorkerBaseUrl(), `/api_proxy/${encodeURIComponent(token)}`)
+    : getBackendBaseUrl();
 }

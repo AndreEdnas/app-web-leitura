@@ -555,51 +555,82 @@
   font-weight: 600;
 }
 
-.app-inventory-container {
-  max-width: min(100% - 24px, 1280px);
+.app-inventory-page {
+  padding-top: 36px;
+}
+
+.app-inventory-shell {
+  width: min(1100px, 100%);
 }
 
 .app-inventory-title {
   overflow-wrap: anywhere;
 }
 
-.app-inventory-select-card {
-  width: min(100%, 520px);
+.app-inventory-setup-panel {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 14px 16px;
+  background: #f8fbff;
+}
+
+.app-inventory-select-header {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 0;
+  text-align: left;
 }
 
 .app-inventory-form-grid {
-  grid-template-columns: minmax(280px, 520px);
+  width: 100%;
+  grid-template-columns: 1fr;
 }
 
-.app-inventory-scan-button {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  min-width: 260px;
-  border: 1px solid #d8e0ea;
-  background: #fff;
-  border-radius: 10px;
-  padding: 18px 22px;
-  text-align: left;
-  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
-}
-
-.app-inventory-scan-button:hover:not(:disabled) {
-  transform: translateY(-2px);
-  border-color: #b8c7dc;
-  box-shadow: 0 18px 35px rgba(15, 23, 42, 0.08);
-}
-
-.app-inventory-scan-button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.app-work-stats-grid {
+.app-inventory-picker {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 18px;
-  margin-bottom: 18px;
+  gap: 8px;
+  min-width: 0;
+  text-align: left;
+}
+
+.app-inventory-updated {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  min-height: 18px;
+  white-space: nowrap;
+  color: #526985;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.app-inventory-submit-inline {
+  min-height: 48px;
+  padding-inline: 22px;
+  white-space: nowrap;
+}
+
+.app-inventory-nav-actions {
+  justify-content: flex-end;
+  margin: -6px 0 14px;
+}
+
+.app-inventory-footer-actions {
+  margin-top: 22px;
+}
+
+.app-inventory-actions {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-bottom: 16px;
+}
+
+.app-inventory-actions .app-menu-button {
+  min-height: 88px;
 }
 
 .app-work-stat-card {
@@ -630,7 +661,7 @@
 }
 
 .app-inventory-table-wrap {
-  width: min(100%, 1100px);
+  width: 100%;
   max-width: 100%;
 }
 
@@ -678,6 +709,38 @@
   cursor: pointer;
 }
 
+.app-table-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 14px;
+  border-top: 1px solid #e3e9f1;
+  background: #f8fbff;
+}
+
+.app-table-pagination-info,
+.app-table-pagination-page {
+  color: #526985;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.app-table-pagination-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.app-table-pagination-actions .btn {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
 @media (max-width: 900px) {
   .app-work-nav-actions {
     justify-content: stretch;
@@ -693,22 +756,40 @@
     flex-direction: column;
   }
 
-  .app-inventory-scan-button {
+  .app-inventory-setup-panel {
+    grid-template-columns: 1fr;
+    justify-content: stretch;
+  }
+
+  .app-inventory-updated {
+    justify-content: flex-start;
+  }
+
+  .app-inventory-submit-inline {
     width: 100%;
   }
 
-  .app-work-stats-grid {
+  .app-inventory-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .app-work-stats-grid,
+  .app-inventory-stats {
     grid-template-columns: 1fr;
   }
 }
 
 @media (max-width: 640px) {
-  .app-inventory-container {
-    max-width: calc(100% - 16px);
+  .app-inventory-page {
+    padding: 20px 12px 28px;
   }
 
-  .app-inventory-select-card {
-    margin-bottom: 16px !important;
+  .app-inventory-shell {
+    width: 100%;
+  }
+
+  .app-inventory-setup-panel {
+    padding: 18px;
   }
 
   .app-inventory-table {
@@ -718,5 +799,14 @@
   .app-inventory-table th,
   .app-inventory-table td {
     font-size: 13px;
+  }
+
+  .app-table-pagination {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .app-table-pagination-actions {
+    justify-content: space-between;
   }
 }

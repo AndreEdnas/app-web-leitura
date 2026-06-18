@@ -846,7 +846,8 @@ async function carregarSnapshotLicencaDireto(machineHwid) {
             loja_id: lojaId,
             loja: lojaId,
             estado: "ativa",
-            token: ACTIVATION_CODE || null
+            activation_code: ACTIVATION_CODE || null,
+            codigo_ativacao: ACTIVATION_CODE || null
           }
         : null);
 
@@ -1088,7 +1089,8 @@ async function obterSnapshotLicenca({ req = null, hwid = null, allowAutoRegister
           hwid: machineHwid,
           loja_id: lojaId,
           loja: lojaId,
-          token: ACTIVATION_CODE || null,
+          activation_code: ACTIVATION_CODE || null,
+          codigo_ativacao: ACTIVATION_CODE || null,
           estado: "ativa"
         }
       }
@@ -1217,7 +1219,7 @@ function normalizarLojaAtivacao(data = {}) {
     server: loja.server || DB_SERVER || null,
     database: loja.database || DB_DATABASE || null,
     port: Number(loja.port || DB_PORT || 1433),
-    token: loja.token || loja.store_token || STORE_TOKEN || data.license.token || data.licenca.token || null,
+    token: loja.token || loja.store_token || STORE_TOKEN || null,
   };
 }
 
@@ -1703,7 +1705,7 @@ app.get("/pedir-licenca", async (req, res) => {
         success: false,
         chave: snapshot.hwid,
         loja: snapshot.lojaDaLicencaId || "Desconhecida",
-        token: snapshot.licenca.token || "Desconhecido",
+        activation_code: snapshot.licenca.activation_code || snapshot.licenca.codigo_ativacao || snapshot.licenca.token || "Desconhecido",
         server: "Desconhecido",
         database: "Desconhecida",
         port: "Desconhecida",
@@ -1764,7 +1766,7 @@ app.post("/activation/start", async (req, res) => {
         ?
         {
           loja: snapshot.lojaDaLicencaId || snapshot.licenca.loja || snapshot.licenca.loja_id || null,
-          token: snapshot.licenca.token || null,
+          activation_code: snapshot.licenca.activation_code || snapshot.licenca.codigo_ativacao || snapshot.licenca.token || null,
           estado: snapshot.licenca.estado || "ativa"
         }
         : null

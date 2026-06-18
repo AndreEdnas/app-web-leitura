@@ -200,9 +200,6 @@ async function resolveStoreByDirectToken(kv, token) {
   const providedToken = String(token || "").trim();
   if (!kv || !providedToken) return { storeId: null, store: null, cliente: null };
 
-  const cached = getStoreResolveCache(providedToken);
-  if (cached) return cached;
-
   const clienteEntries = await readPrefixMap(kv, "cliente:");
   for (const [clienteKeyId, cliente] of Object.entries(clienteEntries || {})) {
     if (!cliente || typeof cliente !== "object") continue;
@@ -219,7 +216,7 @@ async function resolveStoreByDirectToken(kv, token) {
     ];
     const accepted = acceptedTokens.some((value) => String(value || "").trim() === providedToken);
     if (accepted && store) {
-      return setStoreResolveCache(providedToken, { storeId: clienteId, store, cliente });
+      return { storeId: clienteId, store, cliente };
     }
   }
 
@@ -229,7 +226,7 @@ async function resolveStoreByDirectToken(kv, token) {
   if (store) {
     const expectedToken = store.token || store.store_token || store.token_loja || "";
     if (String(expectedToken || "").trim() === providedToken) {
-      return setStoreResolveCache(providedToken, { storeId, store, cliente: null });
+      return { storeId, store, cliente: null };
     }
   }
 
@@ -445,7 +442,8 @@ function getClienteLicense(clienteId, cliente) {
     hwid,
     loja_id: licenca?.loja_id || licenca?.loja || cliente?.loja_id || clienteId,
     loja: licenca?.loja || licenca?.loja_id || cliente?.loja_id || clienteId,
-    token: licenca?.token || cliente?.activation_code || null,
+    activation_code: licenca?.activation_code || licenca?.codigo_ativacao || licenca?.token || cliente?.activation_code || null,
+    codigo_ativacao: licenca?.codigo_ativacao || licenca?.activation_code || licenca?.token || cliente?.activation_code || null,
     estado: licenca?.estado || cliente?.estado || "ativa",
     instalacao_id: licenca?.instalacao_id || cliente?.instalacao?.id || null,
     cliente_id: clienteId,
@@ -560,7 +558,8 @@ function toLegacyConfig(normalized, originalLegacyConfig) {
       hwid: lic.hwid,
       loja: lic.loja || lic.loja_id || null,
       loja_id: lic.loja_id || lic.loja || null,
-      token: lic.token || null,
+      activation_code: lic.activation_code || lic.codigo_ativacao || lic.token || null,
+      codigo_ativacao: lic.codigo_ativacao || lic.activation_code || lic.token || null,
       estado: lic.estado || "ativa",
       ativada_em: lic.ativada_em || null,
     };
@@ -653,7 +652,8 @@ async function persistLicenseAndInstallation(env, payload) {
     loja: lojaId,
     instalacao_id: installationId,
     estado: "ativa",
-    token: activationCode || null,
+    activation_code: activationCode || null,
+    codigo_ativacao: activationCode || null,
     ativada_em: existingInstallation?.created_at || activatedAt,
     updated_at: activatedAt,
   };
@@ -857,7 +857,8 @@ async function handleClienteActivationDirect(env, kv, corsHeaders, params) {
     loja: lojaId,
     instalacao_id: installationId,
     estado: "ativa",
-    token: activationCode || null,
+    activation_code: activationCode || null,
+    codigo_ativacao: activationCode || null,
     ativada_em: currentCliente?.licenca?.ativada_em || now,
   };
   const activationRecordWithTunnel = await ensureTunnelForActivationSafe(
@@ -3034,7 +3035,8 @@ export default {
             loja: lojaId,
             instalacao_id: installationId,
             estado: "ativa",
-            token: activationCode || null,
+            activation_code: activationCode || null,
+            codigo_ativacao: activationCode || null,
             ativada_em: currentCliente?.licenca?.ativada_em || now,
           };
           const activationRecordWithTunnel = await ensureTunnelForActivationSafe(
@@ -3337,7 +3339,13 @@ export default {
         return jsonResponse({ success: false, error: "Loja incorreta." }, 403, corsHeaders);
       }
 
-      if (String(license.token || "") !== token) {
+      const licenseActivationCode = String(
+        license.activation_code ||
+        license.codigo_ativacao ||
+        license.token ||
+        ""
+      );
+      if (licenseActivationCode !== token) {
         return jsonResponse({ success: false, error: "Token inválido." }, 403, corsHeaders);
       }
 
