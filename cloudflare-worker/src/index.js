@@ -200,23 +200,17 @@ async function resolveStoreByDirectToken(kv, token) {
   const providedToken = String(token || "").trim();
   if (!kv || !providedToken) return { storeId: null, store: null, cliente: null };
 
-  const clienteEntries = await readPrefixMap(kv, "cliente:");
-  for (const [clienteKeyId, cliente] of Object.entries(clienteEntries || {})) {
-    if (!cliente || typeof cliente !== "object") continue;
-
-    const clienteId = normalizeStoreId(cliente.id || cliente.cliente_id || cliente.loja_id || clienteKeyId);
-    const store = getClienteStore(clienteId, cliente);
-    const acceptedTokens = [
-      store?.token,
-      store?.store_token,
-      store?.token_loja,
-      cliente.store_token,
-      cliente.token,
-      cliente.token_loja,
-    ];
-    const accepted = acceptedTokens.some((value) => String(value || "").trim() === providedToken);
-    if (accepted && store) {
-      return { storeId: clienteId, store, cliente };
+  const directCliente = await readClienteDirect(kv, providedToken);
+  if (directCliente && typeof directCliente === "object") {
+    const clienteId = normalizeStoreId(
+      directCliente.id ||
+      directCliente.cliente_id ||
+      directCliente.loja_id ||
+      providedToken
+    );
+    const store = getClienteStore(clienteId, directCliente);
+    if (store) {
+      return { storeId: clienteId, store, cliente: directCliente };
     }
   }
 
@@ -567,18 +561,18 @@ function toLegacyConfig(normalized, originalLegacyConfig) {
   return legacy;
 }
 
-async function loadState(env, { bypassCache = false } = {}) {
+async function loadState(env, { bypassCache = false, includeKvIndexes = false } = {}) {
   const kv = getKvNamespace(env);
   if (!kv) {
     throw new Error("KV namespace não configurado (LOJAS_DB/CONFIG)");
   }
 
   const legacyConfig = await readLegacyConfigFromKv(kv, { bypassCache });
-  const lojasV2 = await readPrefixMap(kv, "loja:");
-  const licencasV2 = await readPrefixMap(kv, "licenca:");
-  const instalacoesV2 = await readPrefixMap(kv, "instalacao:");
-  const tunnelsV2 = await readPrefixMap(kv, "tunnel:");
-  const clientesV2 = await readPrefixMap(kv, "cliente:");
+  const lojasV2 = includeKvIndexes ?await readPrefixMap(kv, "loja:") : {};
+  const licencasV2 = includeKvIndexes ?await readPrefixMap(kv, "licenca:") : {};
+  const instalacoesV2 = includeKvIndexes ?await readPrefixMap(kv, "instalacao:") : {};
+  const tunnelsV2 = includeKvIndexes ?await readPrefixMap(kv, "tunnel:") : {};
+  const clientesV2 = includeKvIndexes ?await readPrefixMap(kv, "cliente:") : {};
 
   return {
     legacyConfig,
@@ -684,6 +678,11 @@ function getClienteActivationCode(cliente) {
   ).trim();
 }
 
+function getActivationCodeIndexKey(activationCode) {
+  const compactCode = String(activationCode || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "");
+  return compactCode ?`cliente-activation-code:${compactCode}` : null;
+}
+
 async function findClienteByActivationCode(kv, activationCode) {
   const code = String(activationCode || "").trim();
   if (!code) return { clienteId: null, cliente: null, key: null };
@@ -714,24 +713,17 @@ async function findClienteByActivationCode(kv, activationCode) {
     }
   }
 
-  const clienteEntries = await readPrefixMap(kv, "cliente:");
-  for (const [clienteKeyId, cliente] of Object.entries(clienteEntries || {})) {
-    if (!cliente || typeof cliente !== "object") continue;
-    if (getClienteActivationCode(cliente) !== code) continue;
-
-    const clienteId = normalizeStoreId(
-      cliente.id ||
-      cliente.cliente_id ||
-      cliente.loja_id ||
-      clienteKeyId
-    );
-    if (!clienteId) continue;
-
-    return {
-      clienteId,
-      cliente,
-      key: `cliente:${clienteKeyId}`,
-    };
+  const indexKey = getActivationCodeIndexKey(code);
+  const indexedClienteId = indexKey ?normalizeStoreId(await kv.get(indexKey)) : "";
+  if (indexedClienteId) {
+    const cliente = await readClienteDirect(kv, indexedClienteId);
+    if (cliente && typeof cliente === "object" && getClienteActivationCode(cliente) === code) {
+      return {
+        clienteId: indexedClienteId,
+        cliente,
+        key: `cliente:${indexedClienteId}`,
+      };
+    }
   }
 
   return { clienteId: null, cliente: null, key: null };
@@ -965,7 +957,12 @@ async function writeClienteInstallRecord(kv, clienteId, currentCliente, payload,
     cliente.tunnel = tunnel;
   }
 
-  await writeJson(kv, clienteKey || `cliente:${clienteId}`, cliente);
+  const writeKey = clienteKey || `cliente:${clienteId}`;
+  await writeJson(kv, writeKey, cliente);
+  const activationCodeIndexKey = getActivationCodeIndexKey(cliente.activation_code);
+  if (activationCodeIndexKey) {
+    await kv.put(activationCodeIndexKey, clienteId);
+  }
   return cliente;
 }
 
@@ -2540,7 +2537,7 @@ export default {
     }
 
     if (pathname === "/config" && request.method === "GET") {
-      const state = await loadState(env, { bypassCache: true });
+      const state = await loadState(env, { bypassCache: true, includeKvIndexes: true });
       const config = toLegacyConfig(state.normalized, state.legacyConfig);
       return jsonResponse(config, 200, corsHeaders);
     }
@@ -2626,13 +2623,13 @@ export default {
     }
 
     if (pathname === "/listar-lojas" && request.method === "GET") {
-      const state = await loadState(env, { bypassCache: true });
+      const state = await loadState(env, { bypassCache: true, includeKvIndexes: true });
       const config = toLegacyConfig(state.normalized, state.legacyConfig);
       return jsonResponse(config.lojas || {}, 200, corsHeaders);
     }
 
     if (pathname === "/listar-licencas" && request.method === "GET") {
-      const state = await loadState(env);
+      const state = await loadState(env, { includeKvIndexes: true });
       const config = toLegacyConfig(state.normalized, state.legacyConfig);
       return jsonResponse(config.licencas || {}, 200, corsHeaders);
     }
@@ -2648,7 +2645,7 @@ export default {
         return jsonResponse({ success: false, error: "Nome da loja é obrigatório" }, 400, corsHeaders);
       }
 
-      const state = await loadState(env, { bypassCache: true });
+      const state = await loadState(env, { bypassCache: true, includeKvIndexes: true });
       if (state.normalized.lojas[nome]) {
         return jsonResponse({ success: false, error: "Loja já existe" }, 409, corsHeaders);
       }
@@ -2691,7 +2688,7 @@ export default {
         return jsonResponse({ success: false, error: "Campos incompletos" }, 400, corsHeaders);
       }
 
-      const state = await loadState(env, { bypassCache: true });
+      const state = await loadState(env, { bypassCache: true, includeKvIndexes: true });
       const existing = state.normalized.lojas[id] || {};
 
       const loja = {
@@ -2729,7 +2726,7 @@ export default {
         return jsonResponse({ success: false, error: "Campos incompletos" }, 400, corsHeaders);
       }
 
-      const state = await loadState(env, { bypassCache: true });
+      const state = await loadState(env, { bypassCache: true, includeKvIndexes: true });
       const store = state.normalized.lojas[id];
       if (!store) {
         return jsonResponse({ success: false, error: "Loja não existe" }, 404, corsHeaders);
@@ -3265,7 +3262,7 @@ export default {
     if (pathname === "/ativar-licenca" && request.method === "POST") {
       const body = await request.json().catch(() => null);
       if (!body || typeof body !== "object") {
-        return jsonResponse({ success: false, error: "Body inválido" }, 400, corsHeaders);
+        return jsonResponse({ success: false, error: "Body invalido" }, 400, corsHeaders);
       }
 
       const codigo = String(body.codigo || "").trim();
@@ -3277,9 +3274,15 @@ export default {
         return jsonResponse({ success: false, error: "Campos incompletos" }, 400, corsHeaders);
       }
 
-      const state = await loadState(env, { bypassCache: true });
-      if (!state.normalized.lojas[loja]) {
-        return jsonResponse({ success: false, error: "Loja não existe" }, 404, corsHeaders);
+      const kv = getKvNamespace(env);
+      if (!kv) {
+        return jsonResponse({ success: false, error: "KV namespace nao configurado" }, 500, corsHeaders);
+      }
+
+      const legacyConfig = await readLegacyConfigFromKv(kv, { bypassCache: true });
+      const store = await readStoreDirect(kv, legacyConfig, loja);
+      if (!store) {
+        return jsonResponse({ success: false, error: "Loja nao existe" }, 404, corsHeaders);
       }
 
       const license = {
@@ -3293,13 +3296,8 @@ export default {
         _legacy_key: codigo,
       };
 
-      const kv = getKvNamespace(env);
-      if (!kv) {
-        return jsonResponse({ success: false, error: "KV namespace não configurado" }, 500, corsHeaders);
-      }
-
       await writeJson(kv, `licenca:${hwid}`, license);
-      await updateLegacyConfigLicense(env, state.legacyConfig, state.normalized, license);
+      await updateLegacyConfigLicense(env, legacyConfig, getLegacyOnlyState(legacyConfig), license);
 
       return jsonResponse({ success: true, licenca: license }, 200, corsHeaders);
     }
