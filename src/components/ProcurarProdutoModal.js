@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Modal, Button } from "react-bootstrap";
-import { fetchWithPublicFallback } from "../services/api";
+import { fetchCachedJson } from "../services/api";
 
 function formatMoney(value) {
   const number = Number(value);
@@ -19,7 +19,8 @@ export default function ProcurarProdutoModal({
   const [erro, setErro] = useState("");
 
   useEffect(() => {
-    if (!termo) {
+    const termoNormalizado = termo.trim();
+    if (termoNormalizado.length < 2) {
       setResultados([]);
       setErro("");
       return;
@@ -29,13 +30,10 @@ export default function ProcurarProdutoModal({
       try {
         setLoading(true);
         setErro("");
-        const res = await fetchWithPublicFallback(
-          `${apiUrl}/produtos/pesquisa?q=${encodeURIComponent(termo)}`
+        const data = await fetchCachedJson(
+          `${apiUrl}/produtos/pesquisa?q=${encodeURIComponent(termoNormalizado)}`,
+          { ttlMs: 5 * 60 * 1000 }
         );
-        const data = await res.json().catch(() => null);
-        if (!res.ok) {
-          throw new Error(data?.error || data?.message || "Erro ao pesquisar produtos.");
-        }
         setResultados(Array.isArray(data) ? data : []);
       } catch (err) {
         setResultados([]);
@@ -43,7 +41,7 @@ export default function ProcurarProdutoModal({
       } finally {
         setLoading(false);
       }
-    }, 300);
+    }, 500);
 
     return () => clearTimeout(timer);
   }, [termo, apiUrl]);

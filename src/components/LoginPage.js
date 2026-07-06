@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap-icons/font/bootstrap-icons.css";
-import { fetchWithPublicFallback } from "../services/api";
+import { fetchCachedJson, fetchWithPublicFallback } from "../services/api";
 
 export default function LoginPage({ apiUrl, onLoginSuccess }) {
   const [empregados, setEmpregados] = useState([]);
@@ -12,12 +12,10 @@ export default function LoginPage({ apiUrl, onLoginSuccess }) {
   useEffect(() => {
     async function fetchEmpregados() {
       try {
-        const res = await fetchWithPublicFallback(`${apiUrl}/empregados`);
-        const data = await res.json().catch(() => null);
-        if (!res.ok) {
-          throw new Error(data?.error || "Não foi possível carregar operadores.");
-        }
-        setEmpregados(data);
+        const data = await fetchCachedJson(`${apiUrl}/empregados`, {
+          ttlMs: 30 * 60 * 1000,
+        });
+        setEmpregados(Array.isArray(data) ? data : []);
       } catch (err) {
         console.error("Erro ao obter empregados:", err);
         setErro(err?.message || "Não foi possível carregar operadores.");

@@ -1464,7 +1464,7 @@ app.post("/resolver-loja", async (req, res) => {
       }
     }
 
-    return res.status(404).json({ success: false, error: "Token inválido" });
+    return res.status(401).json({ success: false, error: "Token inválido" });
   } catch (err) {
     console.error("Erro em /resolver-loja:", err);
     return res.status(500).json({ success: false, error: "Erro interno" });

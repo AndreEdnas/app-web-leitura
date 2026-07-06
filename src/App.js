@@ -20,6 +20,7 @@ import {
   atualizarPrecoVenda,
   atualizarFornecedor,
   criarFornecedor,
+  fetchCachedJson,
   fetchWithPublicFallback,
 } from './services/api';
 import StockModal from './components/StockModal';
@@ -70,9 +71,13 @@ function getInitialApiUrl() {
     const savedApiUrl = localStorage.getItem("apiUrl");
     if (!savedApiUrl) return null;
 
-    const browserApiUrl = getBrowserApiBaseUrl(savedApiUrl, localStorage.getItem("tokenLoja") || "");
+    const savedPublicApiUrl = getBrowserPublicUrl(localStorage.getItem("apiUrlPublic") || "");
+    const browserApiUrl = getBrowserApiBaseUrl(
+      savedPublicApiUrl || savedApiUrl,
+      localStorage.getItem("tokenLoja") || ""
+    );
     if (browserApiUrl !== savedApiUrl) {
-      const publicApiUrl = getBrowserPublicUrl(savedApiUrl);
+      const publicApiUrl = savedPublicApiUrl || getBrowserPublicUrl(savedApiUrl);
       if (publicApiUrl) {
         localStorage.setItem("apiUrlPublic", publicApiUrl);
       } else {
@@ -99,6 +104,7 @@ function shouldRestoreLocalApiSession(apiUrl) {
     }
 
     if (!apiUrl || !localStorage.getItem("tokenLoja")) return false;
+    if (getBrowserPublicUrl(localStorage.getItem("apiUrlPublic") || "")) return false;
     return sameBaseUrl(getBrowserApiBaseUrl(apiUrl), getBackendBaseUrl());
   } catch {
     return false;
@@ -130,6 +136,13 @@ function limparAcessoLojaPreservandoTrabalho() {
   localStorage.removeItem("apiUrl");
   localStorage.removeItem("apiUrlPublic");
   limparSessaoOperador();
+}
+
+const LICENCA_CACHE_TTL_MS = 10 * 60 * 1000;
+const BOOTSTRAP_CACHE_TTL_MS = 30 * 60 * 1000;
+
+function getLicencaCacheKey(apiUrl) {
+  return `licenca-ok:${apiUrl}`;
 }
 
 export default function App() {
@@ -369,6 +382,14 @@ export default function App() {
 
     async function validarLicenca() {
       try {
+        const licencaCacheKey = getLicencaCacheKey(apiUrl);
+        const ultimaValidacao = Number(localStorage.getItem(licencaCacheKey) || 0);
+        if (Date.now() - ultimaValidacao < LICENCA_CACHE_TTL_MS) {
+          setNaoLicenciado(null);
+          setLoadingApiUrl(false);
+          return;
+        }
+
         const res = await fetchWithPublicFallback(`${apiUrl}/pedir-licenca`);
 
         const data = await res.json();
@@ -393,6 +414,7 @@ export default function App() {
         }
 
         // Se está OK → continua fluxo normal
+        localStorage.setItem(licencaCacheKey, String(Date.now()));
         setNaoLicenciado(null);
         setLoadingApiUrl(false);
 
@@ -420,7 +442,9 @@ export default function App() {
       const carregarDados = async () => {
         try {
           try {
-            const bootstrapData = await apiModule.fetchBootstrap();
+            const bootstrapData = await fetchCachedJson(`${apiUrl}/bootstrap`, {
+              ttlMs: BOOTSTRAP_CACHE_TTL_MS,
+            });
             if (bootstrapData && typeof bootstrapData === "object") {
               setFornecedores(Array.isArray(bootstrapData.fornecedores) ? bootstrapData.fornecedores : []);
               setFamilias(Array.isArray(bootstrapData.familias) ? bootstrapData.familias : []);
@@ -432,19 +456,27 @@ export default function App() {
             console.warn("Bootstrap inicial indisponivel, a usar endpoints antigos:", bootstrapErr);
           }
 
-          const fornecedoresData = await apiModule.fetchFornecedores();
+          const fornecedoresData = await fetchCachedJson(`${apiUrl}/fornecedores`, {
+            ttlMs: BOOTSTRAP_CACHE_TTL_MS,
+          });
           setFornecedores(fornecedoresData);
           //console.log("Fornecedores:", fornecedoresData);
 
-          const familiasData = await apiModule.fetchFamilias();
+          const familiasData = await fetchCachedJson(`${apiUrl}/familias`, {
+            ttlMs: BOOTSTRAP_CACHE_TTL_MS,
+          });
           setFamilias(familiasData);
           //console.log("Familias:", familiasData);
 
-          const subfamiliasData = await apiModule.fetchSubfamilias();
+          const subfamiliasData = await fetchCachedJson(`${apiUrl}/subfamilias`, {
+            ttlMs: BOOTSTRAP_CACHE_TTL_MS,
+          });
           setSubfamilias(subfamiliasData);
           //console.log("Subfamilias:", subfamiliasData);
 
-          const tiposDocumentoData = await apiModule.fetchTiposDocumento();
+          const tiposDocumentoData = await fetchCachedJson(`${apiUrl}/tiposdocumento`, {
+            ttlMs: BOOTSTRAP_CACHE_TTL_MS,
+          });
           setTiposDoc(Array.isArray(tiposDocumentoData) ? tiposDocumentoData : []);
         } catch (err) {
           //.error("Erro ao carregar dados da API:", err);

@@ -2,6 +2,7 @@ import { normalizarTextoPt } from "./texto";
 import { getBrowserPublicUrl } from "./backendConfig";
 
 let API_BASE = "";
+const memoryCache = new Map();
 
 // setter
 export function setApiBaseUrl(url) {
@@ -32,6 +33,7 @@ function buildFallbackUrl(url) {
   const currentUrl = String(url || "");
 
   if (!fallbackBase || !apiBase || fallbackBase === apiBase) return "";
+  if (apiBase.includes("/api_proxy/") || apiBase.includes("/api-proxy/")) return "";
   if (!currentUrl.startsWith(apiBase)) return "";
 
   return `${fallbackBase}${currentUrl.slice(apiBase.length)}`;
@@ -41,26 +43,51 @@ function shouldTryPublicFallback(res) {
   return [502, 503, 504].includes(Number(res?.status || 0));
 }
 
-function getRequestMethod(options = {}) {
-  return String(options.method || "GET").trim().toUpperCase();
+function getCacheKey(url) {
+  return `api-cache:${url}`;
 }
 
-function shouldRetryRead(res, options = {}) {
-  return getRequestMethod(options) === "GET" && [502, 503, 504].includes(Number(res?.status || 0));
+function readCachedJson(url, ttlMs) {
+  const memoryEntry = memoryCache.get(url);
+  if (memoryEntry && Date.now() - memoryEntry.cachedAt < ttlMs) {
+    return memoryEntry.data;
+  }
+
+  if (typeof window === "undefined") return null;
+
+  try {
+    const raw = window.localStorage.getItem(getCacheKey(url));
+    if (!raw) return null;
+
+    const entry = JSON.parse(raw);
+    if (!entry || Date.now() - Number(entry.cachedAt || 0) >= ttlMs) {
+      window.localStorage.removeItem(getCacheKey(url));
+      return null;
+    }
+
+    memoryCache.set(url, { cachedAt: entry.cachedAt, data: entry.data });
+    return entry.data;
+  } catch {
+    return null;
+  }
 }
 
-function delay(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+function writeCachedJson(url, data) {
+  const entry = { cachedAt: Date.now(), data };
+  memoryCache.set(url, entry);
+
+  if (typeof window === "undefined") return;
+
+  try {
+    window.localStorage.setItem(getCacheKey(url), JSON.stringify(entry));
+  } catch {
+    // Ignore quota/storage issues; cache is only an optimization.
+  }
 }
 
 export async function fetchWithPublicFallback(url, options = {}) {
   const requestOptions = withDefaultHeaders(options);
-  let response = await fetch(url, requestOptions);
-
-  if (shouldRetryRead(response, requestOptions)) {
-    await delay(800);
-    response = await fetch(url, requestOptions);
-  }
+  const response = await fetch(url, requestOptions);
 
   const fallbackUrl = buildFallbackUrl(url);
 
@@ -69,6 +96,25 @@ export async function fetchWithPublicFallback(url, options = {}) {
   }
 
   return fetch(fallbackUrl, requestOptions);
+}
+
+export async function fetchCachedJson(url, { ttlMs = 5 * 60 * 1000, forceRefresh = false } = {}) {
+  if (!forceRefresh) {
+    const cached = readCachedJson(url, ttlMs);
+    if (cached !== null) return cached;
+  }
+
+  const res = await fetchWithPublicFallback(url);
+  const data = await res.json().catch(() => null);
+  if (!res.ok) {
+    const error = new Error(data?.error || data?.message || `Erro HTTP: ${res.status}`);
+    error.status = res.status;
+    error.data = data;
+    throw error;
+  }
+
+  writeCachedJson(url, data);
+  return data;
 }
 
 const DEFAULT_HEADERS = {

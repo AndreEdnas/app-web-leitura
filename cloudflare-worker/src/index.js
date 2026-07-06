@@ -114,11 +114,87 @@ function copyProxyResponseHeaders(response, corsHeaders) {
   return headers;
 }
 
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function shouldRetryProxyResponse(response) {
+  return [500, 502, 503, 504].includes(Number(response?.status || 0));
+}
+
+async function fetchProxyWithRetry(targetUrl, init, { retries = 4 } = {}) {
+  let response = null;
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    response = await fetch(targetUrl.toString(), init);
+
+    if (!shouldRetryProxyResponse(response)) {
+      return response;
+    }
+
+    if (attempt < retries) {
+      await delay(350 * (attempt + 1));
+    }
+  }
+
+  return response;
+}
+
+const PROXY_GET_CACHE_TTL_MS = 2 * 60 * 1000;
+let proxyGetCache = new Map();
+
+function getProxyCacheKey(storeId, targetUrl) {
+  return `${storeId}:${targetUrl.toString()}`;
+}
+
+function getCachedProxyResponse(cacheKey, corsHeaders) {
+  const cached = proxyGetCache.get(cacheKey);
+  if (!cached || Date.now() - cached.cachedAt > PROXY_GET_CACHE_TTL_MS) {
+    proxyGetCache.delete(cacheKey);
+    return null;
+  }
+
+  return new Response(cached.body, {
+    status: cached.status,
+    statusText: cached.statusText,
+    headers: {
+      ...cached.headers,
+      ...corsHeaders,
+    },
+  });
+}
+
+async function cacheProxyResponse(cacheKey, response, corsHeaders) {
+  if (!response?.ok) return;
+
+  const contentType = response.headers.get("content-type") || "";
+  if (!contentType.toLowerCase().includes("application/json")) return;
+
+  const headers = {};
+  const responseHeaders = copyProxyResponseHeaders(response, corsHeaders);
+  for (const [key, value] of responseHeaders.entries()) {
+    headers[key] = value;
+  }
+
+  proxyGetCache.set(cacheKey, {
+    cachedAt: Date.now(),
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+    body: await response.clone().text(),
+  });
+
+  if (proxyGetCache.size > 200) {
+    const oldestKey = proxyGetCache.keys().next().value;
+    if (oldestKey) proxyGetCache.delete(oldestKey);
+  }
+}
+
 async function fetchProxyJson(storeUrl, path, request, url) {
   const targetUrl = new URL(`${storeUrl}${path}`);
   targetUrl.search = url.search;
 
-  const response = await fetch(targetUrl.toString(), {
+  const response = await fetchProxyWithRetry(targetUrl, {
     method: "GET",
     headers: buildProxyHeaders(request),
     redirect: "manual",
@@ -140,12 +216,16 @@ async function fetchProxyJson(storeUrl, path, request, url) {
 }
 
 async function bootstrapProxyResponse(storeUrl, request, url, corsHeaders) {
-  const [fornecedores, familias, subfamilias, tiposDocumento] = await Promise.all([
+  const entries = await Promise.allSettled([
     fetchProxyJson(storeUrl, "/fornecedores", request, url),
     fetchProxyJson(storeUrl, "/familias", request, url),
     fetchProxyJson(storeUrl, "/subfamilias", request, url),
     fetchProxyJson(storeUrl, "/tiposdocumento", request, url),
   ]);
+
+  const [fornecedores, familias, subfamilias, tiposDocumento] = entries.map((entry) =>
+    entry.status === "fulfilled" && Array.isArray(entry.value) ?entry.value : []
+  );
 
   return jsonResponse(
     {
@@ -196,6 +276,32 @@ async function findStoreByToken(lojas, token) {
   return { storeId: null, store: null };
 }
 
+async function findClienteByToken(kv, token) {
+  const providedToken = String(token || "").trim();
+  if (!kv || !providedToken) return { clienteId: null, cliente: null };
+
+  const clientes = await readPrefixMap(kv, "cliente:");
+  for (const [clienteId, cliente] of Object.entries(clientes || {})) {
+    if (!cliente || typeof cliente !== "object") continue;
+
+    const loja = cliente.loja && typeof cliente.loja === "object" ?cliente.loja : {};
+    const expectedToken =
+      cliente.token ||
+      cliente.store_token ||
+      cliente.token_loja ||
+      loja.token ||
+      loja.store_token ||
+      loja.token_loja ||
+      "";
+
+    if (await tokensMatch(providedToken, expectedToken)) {
+      return { clienteId, cliente };
+    }
+  }
+
+  return { clienteId: null, cliente: null };
+}
+
 async function resolveStoreByDirectToken(kv, token) {
   const providedToken = String(token || "").trim();
   if (!kv || !providedToken) return { storeId: null, store: null, cliente: null };
@@ -211,6 +317,20 @@ async function resolveStoreByDirectToken(kv, token) {
     const store = getClienteStore(clienteId, directCliente);
     if (store) {
       return { storeId: clienteId, store, cliente: directCliente };
+    }
+  }
+
+  const clienteByToken = await findClienteByToken(kv, providedToken);
+  if (clienteByToken.cliente && typeof clienteByToken.cliente === "object") {
+    const clienteId = normalizeStoreId(
+      clienteByToken.cliente.id ||
+      clienteByToken.cliente.cliente_id ||
+      clienteByToken.cliente.loja_id ||
+      clienteByToken.clienteId
+    );
+    const store = getClienteStore(clienteId, clienteByToken.cliente);
+    if (store) {
+      return { storeId: clienteId, store, cliente: clienteByToken.cliente };
     }
   }
 
@@ -2411,7 +2531,7 @@ export default {
       if (!storeId || !store) {
         return jsonResponse(
           { success: false, error: "Token inválido" },
-          404,
+          401,
           corsHeaders
         );
       }
@@ -2491,15 +2611,39 @@ export default {
       const targetUrl = new URL(`${storeUrl}${proxyPath}`);
       targetUrl.search = url.search;
 
-      const proxyResponse = await fetch(targetUrl.toString(), {
+      const proxyCacheKey =
+        request.method === "GET" ?getProxyCacheKey(storeId, targetUrl) : "";
+      const proxyInit = {
         method: request.method,
         headers: buildProxyHeaders(request),
         body: ["GET", "HEAD"].includes(request.method) ? undefined : request.body,
         redirect: "manual",
-      });
+      };
+      const proxyResponse =
+        request.method === "GET"
+          ?await fetchProxyWithRetry(targetUrl, proxyInit)
+          : await fetch(targetUrl.toString(), proxyInit);
 
       const proxyContentType = proxyResponse.headers.get("content-type") || "";
       if (!proxyResponse.ok && !proxyContentType.toLowerCase().includes("application/json")) {
+        if (proxyCacheKey) {
+          const cachedResponse = getCachedProxyResponse(proxyCacheKey, corsHeaders);
+          if (cachedResponse) return cachedResponse;
+        }
+
+        if (request.method === "GET" && proxyPath === "/pedir-licenca") {
+          return jsonResponse(
+            {
+              success: true,
+              loja: storeId,
+              url: storeUrl,
+              degraded: true,
+            },
+            200,
+            corsHeaders
+          );
+        }
+
         return jsonResponse(
           {
             success: false,
@@ -2511,6 +2655,10 @@ export default {
           proxyResponse.status === 404 ?404 : 502,
           corsHeaders
         );
+      }
+
+      if (proxyCacheKey) {
+        await cacheProxyResponse(proxyCacheKey, proxyResponse, corsHeaders);
       }
 
       return new Response(proxyResponse.body, {
