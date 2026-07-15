@@ -107,7 +107,9 @@ export async function fetchCachedJson(url, { ttlMs = 5 * 60 * 1000, forceRefresh
   const res = await fetchWithPublicFallback(url);
   const data = await res.json().catch(() => null);
   if (!res.ok) {
-    const error = new Error(data?.error || data?.message || `Erro HTTP: ${res.status}`);
+    const error = new Error(
+      data?.erro || data?.error || data?.mensagem || data?.message || `Erro HTTP: ${res.status}`
+    );
     error.status = res.status;
     error.data = data;
     throw error;
