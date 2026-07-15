@@ -8,6 +8,7 @@ export default function LoginPage({ apiUrl, onLoginSuccess }) {
   const [empregadoSelecionado, setEmpregadoSelecionado] = useState(null);
   const [pin, setPin] = useState("");
   const [erro, setErro] = useState("");
+  const [aCarregar, setACarregar] = useState(true);
 
   useEffect(() => {
     async function fetchEmpregados() {
@@ -20,6 +21,7 @@ export default function LoginPage({ apiUrl, onLoginSuccess }) {
         console.error("Erro ao obter empregados:", err);
         setErro(err?.message || "Não foi possível carregar operadores.");
       }
+      setACarregar(false);
     }
 
     fetchEmpregados();
@@ -117,8 +119,15 @@ export default function LoginPage({ apiUrl, onLoginSuccess }) {
                   <span className="fw-bold">{emp.nome}</span>
                 </button>
               ))
-            ) : (
+            ) : aCarregar ? (
               <p className="text-muted text-center mb-0">A carregar operadores...</p>
+            ) : (
+              <div className="text-center">
+                <p className="text-danger mb-3">{erro || "Não existem operadores disponíveis."}</p>
+                <button type="button" className="btn btn-outline-primary" onClick={() => window.location.reload()}>
+                  Tentar novamente
+                </button>
+              </div>
             )}
           </div>
         ) : (

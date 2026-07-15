@@ -1720,6 +1720,15 @@ app.get("/pedir-licenca", async (req, res) => {
       snapshot.hostHeader
     );
 
+    // Keep the protected-route middleware in sync with the successful check.
+    // Direct v2 snapshots resolve the store from the machine licence and do
+    // not populate lojaDoHost.
+    LICENCA_OK = true;
+    lojaAtual = {
+      ...snapshot.lojaDaLicenca,
+      id: snapshot.lojaDaLicencaId
+    };
+
     return res.json({
       success: true,
       chave: snapshot.hwid,
@@ -1961,11 +1970,16 @@ app.use(async (req, res, next) => {
   if (!LICENCA_OK || !lojaAtual) {
     try {
       const snapshot = await obterSnapshotLicenca({ req });
-      if (snapshot.lojaDoHost) {
+      const lojaResolvida = snapshot.lojaDaLicenca || snapshot.lojaDoHost;
+      const lojaResolvidaId = snapshot.lojaDaLicenca
+        ? snapshot.lojaDaLicencaId
+        : snapshot.lojaDoHostId;
+
+      if (lojaResolvida) {
         LICENCA_OK = true;
         lojaAtual = {
-          ...snapshot.lojaDoHost,
-          id: snapshot.lojaDoHostId
+          ...lojaResolvida,
+          id: lojaResolvidaId
         };
         return next();
       }
