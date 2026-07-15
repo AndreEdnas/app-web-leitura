@@ -1042,7 +1042,6 @@ export default function App() {
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error || "Erro ao criar documento de compra.");
 
-      console.log("✅ Documento de compra criado:", data);
       setAlerta({
         tipo: "sucesso",
         mensagem: `Documento ${tipoDocSelecionado.doc}/${data.serie} n.º ${data.numero} criado com sucesso.`
@@ -1111,12 +1110,6 @@ export default function App() {
 
       for (const novoProd of produtosParaCriarAgora) {
 
-        console.log("🧪 DEBUG PRODUTO NOVO (ANTES DO POST):", {
-          descricao: novoProd.descricao,
-          fornecedorNoProduto: novoProd.fornecedor,
-          fornecedorSelecionado,
-          produtoCompleto: novoProd
-        });
         const criado = await criarProduto({
           ...novoProd,
           fornecedor: Number(fornecedorSelecionado)
@@ -1385,7 +1378,13 @@ export default function App() {
 
   // 🔐 Se a loja já foi validada mas o empregado ainda não fez login
   if (!empregado && lojaSelecionada && apiUrl) {
-    return <LoginPage apiUrl={apiUrl} onLoginSuccess={setEmpregado} />;
+    return (
+      <LoginPage
+        apiUrl={apiUrl}
+        onLoginSuccess={setEmpregado}
+        onTrocarLoja={trocarLoja}
+      />
+    );
   }
 
   // ✅ Se já fez login e está no menu principal
