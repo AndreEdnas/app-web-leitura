@@ -3,7 +3,7 @@ import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap-icons/font/bootstrap-icons.css";
 import { fetchCachedJson, fetchWithPublicFallback } from "../services/api";
 
-export default function LoginPage({ apiUrl, onLoginSuccess }) {
+export default function LoginPage({ apiUrl, onLoginSuccess, onTrocarLoja }) {
   const [empregados, setEmpregados] = useState([]);
   const [empregadoSelecionado, setEmpregadoSelecionado] = useState(null);
   const [pin, setPin] = useState("");
@@ -124,9 +124,17 @@ export default function LoginPage({ apiUrl, onLoginSuccess }) {
             ) : (
               <div className="text-center">
                 <p className="text-danger mb-3">{erro || "Não existem operadores disponíveis."}</p>
-                <button type="button" className="btn btn-outline-primary" onClick={() => window.location.reload()}>
-                  Tentar novamente
-                </button>
+                <div className="d-flex flex-wrap justify-content-center gap-2">
+                  <button type="button" className="btn btn-outline-primary" onClick={() => window.location.reload()}>
+                    Tentar novamente
+                  </button>
+                  {onTrocarLoja && (
+                    <button type="button" className="btn btn-outline-secondary" onClick={onTrocarLoja}>
+                      <i className="bi bi-arrow-repeat me-1" aria-hidden="true"></i>
+                      Trocar loja
+                    </button>
+                  )}
+                </div>
               </div>
             )}
           </div>
